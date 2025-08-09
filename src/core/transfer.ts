@@ -80,12 +80,15 @@ export async function executeTransfer(params: TransferParams): Promise<TransferR
       }
     }
 
-    // CRITICAL: Check if sender has sufficient balance for amount + all fees + potential admin wallet funding
+    // CRITICAL: Check if sender has sufficient balance for amount + all fees + potential admin/recipient funding
     const adminBalance = await connection.getBalance(adminPubkey);
+    const recipientBalance = await connection.getBalance(recipientPubkey);
     const rentExemptMinimum = 890880; // ~0.00089 SOL
-    const adminFunding = adminBalance < rentExemptMinimum ? BigInt(rentExemptMinimum - adminBalance) : 0n;
     
-    const totalRequired = amountRaw + feeRaw + (serviceFeeRaw || 0n) + adminFunding;
+    const adminFunding = adminBalance < rentExemptMinimum ? BigInt(rentExemptMinimum - adminBalance) : 0n;
+    const recipientFunding = recipientBalance === 0 ? BigInt(rentExemptMinimum) : 0n; // New wallets need rent exemption
+    
+    const totalRequired = amountRaw + feeRaw + (serviceFeeRaw || 0n) + adminFunding + recipientFunding;
     
     if (mint === "So11111111111111111111111111111111111111112") {
       // For SOL transfers, check SOL balance
@@ -147,12 +150,24 @@ export async function executeTransfer(params: TransferParams): Promise<TransferR
 
     if (mint === "So11111111111111111111111111111111111111112") {
       // Native SOL transfer
-      // IMPORTANT: Recipient gets the FULL amount, sender pays amount + fees
+      // IMPORTANT: Check if recipient needs funding for rent exemption (new wallets have 0 balance)
+      const recipientBalance = await connection.getBalance(recipientPubkey);
+      const rentExemptMinimum = 890880; // ~0.00089 SOL
+      
+      let totalToRecipient = Number(amountRaw);
+      
+      // If recipient has 0 balance (new wallet), they need rent exemption funding on top of transfer amount
+      if (recipientBalance === 0) {
+        totalToRecipient = Number(amountRaw) + rentExemptMinimum;
+        logger.info(`New wallet detected - adding rent exemption funding: ${rentExemptMinimum / LAMPORTS_PER_SOL} SOL`);
+      }
+      
+      // IMPORTANT: Recipient gets the FULL amount + rent exemption if needed, sender pays all costs
       transaction.add(
         SystemProgram.transfer({
           fromPubkey: senderPubkey,
           toPubkey: recipientPubkey,
-          lamports: Number(amountRaw) // Recipient receives full amount
+          lamports: totalToRecipient // Full amount + rent exemption for new wallets
         })
       );
 

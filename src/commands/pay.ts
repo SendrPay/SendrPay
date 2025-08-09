@@ -2,7 +2,7 @@ import type { BotContext } from "../bot";
 import { prisma } from "../infra/prisma";
 import { parsePayCommand } from "../core/parse";
 import { resolveToken } from "../core/tokens";
-import { calcFeeRaw } from "../core/fees";
+import { calculateFee, generateFeeConfirmationMessage } from "../core/fees";
 import { executeTransfer } from "../core/transfer";
 import { createEscrow } from "../core/escrow";
 import { formatReceipt } from "../core/receipts";
@@ -80,10 +80,11 @@ export async function commandPay(ctx: BotContext) {
 
     const payerWallet = payer.wallets[0];
 
-    // Calculate fees (includes transaction fee + 0.25% service fee)
+    // Calculate fees with flexible service fee system
     const feeCalc = await calculateFee(amountRaw, token.mint);
     const feeRaw = feeCalc.feeRaw;
     const serviceFeeRaw = feeCalc.serviceFeeRaw;
+    const serviceFeeToken = feeCalc.serviceFeeToken;
     const netRaw = feeCalc.netRaw;
 
     // Generate payment ID
@@ -122,18 +123,23 @@ export async function commandPay(ctx: BotContext) {
       return ctx.reply(`❌ User @${payeeHandle} needs to create a wallet first.`);
     }
 
-    // Show payment confirmation (only show transaction fee, not service fee)
+    // Show payment confirmation with flexible service fee information
     const grossAmount = Number(amountRaw) / (10 ** token.decimals);
     const feeAmount = Number(feeRaw) / (10 ** token.decimals);
     const netAmount = Number(netRaw) / (10 ** token.decimals);
+    
+    // Get service fee confirmation message
+    const serviceFeeMessage = await generateFeeConfirmationMessage(amountRaw, token.mint, token);
     
     const confirmationText = `💳 **Payment Confirmation**
 
 **Sending:** ${grossAmount} ${token.ticker}
 **To:** @${payeeHandle}
-**Fee:** ${feeAmount} ${token.ticker}
+**Transaction Fee:** ${feeAmount} ${token.ticker}
 **Net Amount:** ${netAmount} ${token.ticker}
 ${note ? `**Note:** ${note}` : ''}
+
+**Service Fee:** ${serviceFeeMessage}
 
 Confirm this payment?`;
 
@@ -161,6 +167,10 @@ Confirm this payment?`;
         mint: token.mint,
         amountRaw: amountRaw.toString(),
         feeRaw: feeRaw.toString(),
+        // @ts-ignore - New fields from schema update
+        serviceFeeRaw: serviceFeeRaw.toString(),
+        // @ts-ignore - New fields from schema update  
+        serviceFeeToken,
         note,
         status: "awaiting_confirmation"
       }
@@ -230,18 +240,20 @@ export async function handlePaymentConfirmation(ctx: BotContext, confirmed: bool
 
     const amountRaw = BigInt(payment.amountRaw);
     const feeRaw = BigInt(payment.feeRaw);
-    // Calculate service fee for existing payment
-    const serviceFeeRaw = (amountRaw * 25n) / 10000n; // 0.25%
-    const netRaw = amountRaw - feeRaw - serviceFeeRaw;
+    // @ts-ignore - New fields from schema update
+    const serviceFeeRaw = BigInt(payment.serviceFeeRaw || "0");
+    const netRaw = amountRaw - feeRaw;
 
-    // Execute transfer (pass full amount, let transfer logic handle fees)
+    // Execute transfer with flexible service fee
     const result = await executeTransfer({
       fromWallet: payerWallet,
       toAddress: payment.toWallet,
       mint: token.mint,
-      amountRaw: amountRaw, // Pass full amount
+      amountRaw: netRaw, // Pass net amount (recipient receives this)
       feeRaw,
       serviceFeeRaw,
+      // @ts-ignore - New fields from schema update
+      serviceFeeToken: payment.serviceFeeToken || payment.mint,
       token
     });
 

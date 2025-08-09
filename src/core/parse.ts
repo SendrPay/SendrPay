@@ -133,7 +133,12 @@ export function parseSplitCommand(ctx: BotContext): SplitCommand | null {
   if (!/^[A-Z]{2,10}$/.test(tokenTicker)) return null;
 
   // Parse recipients @user1 @user2 @user3:30%
-  const recipients = [];
+  const recipients: Array<{
+    userId?: string;
+    handle?: string;
+    weight: number;
+  }> = [];
+  
   for (let i = 2; i < args.length; i++) {
     const arg = args[i];
     if (!arg.startsWith('@')) continue;

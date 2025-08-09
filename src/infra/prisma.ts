@@ -22,7 +22,7 @@ if (process.env.NODE_ENV === 'development') {
 
 // Log database errors
 prisma.$on('error', (e) => {
-  logger.error('Database error:', e);
+  logger.error(`Database error: ${e.message}`);
 });
 
 // Log database info
@@ -84,10 +84,10 @@ export async function checkDatabaseHealth(): Promise<{
 
 // Transaction wrapper with retry logic
 export async function withTransaction<T>(
-  operation: (tx: PrismaClient) => Promise<T>,
+  operation: (tx: any) => Promise<T>,
   maxRetries: number = 3
 ): Promise<T> {
-  let lastError: Error;
+  let lastError: Error = new Error('Transaction failed');
   
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
@@ -99,14 +99,14 @@ export async function withTransaction<T>(
       lastError = error instanceof Error ? error : new Error('Transaction failed');
       
       if (attempt < maxRetries) {
-        logger.warn(`Transaction attempt ${attempt} failed, retrying...`, error);
+        logger.warn(`Transaction attempt ${attempt} failed, retrying...`);
         // Exponential backoff
         await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 100));
       }
     }
   }
   
-  logger.error(`Transaction failed after ${maxRetries} attempts:`, lastError);
+  logger.error(`Transaction failed after ${maxRetries} attempts:`);
   throw lastError;
 }
 

@@ -28,12 +28,8 @@ if (bot) {
   bot.catch((err) => {
     const error = err.error;
     const ctx = err.ctx;
-    logger.error("Bot error:", error instanceof Error ? error.message : String(error));
-    logger.error("Error context:", {
-      updateId: ctx.update.update_id,
-      chatId: ctx.chat?.id,
-      userId: ctx.from?.id
-    });
+    logger.error(`Bot error: ${error instanceof Error ? error.message : String(error)}`);
+    logger.error(`Error context - Update: ${ctx.update.update_id}, Chat: ${ctx.chat?.id}, User: ${ctx.from?.id}`);
   });
 
   // Log all updates for debugging

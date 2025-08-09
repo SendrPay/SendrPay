@@ -35,27 +35,29 @@ export async function sendPaymentNotification(
     } = data;
 
     // Create notification message
-    let message = `💸 **Payment Received**\n\n`;
-    message += `**From:** @${senderHandle}\n`;
-    message += `**Amount:** ${amount} ${tokenTicker}\n`;
+    let message = `🎉 You've Got ${tokenTicker}!\n\n`;
+    message += `From: @${senderHandle}\n`;
+    message += `Amount: ${amount} ${tokenTicker}\n`;
     
     if (note) {
-      message += `**Note:** ${note}\n`;
+      message += `Note: ${note}\n`;
     }
     
     if (isNewWallet) {
       message += `\n✨ Welcome! Your wallet was set up automatically.\n`;
     }
     
-    message += `\n[View Transaction](${getSolanaExplorerLink(signature)})`;
+    message += `\n🔍 [View Transaction](${getSolanaExplorerLink(signature)})`;
 
     // Create shorter callback data (Telegram limit is 64 bytes)
     const shortSig = signature.slice(0, 20); // Use first 20 chars of signature
     
-    // Create inline keyboard with emoji reactions only
+    // Create inline keyboard with 4 emoji reactions
     const keyboard = new InlineKeyboard()
       .text("❤️", `react_heart_${shortSig}`)
-      .text("🔥", `react_fire_${shortSig}`);
+      .text("🔥", `react_fire_${shortSig}`)
+      .text("🙏", `react_pray_${shortSig}`)
+      .text("👍", `react_thumbs_${shortSig}`);
 
     // Send notification and store message ID for reply functionality
     const sentMessage = await botApi.sendMessage(recipientTelegramId, message, {
@@ -91,10 +93,16 @@ export async function handleReactionCallback(ctx: any) {
     if (!data || !data.startsWith("react_")) return;
 
     const parts = data.split("_");
-    const reaction = parts[1]; // "heart" or "fire"
+    const reaction = parts[1]; // "heart", "fire", "pray", or "thumbs"
     const shortSig = parts.slice(2).join("_");
 
-    const emoji = reaction === "heart" ? "❤️" : "🔥";
+    const emojiMap: { [key: string]: string } = {
+      "heart": "❤️",
+      "fire": "🔥", 
+      "pray": "🙏",
+      "thumbs": "👍"
+    };
+    const emoji = emojiMap[reaction] || "❤️";
     
     // Find the original transaction to get sender info
     const { PrismaClient } = await import("@prisma/client");

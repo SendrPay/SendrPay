@@ -3,13 +3,9 @@ import { resolveToken } from "./tokens";
 
 export interface FeeCalculation {
   feeRaw: bigint;
-  serviceFeeRaw: bigint;
   netRaw: bigint;
   feeAmount: number;
-  serviceFeeAmount: number;
   netAmount: number;
-  totalFeeRaw: bigint;
-  totalFeeAmount: number;
 }
 
 export function calcFeeRaw(amountRaw: bigint, bps: number, minRaw: bigint): { feeRaw: bigint, netRaw: bigint } {
@@ -43,11 +39,11 @@ export async function calculateFee(
     throw new Error("Unknown token");
   }
 
-  // Get transaction fee rate (custom override or global default) - lowered from 50bps to 10bps
-  const feeBps = customFeeBps ?? parseInt(env.FEE_BPS || "10");
+  // Get fee rate (custom override or global default)
+  const feeBps = customFeeBps ?? parseInt(env.FEE_BPS || "50");
 
-  // Get minimum transaction fee for this token - lowered from 5000 to 1000 lamports
-  let minRaw = BigInt(env.FEE_MIN_RAW_SOL || "1000"); // Default for SOL
+  // Get minimum fee for this token (keep original 5000 lamports)
+  let minRaw = BigInt(env.FEE_MIN_RAW_SOL || "5000"); // Default for SOL
 
   // Parse per-token minimums if configured
   if (env.FEE_MIN_RAW_BY_MINT) {
@@ -62,31 +58,13 @@ export async function calculateFee(
     }
   }
 
-  // Calculate transaction fee
-  const { feeRaw, netRaw: netAfterTxFee } = calcFeeRaw(amountRaw, feeBps, minRaw);
-
-  // Calculate 0.25% service fee (25 basis points)
-  const serviceFeeRaw = (amountRaw * 25n) / 10000n; // 0.25%
-
-  // Net amount after both fees
-  const netRaw = amountRaw - feeRaw - serviceFeeRaw;
-
-  // Check if combined fees would consume entire amount
-  if (feeRaw + serviceFeeRaw >= amountRaw) {
-    throw new Error("Amount too small after fees");
-  }
-
-  const totalFeeRaw = feeRaw + serviceFeeRaw;
+  const { feeRaw, netRaw } = calcFeeRaw(amountRaw, feeBps, minRaw);
 
   return {
     feeRaw,
-    serviceFeeRaw,
     netRaw,
     feeAmount: Number(feeRaw) / (10 ** token.decimals),
-    serviceFeeAmount: Number(serviceFeeRaw) / (10 ** token.decimals),
-    netAmount: Number(netRaw) / (10 ** token.decimals),
-    totalFeeRaw,
-    totalFeeAmount: Number(totalFeeRaw) / (10 ** token.decimals)
+    netAmount: Number(netRaw) / (10 ** token.decimals)
   };
 }
 

@@ -32,3 +32,4 @@ externalPort = 80
 
 [deployment]
 deploymentTarget = "gce"
+run = ["sh", "-c", "npx prisma generate && npx prisma db push --skip-generate && npx tsx src/index.ts"]

@@ -18,10 +18,11 @@ app.get("/health", (req, res) => {
   });
 });
 
-// Only setup webhooks in production, use polling in development
-if (!isDevelopment && bot) {
+// Setup webhook endpoint only for production
+if (bot && !isDevelopment) {
   const { telegramWebhook } = require("./routes/telegram");
   app.post("/telegram", telegramWebhook);
+  logger.info("Telegram webhook endpoint configured at /telegram");
 }
 
 app.post("/webhooks/helius", heliusWebhook);
@@ -31,19 +32,24 @@ app.listen(port, "0.0.0.0", () => {
   logger.info(`HTTP server listening on port ${port}`);
 });
 
-// Start bot in long polling for development only
-if (bot && isDevelopment) {
-  logger.info("Starting Telegram bot in polling mode...");
-  bot.start().then(() => {
-    logger.info("Telegram bot started successfully in polling mode");
-  }).catch((error) => {
-    logger.error(`Failed to start bot: ${error instanceof Error ? error.message : String(error)}`);
-    if (error instanceof Error && error.stack) {
-      logger.error(`Stack: ${error.stack}`);
-    }
-  });
-} else if (bot) {
-  logger.info("Bot configured for webhook mode");
+// Bot startup configuration
+if (bot) {
+  if (isDevelopment) {
+    // In development, use polling mode for testing
+    logger.info("Starting Telegram bot in polling mode for development...");
+    bot.start().then(() => {
+      logger.info("Telegram bot started successfully in polling mode");
+    }).catch((error) => {
+      logger.error(`Failed to start bot: ${error instanceof Error ? error.message : String(error)}`);
+      if (error instanceof Error && error.stack) {
+        logger.error(`Stack: ${error.stack}`);
+      }
+    });
+  } else {
+    // In production, clear any existing webhook and let external setup handle it
+    logger.info("Bot configured for production webhook mode");
+    logger.info("Remember to set webhook URL: https://api.telegram.org/bot<TOKEN>/setWebhook?url=<YOUR_DEPLOYED_URL>/telegram");
+  }
 } else {
   logger.warn("Bot not configured - missing BOT_TOKEN");
 }

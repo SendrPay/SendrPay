@@ -125,3 +125,10 @@ Preferred communication style: Simple, everyday language.
   - Wallet creation/import messages enhanced with security warnings and clean address display
   - Balance displays improved with shortened address format and organized token listings
   - All UI text follows modern design principles: clean, concise, and user-focused
+- **Case-Insensitive Username System**: Fixed Telegram username matching to be case-insensitive like Telegram itself (August 9, 2025)
+  - Username parsing normalizes all @ mentions to lowercase during command processing
+  - Database lookups use case-insensitive matching with Prisma's `mode: 'insensitive'` option
+  - Username storage in database automatically converted to lowercase for consistency
+  - Fixed issue where "@Vi100x" vs "@vi100x" would fail payment verification
+  - All payment commands (/pay, /tip, /split) now work regardless of username case
+  - Username verification system maintains security while allowing natural case variations

@@ -54,7 +54,7 @@ export async function commandTip(ctx: BotContext) {
       amount = parsed.amount;
       tokenTicker = parsed.tokenTicker;
       payeeId = ctx.message?.reply_to_message?.from?.id.toString();
-      payeeHandle = ctx.message?.reply_to_message?.from?.username;
+      payeeHandle = ctx.message?.reply_to_message?.from?.username?.toLowerCase(); // Normalize to lowercase
 
       if (!payeeId) {
         return ctx.reply("❌ Could not identify tip recipient.");
@@ -117,10 +117,13 @@ export async function commandTip(ctx: BotContext) {
     let payeeWallet: any = null;
 
     if (payeeHandle) {
-      // Look up user by their actual Telegram handle (from their Telegram account)
+      // Look up user by their actual Telegram handle (case-insensitive like Telegram)
       const payeeResult = await prisma.user.findFirst({
         where: { 
-          handle: payeeHandle, // Must match their actual Telegram username
+          handle: {
+            equals: payeeHandle,
+            mode: 'insensitive' // Case-insensitive matching like Telegram
+          }
         },
         include: { wallets: { where: { isActive: true } } }
       });

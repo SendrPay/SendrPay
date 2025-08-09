@@ -48,12 +48,12 @@ export async function parsePayCommand(ctx: BotContext): Promise<PayCommand | nul
   // Check for reply-to-message first
   if (ctx.message?.reply_to_message?.from) {
     payeeId = ctx.message.reply_to_message.from.id.toString();
-    payeeHandle = ctx.message.reply_to_message.from.username;
+    payeeHandle = ctx.message.reply_to_message.from.username?.toLowerCase(); // Normalize to lowercase
   } else {
     // Look for @mention in args
     const mentionArg = args.find(arg => arg.startsWith('@'));
     if (mentionArg) {
-      payeeHandle = mentionArg.slice(1);
+      payeeHandle = mentionArg.slice(1).toLowerCase(); // Normalize to lowercase like Telegram
       // Extract user ID from entities if available
       const entities = ctx.message?.entities || [];
       const mentionEntity = entities.find(e => e.type === 'mention');
@@ -149,8 +149,10 @@ export function parseSplitCommand(ctx: BotContext): SplitCommand | null {
     // Check for weight specification @user:30%
     const weightMatch = handle.match(/^([^:]+):(\d+)%?$/);
     if (weightMatch) {
-      handle = weightMatch[1];
+      handle = weightMatch[1].toLowerCase(); // Normalize username to lowercase
       weight = parseInt(weightMatch[2]) / 100;
+    } else {
+      handle = handle.toLowerCase(); // Normalize username to lowercase
     }
 
     recipients.push({

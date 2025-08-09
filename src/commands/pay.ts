@@ -102,10 +102,13 @@ export async function commandPay(ctx: BotContext) {
     }
 
     // Username verification: Find user by their actual Telegram handle only
-    // Look up user by their verified Telegram handle (from their actual Telegram account)
+    // Look up user by their verified Telegram handle (case-insensitive like Telegram)
     const payee = await prisma.user.findFirst({
       where: { 
-        handle: payeeHandle, // Must match their actual Telegram username
+        handle: {
+          equals: payeeHandle,
+          mode: 'insensitive' // Case-insensitive matching like Telegram
+        }
       },
       include: { wallets: { where: { isActive: true } } }
     });

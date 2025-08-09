@@ -97,6 +97,9 @@ export async function executeTransfer(params: TransferParams): Promise<TransferR
           error: `Insufficient SOL balance. Required: ${requiredSol.toFixed(6)} SOL, Available: ${availableSol.toFixed(6)} SOL` 
         };
       }
+      
+      // Log balance check details for debugging
+      logger.info(`Balance check passed - Available: ${senderBalance / LAMPORTS_PER_SOL} SOL, Required: ${Number(totalRequired + BigInt(rentExemptMinimum + estimatedTxFee)) / LAMPORTS_PER_SOL} SOL`);
     } else {
       // For SPL token transfers, check token balance + SOL for fees
       try {
@@ -342,11 +345,17 @@ export async function executeTransfer(params: TransferParams): Promise<TransferR
     // Sign transaction
     transaction.sign(senderKeypair);
 
-    // Send transaction
-    const signature = await connection.sendRawTransaction(transaction.serialize(), {
-      skipPreflight: false,
-      preflightCommitment: 'confirmed'
-    });
+    // Log transaction details for debugging
+    const senderBal = await connection.getBalance(senderPubkey);
+    const recipientBal = await connection.getBalance(recipientPubkey);
+    logger.info(`Transaction details - Sender: ${senderBal / LAMPORTS_PER_SOL} SOL, Recipient: ${recipientBal / LAMPORTS_PER_SOL} SOL, Amount: ${Number(amountRaw) / LAMPORTS_PER_SOL} SOL, Fee: ${Number(feeRaw) / LAMPORTS_PER_SOL} SOL, ServiceFee: ${Number(serviceFeeRaw) / LAMPORTS_PER_SOL} SOL`);
+
+    // Send transaction with enhanced error handling
+    try {
+      const signature = await connection.sendRawTransaction(transaction.serialize(), {
+        skipPreflight: false,
+        preflightCommitment: 'confirmed'
+      });
 
     // Confirm transaction
     const confirmation = await connection.confirmTransaction({
@@ -362,8 +371,16 @@ export async function executeTransfer(params: TransferParams): Promise<TransferR
       };
     }
 
-    logger.info(`Transfer completed: ${signature}`);
-    return { success: true, signature };
+      logger.info(`Transfer completed: ${signature}`);
+      return { success: true, signature };
+      
+    } catch (sendError) {
+      logger.error("Transaction send error:", sendError);
+      return {
+        success: false,
+        error: sendError instanceof Error ? sendError.message : "Transaction send failed"
+      };
+    }
 
   } catch (error) {
     logger.error("Transfer execution error:", error);

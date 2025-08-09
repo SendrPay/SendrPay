@@ -26,9 +26,6 @@ task = "shell.exec"
 args = "npx prisma generate && npx prisma db push && npx tsx src/index.ts"
 waitForPort = 5000
 
-[workflows.workflow.metadata]
-outputType = "webview"
-
 [[ports]]
 localPort = 5000
 externalPort = 80

@@ -1,2 +1,34 @@
+modules = ["nodejs-20"]
 [agent]
 expertMode = true
+
+[nix]
+channel = "stable-25_05"
+
+[workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Solana Pay Bot"
+
+[[workflows.workflow]]
+name = "Solana Pay Bot"
+author = "agent"
+
+[workflows.workflow.metadata]
+outputType = "console"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm install && npx prisma generate && npx prisma db push && npx tsx src/index.ts"
+waitForPort = 5000
+
+[[ports]]
+localPort = 5000
+externalPort = 80

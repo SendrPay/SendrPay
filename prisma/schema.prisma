@@ -1,0 +1,219 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             Int       @id @default(autoincrement())
+  telegramId     String    @unique
+  handle         String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  activeWalletId Int?
+
+  // Relations
+  wallets         Wallet[]
+  paymentsFrom    Payment[] @relation("FromUser")
+  paymentsTo      Payment[] @relation("ToUser")
+  giveawayEntries GiveawayEntry[]
+
+  @@map("users")
+}
+
+model Wallet {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  label      String?  // "custodial" | "phantom" | "imported"
+  address    String   @unique
+  encPrivKey Bytes?   // Encrypted private key for custodial wallets
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  isActive   Boolean  @default(true)
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([address])
+  @@index([isActive])
+  @@map("wallets")
+}
+
+model Token {
+  mint      String  @id
+  ticker    String  @unique
+  name      String?
+  decimals  Int
+  icon      String?
+  enabled   Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ticker])
+  @@index([enabled])
+  @@map("tokens")
+}
+
+model Chat {
+  chatId        String   @id
+  type          String   // "group" | "supergroup" | "channel"
+  title         String?
+  whitelisted   Boolean  @default(false)
+  tipping       Boolean  @default(true)
+  defaultTicker String?  // e.g., "USDC"
+  feeBps        Int?     // Override global fee rate
+  feeMinRaw     String?  // Override fee minimum for default token
+  maxTipAmount  String?  // Maximum tip amount (raw units)
+  dailyLimit    String?  // Daily spending limit per user (raw units)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([whitelisted])
+  @@index([type])
+  @@map("chats")
+}
+
+model Payment {
+  id             String   @id @default(cuid())
+  clientIntentId String   @unique
+  chatId         String?
+  fromUserId     Int?
+  toUserId       Int?
+  fromWallet     String
+  toWallet       String
+  mint           String   // Token mint address or "SOL"
+  amountRaw      String   // Raw amount as string (bigint)
+  feeRaw         String   // Fee amount as string (bigint)
+  note           String?
+  status         String   // "pending" | "sent" | "confirmed" | "failed" | "refunded" | "expired"
+  txSig          String?  // Transaction signature
+  errorMsg       String?  // Error message if failed
+  retryCount     Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relations
+  from User? @relation("FromUser", fields: [fromUserId], references: [id], onDelete: SetNull)
+  to   User? @relation("ToUser", fields: [toUserId], references: [id], onDelete: SetNull)
+
+  @@index([clientIntentId])
+  @@index([txSig])
+  @@index([status])
+  @@index([fromUserId])
+  @@index([toUserId])
+  @@index([chatId])
+  @@index([createdAt])
+  @@map("payments")
+}
+
+model Escrow {
+  id           String   @id @default(cuid())
+  chatId       String?
+  payerWallet  String   // Wallet that funded the escrow
+  payeeHandle  String   // Telegram handle of intended recipient
+  payeeTid     String?  // Telegram ID when known
+  payeeWallet  String?  // Recipient wallet (filled when claimed)
+  mint         String   // Token mint address or "SOL"
+  amountRaw    String   // Amount to release (excluding fee)
+  feeRaw       String   // Fee amount held in escrow
+  note         String?
+  status       String   // "open" | "claimed" | "refunded" | "expired"
+  expiresAt    DateTime
+  txSigFund    String?  // Transaction signature for funding
+  txSigRelease String?  // Transaction signature for release/refund
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([status])
+  @@index([expiresAt])
+  @@index([payeeTid])
+  @@index([payeeHandle])
+  @@map("escrows")
+}
+
+model Giveaway {
+  id            String   @id @default(cuid())
+  chatId        String
+  hostUserId    Int
+  hostWallet    String
+  amount        String   // Raw amount
+  mint          String   // Token mint
+  description   String
+  maxWinners    Int      @default(1)
+  entryCount    Int      @default(0)
+  status        String   // "active" | "drawn" | "cancelled" | "expired"
+  messageId     Int?     // Telegram message ID
+  expiresAt     DateTime?
+  drawnAt       DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  entries GiveawayEntry[]
+
+  @@index([chatId])
+  @@index([status])
+  @@index([expiresAt])
+  @@map("giveaways")
+}
+
+model GiveawayEntry {
+  id          Int      @id @default(autoincrement())
+  giveawayId  String
+  userId      Int
+  userWallet  String
+  enteredAt   DateTime @default(now())
+  won         Boolean  @default(false)
+  prizeAmount String?  // Amount won (if winner)
+  txSig       String?  // Payout transaction
+
+  // Relations
+  giveaway Giveaway @relation(fields: [giveawayId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([giveawayId, userId])
+  @@index([giveawayId])
+  @@index([userId])
+  @@map("giveaway_entries")
+}
+
+model AdminAction {
+  id          Int      @id @default(autoincrement())
+  adminUserId String   // Telegram ID of admin
+  action      String   // Action type: "token_add", "fee_update", etc.
+  target      String?  // Target of action (token ticker, chat ID, etc.)
+  oldValue    String?  // Previous value (for auditing)
+  newValue    String?  // New value
+  metadata    String?  // Additional JSON metadata
+  createdAt   DateTime @default(now())
+
+  @@index([adminUserId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("admin_actions")
+}
+
+model SystemStats {
+  id             Int      @id @default(autoincrement())
+  date           DateTime @unique @default(now())
+  totalUsers     Int      @default(0)
+  totalPayments  Int      @default(0)
+  totalVolumeSol String   @default("0") // Total volume in SOL equivalent
+  newUsers       Int      @default(0)
+  newPayments    Int      @default(0)
+  failedPayments Int      @default(0)
+  activeEscrows  Int      @default(0)
+  createdAt      DateTime @default(now())
+
+  @@index([date])
+  @@map("system_stats")
+}
+
+

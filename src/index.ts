@@ -2,7 +2,6 @@ import "./infra/env";
 import { bot } from "./bot";
 import express from "express";
 import { heliusWebhook } from "./routes/helius";
-import { webRoutes } from "./routes/web";
 import { logger } from "./infra/logger";
 import { env, isDevelopment } from "./infra/env";
 
@@ -26,7 +25,6 @@ if (!isDevelopment && bot) {
 }
 
 app.post("/webhooks/helius", heliusWebhook);
-app.use("/", webRoutes);
 
 const port = process.env.PORT || 5000;
 app.listen(port, "0.0.0.0", () => {

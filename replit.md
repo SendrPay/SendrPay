@@ -90,3 +90,8 @@ Preferred communication style: Simple, everyday language.
   - Added Procfile for deployment platforms
   - Fixed TypeScript errors preventing proper bot initialization
   - Verified application startup sequence and port binding
+- **Web Interface Removal**: Removed all web UI components per user request (August 9, 2025)
+  - Deleted web.ts routes and HTML pages for wallet linking, payment claims, and landing page
+  - Simplified Express server to only handle health checks, Telegram webhooks, and Helius webhooks
+  - Bot now operates purely as a Telegram-only service without any web interface
+  - Reduced dependencies and simplified codebase for better maintainability

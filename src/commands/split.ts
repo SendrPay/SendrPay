@@ -12,18 +12,23 @@ import { v4 as uuidv4 } from "uuid";
 
 export async function commandSplit(ctx: BotContext) {
   const chat = ctx.chat;
-  if (!chat || chat.type === "private") {
-    return ctx.reply("Use /split in groups only.");
+  if (!chat) {
+    return ctx.reply("❌ Could not identify chat.");
   }
 
-  try {
-    // Check if chat is whitelisted
-    const chatRecord = await prisma.chat.findUnique({
-      where: { chatId: chat.id.toString() }
-    });
+  const isGroupChat = chat.type !== "private";
 
-    if (!chatRecord?.whitelisted) {
-      return ctx.reply("❌ Bot not enabled. Admins: use /enable first.");
+  try {
+    // Check if group chat is whitelisted (skip for DMs)
+    let chatRecord = null;
+    if (isGroupChat) {
+      chatRecord = await prisma.chat.findUnique({
+        where: { chatId: chat.id.toString() }
+      });
+
+      if (!chatRecord?.whitelisted) {
+        return ctx.reply("❌ Bot not enabled. Admins: use /enable first.");
+      }
     }
 
     // Rate limiting

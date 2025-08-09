@@ -1,5 +1,5 @@
 import { Keypair, PublicKey } from "@solana/web3.js";
-import { createCipher, createDecipher, randomBytes } from "crypto";
+import { createCipheriv, createDecipheriv, randomBytes } from "crypto";
 import { prisma } from "../infra/prisma";
 import { env } from "../infra/env";
 import { logger } from "../infra/logger";
@@ -20,7 +20,7 @@ export function encryptPrivateKey(privateKeyBytes: Uint8Array, masterKey: string
   const key = Buffer.from(masterKey, 'base64');
   const iv = randomBytes(12); // GCM recommends 96-bit IV
   
-  const cipher = createCipher(algorithm, key);
+  const cipher = createCipheriv(algorithm, key, iv);
   cipher.setAAD(Buffer.from('solana-wallet'));
   
   let encrypted = cipher.update(Buffer.from(privateKeyBytes));
@@ -40,7 +40,7 @@ export function decryptPrivateKey(encryptedData: Buffer, masterKey: string): Uin
   const authTag = encryptedData.slice(12, 28);
   const encrypted = encryptedData.slice(28);
   
-  const decipher = createDecipher(algorithm, key);
+  const decipher = createDecipheriv(algorithm, key, iv);
   decipher.setAAD(Buffer.from('solana-wallet'));
   decipher.setAuthTag(authTag);
   
@@ -217,7 +217,7 @@ The wallet is now active for payments.`, { parse_mode: "Markdown" });
 
 export async function getWalletBalance(address: string): Promise<WalletBalance[] | null> {
   try {
-    const response = await fetch(env.RPC_URL, {
+    const response = await fetch(env.RPC_URL!, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -242,7 +242,7 @@ export async function getWalletBalance(address: string): Promise<WalletBalance[]
     const balances: WalletBalance[] = [];
 
     // Add SOL balance
-    const solResponse = await fetch(env.RPC_URL, {
+    const solResponse = await fetch(env.RPC_URL!, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

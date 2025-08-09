@@ -69,5 +69,14 @@ Preferred communication style: Simple, everyday language.
 - **UUID Library**: Unique identifier generation for transactions and escrows
 
 ### Wallet Integration
-- **Secret Key Import**: Users can import wallets via private key input
-- **Custodial Management**: Encrypted storage of user-provided private keys
+- **Secret Key Import**: Users can import wallets via private key input (Base58 or JSON format)
+- **Custodial Management**: AES-256-GCM encrypted storage of user-provided private keys
+- **Username Verification**: Payments only succeed when directed to verified Telegram usernames
+- **Dual Context Support**: All payment commands work in both group chats and direct messages
+
+## Recent Changes (August 2025)
+- **Updated Architecture**: Removed Phantom wallet integration in favor of private key import system
+- **Enhanced Security**: Fixed encryption to use proper AES-256-GCM with createCipheriv/createDecipheriv
+- **Username Verification**: Implemented strict username verification where @vi100x can only receive payments when directed to that exact username
+- **DM Payment Support**: All payment commands (/pay, /tip, /split) now work in direct messages for private transactions
+- **Cross-Context Functionality**: Users can now pay people they're not in group chats with via direct messages

@@ -13,18 +13,24 @@ import { v4 as uuidv4 } from "uuid";
 
 export async function commandPay(ctx: BotContext) {
   const chat = ctx.chat;
-  if (!chat || chat.type === "private") {
-    return ctx.reply("Use /pay in groups only.");
+  if (!chat) {
+    return ctx.reply("❌ Could not identify chat.");
   }
 
-  try {
-    // Check if chat is whitelisted
-    const chatRecord = await prisma.chat.findUnique({
-      where: { chatId: chat.id.toString() }
-    });
+  // Handle group payments differently than DM payments
+  const isGroupChat = chat.type !== "private";
 
-    if (!chatRecord?.whitelisted) {
-      return ctx.reply("❌ Bot not enabled. Admins: use /enable first.");
+  try {
+    // Check if group chat is whitelisted (skip for DMs)
+    let chatRecord = null;
+    if (isGroupChat) {
+      chatRecord = await prisma.chat.findUnique({
+        where: { chatId: chat.id.toString() }
+      });
+
+      if (!chatRecord?.whitelisted) {
+        return ctx.reply("❌ Bot not enabled. Admins: use /enable first.");
+      }
     }
 
     // Rate limiting
@@ -36,10 +42,15 @@ export async function commandPay(ctx: BotContext) {
     // Parse command
     const parsed = await parsePayCommand(ctx);
     if (!parsed) {
-      return ctx.reply("❌ Usage: /pay @user amount TOKEN [note]");
+      return ctx.reply("❌ Usage: /pay @username amount TOKEN [note]");
     }
 
     const { payeeId, payeeHandle, amount, tokenTicker, note } = parsed;
+
+    // Username verification: payments only succeed when directed to verified usernames
+    if (!payeeHandle) {
+      return ctx.reply("❌ Must specify recipient username (e.g. @vi100x)");
+    }
 
     // Resolve token
     const token = await resolveToken(tokenTicker);
@@ -70,10 +81,11 @@ export async function commandPay(ctx: BotContext) {
 
     const payerWallet = payer.wallets[0];
 
-    // Calculate fees
+    // Calculate fees (use default fees for DM payments)
+    const feeBps = chatRecord?.feeBps || parseInt(process.env.FEE_BPS || "50");
     const { feeRaw, netRaw } = calcFeeRaw(
       amountRaw,
-      chatRecord.feeBps || parseInt(process.env.FEE_BPS || "50"),
+      feeBps,
       BigInt(process.env.FEE_MIN_RAW_SOL || "5000") // TODO: per-token mins
     );
 
@@ -90,16 +102,31 @@ export async function commandPay(ctx: BotContext) {
       return ctx.reply("❌ Duplicate payment detected.");
     }
 
-    // Check if payee exists and has wallet
+    // Username verification: Find user by verified handle only
     let payee = null;
     let payeeWallet = null;
 
-    if (payeeId) {
-      payee = await prisma.user.findUnique({
-        where: { telegramId: payeeId },
-        include: { wallets: { where: { isActive: true } } }
-      });
-      payeeWallet = payee?.wallets[0];
+    // Look up user by their verified Telegram handle
+    payee = await prisma.user.findFirst({
+      where: { 
+        handle: payeeHandle,
+        // Ensure the handle matches exactly (case-insensitive)
+      },
+      include: { wallets: { where: { isActive: true } } }
+    });
+
+    if (!payee) {
+      return ctx.reply(`❌ User @${payeeHandle} not found or hasn't set up a wallet yet.`);
+    }
+
+    // Verify the recipient's handle matches exactly what was requested
+    if (payee.handle?.toLowerCase() !== payeeHandle.toLowerCase()) {
+      return ctx.reply(`❌ Username verification failed. Payment can only be sent to verified handle @${payee.handle}.`);
+    }
+
+    payeeWallet = payee.wallets[0];
+    if (!payeeWallet) {
+      return ctx.reply(`❌ User @${payeeHandle} needs to create a wallet first.`);
     }
 
     // Create payment record

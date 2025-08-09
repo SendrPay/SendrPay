@@ -12,22 +12,28 @@ import { v4 as uuidv4 } from "uuid";
 
 export async function commandTip(ctx: BotContext) {
   const chat = ctx.chat;
-  if (!chat || chat.type === "private") {
-    return ctx.reply("Use /tip in groups by replying to a message.");
+  if (!chat) {
+    return ctx.reply("❌ Could not identify chat.");
   }
 
-  if (!ctx.message?.reply_to_message) {
+  const isGroupChat = chat.type !== "private";
+  
+  // In group chats, require reply to message. In DMs, allow direct tipping with @username
+  if (isGroupChat && !ctx.message?.reply_to_message) {
     return ctx.reply("❌ Reply to a message to tip its author.");
   }
 
   try {
-    // Check if chat is whitelisted and tipping enabled
-    const chatRecord = await prisma.chat.findUnique({
-      where: { chatId: chat.id.toString() }
-    });
+    // Check if group chat is whitelisted and tipping enabled (skip for DMs)
+    let chatRecord = null;
+    if (isGroupChat) {
+      chatRecord = await prisma.chat.findUnique({
+        where: { chatId: chat.id.toString() }
+      });
 
-    if (!chatRecord?.whitelisted || !chatRecord.tipping) {
-      return ctx.reply("❌ Tipping not enabled in this chat.");
+      if (!chatRecord?.whitelisted || !chatRecord.tipping) {
+        return ctx.reply("❌ Tipping not enabled in this chat.");
+      }
     }
 
     // Rate limiting
@@ -36,26 +42,44 @@ export async function commandTip(ctx: BotContext) {
       return ctx.reply("⏰ Rate limit exceeded. Please wait.");
     }
 
-    // Parse tip command
-    const parsed = parseTipCommand(ctx);
-    if (!parsed) {
-      return ctx.reply("❌ Usage: /tip amount [TOKEN]");
-    }
+    // Parse tip command (different logic for groups vs DMs)
+    let payeeId: string | undefined;
+    let payeeHandle: string | undefined;
+    let amount: number;
+    let tokenTicker: string | undefined;
 
-    const { amount, tokenTicker } = parsed;
-    const payeeId = ctx.message.reply_to_message.from?.id.toString();
-    const payeeHandle = ctx.message.reply_to_message.from?.username;
+    if (isGroupChat) {
+      // Group tip: reply to message required
+      const parsed = parseTipCommand(ctx);
+      if (!parsed) {
+        return ctx.reply("❌ Usage: /tip amount [TOKEN]");
+      }
+      amount = parsed.amount;
+      tokenTicker = parsed.tokenTicker;
+      payeeId = ctx.message?.reply_to_message?.from?.id.toString();
+      payeeHandle = ctx.message?.reply_to_message?.from?.username;
 
-    if (!payeeId) {
-      return ctx.reply("❌ Could not identify tip recipient.");
+      if (!payeeId) {
+        return ctx.reply("❌ Could not identify tip recipient.");
+      }
+    } else {
+      // DM tip: parse @username from command
+      const parsed = await parsePayCommand(ctx); // Reuse pay command parser for @username
+      if (!parsed || !parsed.payeeHandle) {
+        return ctx.reply("❌ Usage: /tip @username amount [TOKEN]");
+      }
+      amount = parsed.amount;
+      tokenTicker = parsed.tokenTicker;
+      payeeHandle = parsed.payeeHandle;
+      payeeId = parsed.payeeId; // May be undefined, will resolve via username
     }
 
     if (payeeId === ctx.from?.id.toString()) {
       return ctx.reply("❌ Cannot tip yourself!");
     }
 
-    // Use default token if not specified
-    const finalTokenTicker = tokenTicker || chatRecord.defaultTicker || "USDC";
+    // Use default token if not specified (use chat default for groups, USDC for DMs)
+    const finalTokenTicker = tokenTicker || chatRecord?.defaultTicker || "USDC";
     const token = await resolveToken(finalTokenTicker);
     if (!token) {
       return ctx.reply(`❌ Unknown token: ${finalTokenTicker}`);
@@ -84,24 +108,54 @@ export async function commandTip(ctx: BotContext) {
 
     const tipperWallet = tipper.wallets[0];
 
-    // Calculate fees
+    // Calculate fees (use default fees for DM payments)
+    const feeBps = chatRecord?.feeBps || parseInt(process.env.FEE_BPS || "50");
     const { feeRaw, netRaw } = calcFeeRaw(
       amountRaw,
-      chatRecord.feeBps || parseInt(process.env.FEE_BPS || "50"),
+      feeBps,
       BigInt(process.env.FEE_MIN_RAW_SOL || "5000")
     );
 
-    // Get payee wallet
-    const payee = await prisma.user.findUnique({
-      where: { telegramId: payeeId },
-      include: { wallets: { where: { isActive: true } } }
-    });
+    // Username verification: Find user by verified handle (especially for DMs)
+    let payee = null;
+    let payeeWallet = null;
 
-    if (!payee || !payee.wallets[0]) {
-      return ctx.reply(`❌ ${payeeHandle || 'User'} needs to create a wallet first.`);
+    if (payeeHandle) {
+      // Look up user by their verified Telegram handle
+      payee = await prisma.user.findFirst({
+        where: { 
+          handle: payeeHandle,
+        },
+        include: { wallets: { where: { isActive: true } } }
+      });
+
+      if (!payee) {
+        return ctx.reply(`❌ User @${payeeHandle} not found or hasn't set up a wallet yet.`);
+      }
+
+      // Verify the recipient's handle matches exactly what was requested
+      if (payee.handle?.toLowerCase() !== payeeHandle.toLowerCase()) {
+        return ctx.reply(`❌ Username verification failed. Tip can only be sent to verified handle @${payee.handle}.`);
+      }
+
+      payeeWallet = payee.wallets[0];
+      if (!payeeWallet) {
+        return ctx.reply(`❌ User @${payeeHandle} needs to create a wallet first.`);
+      }
+    } else if (payeeId) {
+      // Fallback for group tips where we have user ID but no handle
+      payee = await prisma.user.findUnique({
+        where: { telegramId: payeeId },
+        include: { wallets: { where: { isActive: true } } }
+      });
+
+      if (!payee || !payee.wallets[0]) {
+        return ctx.reply(`❌ User needs to create a wallet first.`);
+      }
+      payeeWallet = payee.wallets[0];
+    } else {
+      return ctx.reply("❌ Could not identify tip recipient.");
     }
-
-    const payeeWallet = payee.wallets[0];
 
     // Generate payment ID
     const paymentId = uuidv4();

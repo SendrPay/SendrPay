@@ -54,6 +54,13 @@ Supported formats:
 
 Send your private key now:`, { parse_mode: "Markdown" });
   });
+
+  // Payment commands also work in DM for direct payments
+  bot.command("pay", commandPay);
+  bot.command("tip", commandTip);
+  bot.command("split", commandSplit);
+  bot.command("balance", commandBalance);
+  bot.command("withdraw", commandWithdraw);
   
   // Handle private key import when user sends a message in DM
   bot.on("message:text", async (ctx) => {
@@ -94,6 +101,4 @@ Supported formats:
 
 Send your private key now:`, { parse_mode: "Markdown" });
   });
-  
-  bot.command("withdraw", commandWithdraw);
 }

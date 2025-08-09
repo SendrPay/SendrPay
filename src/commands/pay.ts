@@ -80,13 +80,11 @@ export async function commandPay(ctx: BotContext) {
 
     const payerWallet = payer.wallets[0];
 
-    // Calculate fees (use default fees for DM payments)  
-    const feeBps = parseInt(process.env.FEE_BPS || "50");
-    const { feeRaw, netRaw } = calcFeeRaw(
-      amountRaw,
-      feeBps,
-      BigInt(process.env.FEE_MIN_RAW_SOL || "5000") // TODO: per-token mins
-    );
+    // Calculate fees (includes transaction fee + 0.25% service fee)
+    const feeCalc = await calculateFee(amountRaw, token.mint);
+    const feeRaw = feeCalc.feeRaw;
+    const serviceFeeRaw = feeCalc.serviceFeeRaw;
+    const netRaw = feeCalc.netRaw;
 
     // Generate payment ID
     const paymentId = uuidv4();
@@ -124,7 +122,7 @@ export async function commandPay(ctx: BotContext) {
       return ctx.reply(`❌ User @${payeeHandle} needs to create a wallet first.`);
     }
 
-    // Show payment confirmation
+    // Show payment confirmation (only show transaction fee, not service fee)
     const grossAmount = Number(amountRaw) / (10 ** token.decimals);
     const feeAmount = Number(feeRaw) / (10 ** token.decimals);
     const netAmount = Number(netRaw) / (10 ** token.decimals);
@@ -232,15 +230,18 @@ export async function handlePaymentConfirmation(ctx: BotContext, confirmed: bool
 
     const amountRaw = BigInt(payment.amountRaw);
     const feeRaw = BigInt(payment.feeRaw);
-    const netRaw = amountRaw - feeRaw;
+    // Calculate service fee for existing payment
+    const serviceFeeRaw = (amountRaw * 25n) / 10000n; // 0.25%
+    const netRaw = amountRaw - feeRaw - serviceFeeRaw;
 
-    // Execute transfer
+    // Execute transfer (include service fee)
     const result = await executeTransfer({
       fromWallet: payerWallet,
       toAddress: payment.toWallet,
       mint: token.mint,
       amountRaw: netRaw,
       feeRaw,
+      serviceFeeRaw,
       token
     });
 

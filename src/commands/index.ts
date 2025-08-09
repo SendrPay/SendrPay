@@ -7,7 +7,7 @@ import { commandTip } from "./tip";
 import { commandSplit } from "./split";
 import { commandBalance } from "./balance";
 import { commandWithdraw } from "./withdraw";
-import { commandGiveaway } from "./giveaway";
+
 import { commandSettings } from "./settings";
 import { commandAdmin } from "./admin";
 import { commandStart } from "./start";
@@ -19,7 +19,7 @@ export function registerGroupRoutes(bot: Bot<BotContext>) {
   bot.command("tip", commandTip);
   bot.command("split", commandSplit);
   bot.command("balance", commandBalance);
-  bot.command("giveaway", commandGiveaway);
+
   bot.command("settings", commandSettings);
   bot.command("admin", commandAdmin);
 }

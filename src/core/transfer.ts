@@ -30,7 +30,7 @@ export interface TransferParams {
   serviceFeeToken?: string; // Mint address for service fee token
   token: Token;
   isWithdrawal?: boolean;
-  isGiveaway?: boolean;
+
   // For notifications
   senderTelegramId?: string;
   recipientTelegramId?: string;
@@ -58,7 +58,7 @@ export async function executeTransfer(params: TransferParams): Promise<TransferR
       serviceFeeToken,
       token,
       isWithdrawal = false,
-      isGiveaway = false,
+
       senderTelegramId,
       recipientTelegramId,
       note,

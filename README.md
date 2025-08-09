@@ -19,10 +19,6 @@ A production-ready Telegram bot for Solana payments with real blockchain transac
 - `/balance` - Check wallet balances with deposit/withdraw options
 - `/withdraw amount TOKEN address` - Withdraw to external address
 
-### 🎁 Giveaways
-- `/giveaway start amount TOKEN "description"` - Create giveaway
-- `/giveaway enter` - Enter active giveaway
-- `/giveaway draw [winners]` - Draw and distribute prizes
 
 ### ⚙️ Administration
 - `/enable` - Group admins whitelist the bot

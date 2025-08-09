@@ -121,7 +121,6 @@ Preferred communication style: Simple, everyday language.
   - Error messages standardized with consistent formatting and inline code styling
   - Success messages simplified with cleaner transaction receipts and reduced visual noise
   - Help documentation condensed with organized command sections and clearer instructions
-  - Giveaway announcements modernized with structured formatting and simplified entry buttons
   - Wallet creation/import messages enhanced with security warnings and clean address display
   - Balance displays improved with shortened address format and organized token listings
   - All UI text follows modern design principles: clean, concise, and user-focused
@@ -132,3 +131,10 @@ Preferred communication style: Simple, everyday language.
   - Fixed issue where "@Vi100x" vs "@vi100x" would fail payment verification
   - All payment commands (/pay, /tip, /split) now work regardless of username case
   - Username verification system maintains security while allowing natural case variations
+- **Giveaway Functionality Removal**: Completely removed all giveaway features per user request (August 9, 2025)
+  - Deleted giveaway.ts command file and all related functions
+  - Removed giveaway command registration from bot routing
+  - Cleaned up giveaway parsing functions and interfaces from core modules
+  - Removed giveaway parameters from transfer functions
+  - Updated help documentation and welcome messages to remove giveaway references
+  - Simplified bot to focus on core payment functionality: pay, tip, split, balance, withdraw

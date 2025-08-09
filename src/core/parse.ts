@@ -30,11 +30,7 @@ export interface WithdrawCommand {
   toAddress: string;
 }
 
-export interface GiveawayCommand {
-  amount: number;
-  tokenTicker: string;
-  description: string;
-}
+
 
 export async function parsePayCommand(ctx: BotContext): Promise<PayCommand | null> {
   const text = ctx.message?.text || "";
@@ -196,27 +192,7 @@ export function parseWithdrawCommand(ctx: BotContext): WithdrawCommand | null {
   };
 }
 
-export function parseGiveawayCommand(args: string[]): GiveawayCommand | null {
-  if (args.length < 3) return null;
 
-  // Parse amount
-  const amountStr = args[0];
-  const amount = parseFloat(amountStr);
-  if (isNaN(amount) || amount <= 0) return null;
-
-  // Parse token
-  const tokenTicker = args[1].toUpperCase();
-  if (!/^[A-Z]{2,10}$/.test(tokenTicker)) return null;
-
-  // Parse description (remove quotes)
-  const description = args.slice(2).join(' ').replace(/^"(.*)"$/, '$1');
-
-  return {
-    amount,
-    tokenTicker,
-    description
-  };
-}
 
 export function parseAmount(amountStr: string, decimals: number): bigint | null {
   const amount = parseFloat(amountStr);

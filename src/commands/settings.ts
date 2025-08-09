@@ -382,7 +382,7 @@ async function showHelp(ctx: BotContext) {
 • \`/tip amount\` - Tip a message (reply required)
 • \`/split 100 USDC @user1 @user2\` - Split bills
 • \`/balance\` - Check your balance
-• \`/giveaway start\` - Create group giveaway
+
 
 **Groups:**
 • Admins use \`/enable\` to activate bot

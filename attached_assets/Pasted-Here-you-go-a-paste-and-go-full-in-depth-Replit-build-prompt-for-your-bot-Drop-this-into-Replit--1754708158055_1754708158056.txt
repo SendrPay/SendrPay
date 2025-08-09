@@ -1,0 +1,407 @@
+Here you go — a paste-and-go, full in-depth Replit build prompt for your bot. Drop this into Replit AI and let it scaffold the whole thing.
+
+⸻
+
+Replit Build Prompt — Telegram Group /pay Bot (Solana)
+
+Role (read carefully):
+You are building a production-ready Telegram bot focused on group-first payments, tipping, and giveaways on Solana. Setup happens in DMs, but 98% of usage is inside groups/channels where the bot is added and whitelisted. The bot supports multi-token SPL transfers, fees (bps + minimum, taken in-kind), escrow for unlinked recipients, and custodial wallets (generated per user) plus an optional non-custodial path via Phantom Connect. The implementation must be secure, idempotent, and operational on Replit.
+
+Tech Stack
+	•	Node.js (TypeScript)
+	•	grammY (Telegram bot framework)
+	•	@solana/web3.js, @solana/spl-token
+	•	Helius (RPC + webhooks + sendRawTransaction)
+	•	Prisma ORM
+	•	SQLite for dev on Replit; easy switch to Postgres for prod
+	•	Express for Telegram/Helius webhooks and minimal web flows (/link, /claim, /qr)
+	•	AES-GCM via crypto or libsodium-wrappers for key encryption
+	•	Optional: simple in-process rate limiter (token bucket). Avoid Redis unless trivial.
+
+High-Level Features
+	1.	Onboarding (DM only)
+	•	/start shows TOS + features.
+	•	/generate creates a custodial Solana Keypair, shows address + QR, and shows secret key exactly once with “save it now” warning. Encrypt and store private key.
+	•	/import lets user paste a private key (base58 or JSON bytes). Acknowledge risk.
+	•	/link starts Phantom connect: sign a nonce → link non-custodial wallet to Telegram ID.
+	2.	Group/Channel Usage (primary)
+	•	Group admin runs /enable → whitelist the chat. The bot DMs the admin to finish setup.
+	•	Commands:
+	•	/pay @user amount [TOKEN] [note]
+	•	/tip amount [TOKEN] (reply to a message to tip its author)
+	•	/split amount TOKEN @a @b @c (equal or weighted with @a:60 @b:40)
+	•	/balance (shows top tokens; buttons for Deposit/Withdraw in DM)
+	•	Giveaways:
+	•	/giveaway start 1000 BONK "Best meme" → pinned post with Enter button
+	•	/giveaway enter
+	•	/giveaway draw [winners] → on-chain batched payouts from host’s wallet
+	•	/settings (admins): default token, per-chat fee override, limits, tipping on/off
+	3.	Multi-Token Support
+	•	Allowlist driven (ticker ↔ mint ↔ decimals).
+	•	Tokens: USDC, SOL (native), BONK, JUP (seed), plus more via admin.
+	•	Token args accept ticker or mint address. If mint is unknown, fetch metadata via Helius (optional) or reject.
+	4.	Transfers & Fees
+	•	Custodial path: server builds, signs, and broadcasts SPL transfers (and SOL) using the payer’s encrypted key.
+	•	Fees: bps + min in-kind (same token). Single transaction that:
+	•	Sends (amount - fee) to recipient
+	•	Sends fee to FEE_TREASURY
+	•	Creates ATA if missing (optionally sponsor rent with a server vault, capped)
+	•	Non-custodial path: payer signs via Phantom. Bot can DM a signing request and update group when finalized.
+	5.	Escrow for Unlinked Recipients
+	•	If @user hasn’t linked: hold funds in escrow (custodial subaccount or PDA) and post a Claim deep link.
+	•	Auto-refund on expiry (configurable).
+	•	Edit original group message to ✅ after claim.
+	6.	Confirmations
+	•	Use Helius webhook to confirm finality.
+	•	Verify tx mint, amount, from/to before marking confirmed.
+	•	Always reply with Gross → Fee → Net, token symbol, and explorer link.
+	7.	Admin & Limits
+	•	/admin fee set <bps> min <raw-min-per-mint>
+	•	/admin tokens add <mint> <ticker> <decimals>
+	•	/admin defaulttoken <ticker>
+	•	/admin sponsor on|off (sponsor rent/fees with daily caps)
+	•	Per-chat velocity caps, per-user daily caps, and new-user cooling window.
+	8.	Security
+	•	Encrypt private keys at rest with AES-GCM using a 32-byte master key from env.
+	•	Never log secrets. Only decrypt at send-time.
+	•	Idempotent payments (client_intent_id).
+	•	Verify Helius webhook HMAC/signature; reject mismatches.
+	•	Validate recipients, mints, decimals, and no negative/net-zero transfers after fees.
+
+⸻
+
+Deliverables
+	•	Working Telegram bot (grammY) + Express app for webhooks and claim/link flows
+	•	Prisma schema + migrations
+	•	Command handlers with clean separation of concerns
+	•	Token allowlist seed
+	•	Fee calculation & in-kind split transfer utilities
+	•	Escrow creation/claim/refund
+	•	Helius webhook consumer with strict validation
+	•	Group-first UX: inline keyboards, smart mentions, and clear receipts
+	•	README.md with setup, environment, and test steps
+	•	Basic unit tests for fee math, amount parsing, idempotency
+
+⸻
+
+Environment Variables (Replit Secrets)
+
+BOT_TOKEN=               # Telegram bot token
+APP_BASE_URL=            # your Replit HTTPS URL (no trailing slash)
+
+# Helius
+HELIUS_API_KEY=
+RPC_URL=https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}
+WEBHOOK_SECRET=          # Helius webhook HMAC/secret if configured
+
+# Crypto / Security
+MASTER_KMS_KEY=          # base64 32 bytes for AES-GCM
+FEE_TREASURY_SECRET=     # base58 secret key for fee treasury wallet
+FEE_BPS=50               # 0.50% default
+FEE_MIN_RAW_SOL=5000     # lamports min fee for SOL branch
+FEE_MIN_RAW_BY_MINT=     # optional JSON: {"USDC": "500", "BONK": "100000"}
+
+# Feature flags
+SPONSOR_FEES=true
+SPONSOR_DAILY_CAP_LAMPORTS=2000000
+ESCROW_EXPIRY_HOURS=168
+
+# Admin bootstrap
+OWNER_TELEGRAM_ID=
+
+
+⸻
+
+Project Structure
+
+/src
+  index.ts                # app entry: bootstrap Express + grammY
+  bot.ts                  # grammY init, middlewares, routers
+  routes/
+    telegram.ts           # webhook endpoint (if using webhooks)
+    helius.ts             # /webhooks/helius -> confirm txs
+    web.ts                # /link, /claim, /qr minimal pages
+  commands/
+    start.ts
+    enable.ts
+    pay.ts
+    tip.ts
+    split.ts
+    balance.ts
+    withdraw.ts
+    giveaway.ts
+    settings.ts
+    admin.ts
+  core/
+    parse.ts              # parse commands (amounts, token, mentions)
+    tokens.ts             # resolve mint/decimals, allowlist ops
+    fees.ts               # fee math (bps + min) and validation
+    wallets.ts            # generate/import, encrypt/decrypt, phantom link
+    transfer.ts           # SOL+SPL transfers, ATA create, fee split, sponsor
+    escrow.ts             # create/claim/refund logic
+    receipts.ts           # format confirmations (Gross→Fee→Net)
+    webhooks.ts           # Helius verifier + state updates
+    ratelimit.ts          # token bucket per chat/user
+    idempotency.ts        # client_intent_id handling
+  infra/
+    prisma.ts             # Prisma client
+    env.ts                # typed env loader with validation
+    logger.ts             # pino or console wrapper
+/prisma
+  schema.prisma
+README.md
+
+
+⸻
+
+Prisma Schema (create at prisma/schema.prisma)
+
+generator client { provider = "prisma-client-js" }
+datasource db     { provider = "sqlite"; url = "file:./dev.db" }
+
+model User {
+  id             Int       @id @default(autoincrement())
+  telegramId     String    @unique
+  handle         String?
+  createdAt      DateTime  @default(now())
+  activeWalletId Int?
+  wallets        Wallet[]
+  paymentsFrom   Payment[] @relation("FromUser")
+  paymentsTo     Payment[] @relation("ToUser")
+}
+
+model Wallet {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  label      String?  // "custodial" | "phantom" | "imported"
+  address    String   @unique
+  encPrivKey Bytes?
+  createdAt  DateTime @default(now())
+  isActive   Boolean  @default(true)
+  user       User     @relation(fields: [userId], references: [id])
+}
+
+model Token {
+  mint      String  @id
+  ticker    String  @unique
+  name      String?
+  decimals  Int
+  icon      String?
+  enabled   Boolean @default(true)
+}
+
+model Chat {
+  chatId        String  @id
+  type          String  // group|supergroup|channel
+  whitelisted   Boolean @default(false)
+  tipping       Boolean @default(true)
+  defaultTicker String? // e.g., "USDC"
+  feeBps        Int?    // override
+  feeMinRaw     String? // bigint string per default mint
+  createdAt     DateTime @default(now())
+}
+
+model Payment {
+  id             String   @id      // uuid
+  clientIntentId String   @unique
+  chatId         String?
+  fromUserId     Int?
+  toUserId       Int?
+  fromWallet     String
+  toWallet       String
+  mint           String   // mint or "SOL"
+  amountRaw      String   // bigint as string
+  feeRaw         String
+  note           String?
+  status         String   // pending|sent|confirmed|failed|refunded|expired
+  txSig          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  from           User?    @relation("FromUser", fields: [fromUserId], references: [id])
+  to             User?    @relation("ToUser", fields: [toUserId], references: [id])
+}
+
+model Escrow {
+  id           String   @id  // uuid
+  chatId       String?
+  payerWallet  String
+  payeeHandle  String
+  payeeTid     String?  // telegramId when known
+  payeeWallet  String?
+  mint         String
+  amountRaw    String
+  feeRaw       String
+  status       String   // open|claimed|refunded|expired
+  expiresAt    DateTime
+  txSigFund    String?
+  txSigRelease String?
+  createdAt    DateTime @default(now())
+}
+
+
+⸻
+
+Seed Allowlist (USDC, SOL, BONK, JUP)
+
+Create a prisma/seed.ts that inserts:
+	•	USDC mint (EPjFWdd5…), decimals=6, ticker USDC
+	•	Special "SOL" pseudo-mint row with decimals=9
+	•	BONK, JUP with correct mints/decimals
+
+⸻
+
+Key Implementations (summaries + signatures)
+
+1) Amount & Token Parsing (core/parse.ts)
+	•	Parse /pay @user 5 JUP thanks mate
+	•	Extract payee by reply or mention; amount as decimal → BigInt using token.decimals; token via ticker or mint; note free text.
+	•	Handle locale decimals, reject invalid or negative amounts.
+
+2) Fee Math (core/fees.ts)
+
+export function calcFeeRaw(amountRaw: bigint, bps: number, minRaw: bigint): { feeRaw: bigint, netRaw: bigint } {
+  const pct = (amountRaw * BigInt(bps)) / BigInt(10_000);
+  const fee = pct < minRaw ? minRaw : pct;
+  if (fee >= amountRaw) throw new Error("Amount too small after fees");
+  return { feeRaw: fee, netRaw: amountRaw - fee };
+}
+
+3) Transfer Builder (core/transfer.ts)
+	•	SPL path:
+	•	Ensure recipient ATA (add ix if missing)
+	•	Two transfers in same tx: (netRaw) to recipient ATA and (feeRaw) to treasury ATA
+	•	Optionally add sponsor ix to top up rent if configured and within caps
+	•	SOL path:
+	•	One SystemProgram.transfer to recipient and one to fee-treasury
+	•	Decrypt payer key, sign, send via Helius sendRawTransaction.
+
+4) Escrow (core/escrow.ts)
+	•	createEscrow(...) → moves funds to escrow subaccount (custodial), records Escrow row, posts claim deep link.
+	•	claimEscrow(id, toWallet) → release funds; update message thread to ✅.
+	•	expireEscrows() cron: refund to payer minus optional fee or no fee (configurable).
+
+5) Helius Webhook (routes/helius.ts)
+	•	Verify HMAC.
+	•	Load Payment by txSig.
+	•	Parse instructions; validate the net amount and fee amounts reached the expected ATAs/addresses.
+	•	Set status confirmed and edit/send group receipt.
+
+6) Group Router (commands/pay.ts, commands/tip.ts, etc.)
+	•	Require chat whitelisting.
+	•	Rate-limit: token-bucket keyed by {chatId}:{telegramId}.
+	•	For /pay: resolve payee (prefer reply_to_message.from.id), ensure payer linked. If payee unlinked → escrow path. Else direct transfer.
+
+7) /enable & Settings
+	•	/enable only by group admin: set Chat.whitelisted=true. DM admin with setup.
+	•	/settings defaulttoken USDC, /settings fee 75bps min 0.0002 SOL, /settings tipping off.
+
+⸻
+
+Minimal Code Stubs (create files)
+
+src/index.ts
+
+import "./infra/env";
+import { bot } from "./bot";
+import express from "express";
+import { telegramWebhook } from "./routes/telegram";
+import { heliusWebhook } from "./routes/helius";
+import { webRoutes } from "./routes/web";
+
+const app = express();
+app.use(express.json({ limit: "1mb" }));
+
+// Telegram webhook (optional; polling is fine on Replit too)
+app.post("/telegram", telegramWebhook);
+app.post("/webhooks/helius", heliusWebhook);
+app.use("/", webRoutes);
+
+const port = process.env.PORT || 3000;
+app.listen(port, () => console.log(`http server on :${port}`));
+
+// Start bot in long polling if you prefer
+bot.start();
+
+src/bot.ts
+
+import { Bot } from "grammy";
+export const bot = new Bot(process.env.BOT_TOKEN!);
+
+// Routers
+import { registerGroupRoutes } from "./commands";
+registerGroupRoutes(bot);
+
+// DM router for /start, /generate, /import, /link, withdraw, etc.
+
+src/commands/index.ts
+
+import type { Bot } from "grammy";
+import { commandPay } from "./pay";
+import { commandEnable } from "./enable";
+import { commandTip } from "./tip";
+import { commandBalance } from "./balance";
+import { commandGiveaway } from "./giveaway";
+
+export function registerGroupRoutes(bot: Bot) {
+  bot.on([":group", ":supergroup"], (ctx, next) => next());
+  bot.command("enable", commandEnable);
+  bot.command("pay", commandPay);
+  bot.command("tip", commandTip);
+  bot.command("balance", commandBalance);
+  bot.command("giveaway", commandGiveaway);
+}
+
+(Implement the handlers with the logic described above.)
+
+⸻
+
+Replit Tasks (ask the AI to do these)
+	1.	Scaffold project with the structure above and TypeScript config.
+	2.	Add Prisma with schema.prisma; generate client; create seed script with token allowlist.
+	3.	Implement env loader with required vars and helpful errors.
+	4.	Implement wallet encryption (AES-GCM) helpers; handle import/generate flows.
+	5.	Implement fee calc and transfer builder (SOL+SPL) with in-kind fee split and ATA creation.
+	6.	Implement /enable, /pay, /tip, /balance, /giveaway handlers with rate limits and idempotency.
+	7.	Implement Helius webhook route with validation.
+	8.	Implement /link, /claim, /qr minimal Express pages with QR output and deep links.
+	9.	Add README with setup steps, BotFather settings, and run instructions.
+
+⸻
+
+Acceptance Criteria (must pass)
+	•	✅ /enable whitelists the chat; bot ignores commands elsewhere.
+	•	✅ /generate shows address+QR and the secret once; private key stored encrypted.
+	•	✅ /pay @user 5 USDC in a whitelisted group:
+	•	If recipient linked → single tx with fee split; reply shows Gross → Fee → Net and tx link.
+	•	If recipient unlinked → Escrow created; group message shows Claim; claim works from DM.
+	•	✅ /tip 1 BONK works by reply; respects rate limits.
+	•	✅ /giveaway start …, /giveaway enter, and /giveaway draw 3 pay winners on-chain in batch.
+	•	✅ Helius webhook marks tx confirmed only after validating mint/amount/from/to.
+	•	✅ Per-chat fee override and default token setting function.
+	•	✅ Errors are human-readable (insufficient funds, token not allowed, amount too small after fees, rate-limited, etc.).
+
+⸻
+
+Run Scripts (package.json)
+	•	"dev": "tsx src/index.ts"
+	•	"prisma:migrate": "prisma migrate dev --name init"
+	•	"prisma:seed": "tsx prisma/seed.ts"
+
+⸻
+
+BotFather Setup (you do)
+	•	Disable privacy mode (/setprivacy -> Disable)
+	•	Enable group usage (/setjoingroups -> Enable) and inline mode (/setinline -> Enable)
+	•	Add bot to your groups and run /enable (admin only)
+
+⸻
+
+Notes
+	•	Prefer long-polling on Replit to avoid webhook gymnastics, but keep Express routes ready.
+	•	Enforce no logs of secrets; redact addresses only when necessary.
+	•	Keep SOL for fees topped up in fee-treasury and (if enabled) sponsor vault with daily caps.
+	•	For channels, only admins can start/draw giveaways; entries go via DM deep link.
+
+⸻
+
+If you want, I can now generate the fees.ts, transfer.ts (SPL + SOL with fee split and ATA), and pay.ts command handler in real TypeScript so you can paste directly.

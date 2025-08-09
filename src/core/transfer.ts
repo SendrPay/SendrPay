@@ -80,8 +80,12 @@ export async function executeTransfer(params: TransferParams): Promise<TransferR
       }
     }
 
-    // CRITICAL: Check if sender has sufficient balance for amount + all fees
-    const totalRequired = amountRaw + feeRaw + (serviceFeeRaw || 0n);
+    // CRITICAL: Check if sender has sufficient balance for amount + all fees + potential admin wallet funding
+    const adminBalance = await connection.getBalance(adminPubkey);
+    const rentExemptMinimum = 890880; // ~0.00089 SOL
+    const adminFunding = adminBalance < rentExemptMinimum ? BigInt(rentExemptMinimum - adminBalance) : 0n;
+    
+    const totalRequired = amountRaw + feeRaw + (serviceFeeRaw || 0n) + adminFunding;
     
     if (mint === "So11111111111111111111111111111111111111112") {
       // For SOL transfers, check SOL balance
@@ -170,11 +174,21 @@ export async function executeTransfer(params: TransferParams): Promise<TransferR
         
         if (serviceFeeTokenMint === "So11111111111111111111111111111111111111112") {
           // Service fee in SOL
+          // CRITICAL FIX: Check if admin wallet has minimum balance for rent exemption
+          const adminBalance = await connection.getBalance(adminPubkey);
+          const rentExemptMinimum = 890880; // ~0.00089 SOL
+          
+          // If admin wallet needs funding for rent exemption, include it
+          const serviceFeeAmount = Number(serviceFeeRaw);
+          const totalToAdmin = adminBalance < rentExemptMinimum 
+            ? serviceFeeAmount + (rentExemptMinimum - adminBalance)
+            : serviceFeeAmount;
+          
           transaction.add(
             SystemProgram.transfer({
               fromPubkey: senderPubkey,
               toPubkey: adminPubkey,
-              lamports: Number(serviceFeeRaw)
+              lamports: totalToAdmin
             })
           );
         } else {

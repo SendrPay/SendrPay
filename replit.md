@@ -95,3 +95,10 @@ Preferred communication style: Simple, everyday language.
   - Simplified Express server to only handle health checks, Telegram webhooks, and Helius webhooks
   - Bot now operates purely as a Telegram-only service without any web interface
   - Reduced dependencies and simplified codebase for better maintainability
+- **Critical Payment System Fix**: Resolved service fee collection failure (August 9, 2025)
+  - Fixed "insufficient funds for rent" error that prevented all payment transactions
+  - Root cause: Admin service fee wallet had 0 SOL balance, couldn't receive transfers due to rent exemption requirements
+  - Solution: Automatic admin wallet funding system that ensures rent exemption minimum (0.00089088 SOL)
+  - Enhanced balance calculation to include potential admin wallet funding in total required amount
+  - Confirmed working: Direct transfers successful with proper service fee collection
+  - Receiver gets full amount specified, sender pays amount + fees + service fee + admin funding if needed

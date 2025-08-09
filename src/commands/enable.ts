@@ -39,7 +39,6 @@ This group can now use payment features:
 • /pay @user amount TOKEN
 • /tip amount TOKEN (reply to message)
 • /balance
-• /giveaway start/enter/draw
 
 Default token: USDC
 Use /settings to customize.

@@ -1,4 +1,4 @@
-import { BotContext } from "../types/bot";
+import { BotContext } from "../bot";
 import { prisma } from "../infra/prisma";
 import { getWalletBalance } from "../core/wallets";
 
@@ -118,7 +118,9 @@ By using this bot, you agree to:
   let balanceText = "💰 **Your Balances:**\n";
   if (balances && balances.length > 0) {
     balances.forEach(balance => {
-      balanceText += `• ${balance.formatted} ${balance.token}\n`;
+      const amount = balance.uiAmount?.toFixed(4) || "0";
+      const symbol = balance.mint.slice(0, 4);
+      balanceText += `• ${amount} ${symbol}\n`;
     });
   } else {
     balanceText += "No tokens found\n";
@@ -179,7 +181,9 @@ async function showWalletInfo(ctx: BotContext) {
   let balanceText = "💰 **Current Balances:**\n\n";
   if (balances && balances.length > 0) {
     balances.forEach(balance => {
-      balanceText += `${balance.token}: ${balance.formatted}\n`;
+      const amount = balance.uiAmount?.toFixed(4) || "0";
+      const symbol = balance.mint.slice(0, 4);
+      balanceText += `${symbol}: ${amount}\n`;
     });
   } else {
     balanceText += "No tokens found";
@@ -330,11 +334,7 @@ async function showTransactionHistory(ctx: BotContext) {
       ]
     },
     orderBy: { createdAt: 'desc' },
-    take: 10,
-    include: {
-      fromUser: true,
-      toUser: true
-    }
+    take: 10
   });
 
   let historyText = "📊 **Transaction History** (Last 10)\n\n";
@@ -345,11 +345,10 @@ async function showTransactionHistory(ctx: BotContext) {
     payments.forEach((payment, index) => {
       const isSent = payment.fromUserId === user.id;
       const direction = isSent ? "→" : "←";
-      const otherUser = isSent ? payment.toUser : payment.fromUser;
       const amount = parseFloat(payment.amountRaw) / Math.pow(10, 6); // Assuming 6 decimals for display
+      const symbol = payment.mint.slice(0, 4);
       
-      historyText += `${index + 1}. ${direction} ${amount.toFixed(2)} ${payment.tokenTicker}\n`;
-      historyText += `   ${isSent ? 'To' : 'From'}: @${otherUser?.handle || 'Unknown'}\n`;
+      historyText += `${index + 1}. ${direction} ${amount.toFixed(2)} ${symbol}\n`;
       historyText += `   ${payment.status} • ${payment.createdAt.toLocaleDateString()}\n\n`;
     });
   }

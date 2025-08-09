@@ -22,9 +22,8 @@ export async function commandPay(ctx: BotContext) {
 
   try {
     // Check if group chat is whitelisted (skip for DMs)
-    let chatRecord = null;
     if (isGroupChat) {
-      chatRecord = await prisma.chat.findUnique({
+      const chatRecord = await prisma.chat.findUnique({
         where: { chatId: chat.id.toString() }
       });
 
@@ -81,8 +80,8 @@ export async function commandPay(ctx: BotContext) {
 
     const payerWallet = payer.wallets[0];
 
-    // Calculate fees (use default fees for DM payments)
-    const feeBps = chatRecord?.feeBps || parseInt(process.env.FEE_BPS || "50");
+    // Calculate fees (use default fees for DM payments)  
+    const feeBps = parseInt(process.env.FEE_BPS || "50");
     const { feeRaw, netRaw } = calcFeeRaw(
       amountRaw,
       feeBps,
@@ -103,11 +102,8 @@ export async function commandPay(ctx: BotContext) {
     }
 
     // Username verification: Find user by their actual Telegram handle only
-    let payee = null;
-    let payeeWallet = null;
-
     // Look up user by their verified Telegram handle (from their actual Telegram account)
-    payee = await prisma.user.findFirst({
+    const payee = await prisma.user.findFirst({
       where: { 
         handle: payeeHandle, // Must match their actual Telegram username
       },
@@ -123,7 +119,7 @@ export async function commandPay(ctx: BotContext) {
       return ctx.reply(`❌ Username verification failed. This user's verified handle is @${payee.handle}.`);
     }
 
-    payeeWallet = payee.wallets[0];
+    const payeeWallet = payee.wallets[0];
     if (!payeeWallet) {
       return ctx.reply(`❌ User @${payeeHandle} needs to create a wallet first.`);
     }
@@ -135,9 +131,9 @@ export async function commandPay(ctx: BotContext) {
         clientIntentId,
         chatId: chat.id.toString(),
         fromUserId: payer.id,
-        toUserId: payee?.id,
+        toUserId: payee.id,
         fromWallet: payerWallet.address,
-        toWallet: payeeWallet?.address || "ESCROW",
+        toWallet: payeeWallet.address,
         mint: token.mint,
         amountRaw: amountRaw.toString(),
         feeRaw: feeRaw.toString(),

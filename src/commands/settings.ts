@@ -50,6 +50,9 @@ export async function handleSettingsCallback(ctx: BotContext) {
   const data = ctx.callbackQuery?.data;
   if (!data) return;
 
+  // Answer the callback query to remove loading state
+  await ctx.answerCallbackQuery();
+
   const userId = ctx.from?.id.toString();
   if (!userId) return;
 
@@ -92,7 +95,7 @@ export async function showHomePage(ctx: BotContext) {
       }
     };
 
-    return ctx.editMessageText(`🚀 **Welcome to Solana Pay Bot!**
+    return ctx.reply(`🚀 **Welcome to Solana Pay Bot!**
 
 **Features:**
 • 🎁 Create giveaways
@@ -156,7 +159,7 @@ ${balanceText}
 
 Ready to make payments!`;
 
-  return ctx.editMessageText(homeText, {
+  return ctx.reply(homeText, {
     parse_mode: "Markdown",
     ...homeMenu
   });
@@ -172,7 +175,7 @@ async function showWalletInfo(ctx: BotContext) {
   });
 
   if (!user || !user.wallets[0]) {
-    return ctx.editMessageText("❌ No wallet found. Please create one first.");
+    return ctx.reply("❌ No wallet found. Please create one first.");
   }
 
   const wallet = user.wallets[0];
@@ -208,7 +211,7 @@ ${balanceText}
 **Wallet Type:** ${wallet.label}
 **Status:** Active ✅`;
 
-  return ctx.editMessageText(walletText, {
+  return ctx.reply(walletText, {
     parse_mode: "Markdown",
     ...walletMenu
   });
@@ -243,7 +246,7 @@ async function showSendPayment(ctx: BotContext) {
 
 **Note:** Recipients must have their Telegram username set and registered with the bot.`;
 
-  return ctx.editMessageText(sendText, {
+  return ctx.reply(sendText, {
     parse_mode: "Markdown",
     ...sendMenu
   });
@@ -278,7 +281,7 @@ ${user?.handle ? `@${user.handle}` : "❌ No username set"}
 
 ${!user?.handle ? "⚠️ **Set your Telegram username in Settings > Username to receive payments!**" : "✅ **Ready to receive payments!**"}`;
 
-  return ctx.editMessageText(receiveText, {
+  return ctx.reply(receiveText, {
     parse_mode: "Markdown",
     ...receiveMenu
   });
@@ -308,7 +311,7 @@ async function showSecuritySettings(ctx: BotContext) {
 • Bot runs on Solana devnet (test network)
 • Always verify recipient addresses`;
 
-  return ctx.editMessageText(securityText, {
+  return ctx.reply(securityText, {
     parse_mode: "Markdown",
     ...securityMenu
   });
@@ -323,7 +326,7 @@ async function showTransactionHistory(ctx: BotContext) {
   });
 
   if (!user) {
-    return ctx.editMessageText("❌ User not found.");
+    return ctx.reply("❌ User not found.");
   }
 
   const payments = await prisma.payment.findMany({
@@ -361,7 +364,7 @@ async function showTransactionHistory(ctx: BotContext) {
     }
   };
 
-  return ctx.editMessageText(historyText, {
+  return ctx.reply(historyText, {
     parse_mode: "Markdown",
     ...historyMenu
   });
@@ -399,7 +402,7 @@ async function showHelp(ctx: BotContext) {
 **Need Help?**
 Contact the bot administrator or check our documentation.`;
 
-  return ctx.editMessageText(helpText, {
+  return ctx.reply(helpText, {
     parse_mode: "Markdown",
     ...helpMenu
   });
@@ -430,7 +433,7 @@ async function showBotSettings(ctx: BotContext) {
 • Security notifications
 • Multi-token support`;
 
-  return ctx.editMessageText(settingsText, {
+  return ctx.reply(settingsText, {
     parse_mode: "Markdown",
     ...settingsMenu
   });

@@ -80,17 +80,72 @@ export async function executeTransfer(params: TransferParams): Promise<TransferR
       }
     }
 
+    // CRITICAL: Check if sender has sufficient balance for amount + all fees
+    const totalRequired = amountRaw + feeRaw + (serviceFeeRaw || 0n);
+    
+    if (mint === "So11111111111111111111111111111111111111112") {
+      // For SOL transfers, check SOL balance
+      const senderBalance = await connection.getBalance(senderPubkey);
+      const rentExemptMinimum = 890880; // Minimum SOL for rent exemption (~0.00089 SOL)
+      const estimatedTxFee = 10000; // ~0.00001 SOL for transaction fee
+      
+      if (BigInt(senderBalance) < totalRequired + BigInt(rentExemptMinimum + estimatedTxFee)) {
+        const requiredSol = Number(totalRequired + BigInt(rentExemptMinimum + estimatedTxFee)) / LAMPORTS_PER_SOL;
+        const availableSol = senderBalance / LAMPORTS_PER_SOL;
+        return { 
+          success: false, 
+          error: `Insufficient SOL balance. Required: ${requiredSol.toFixed(6)} SOL, Available: ${availableSol.toFixed(6)} SOL` 
+        };
+      }
+    } else {
+      // For SPL token transfers, check token balance + SOL for fees
+      try {
+        const mintPubkey = new PublicKey(mint);
+        const senderTokenAccount = await getAssociatedTokenAddress(
+          mintPubkey,
+          senderPubkey,
+          false,
+          TOKEN_PROGRAM_ID,
+          ASSOCIATED_TOKEN_PROGRAM_ID
+        );
+        
+        const tokenAccountInfo = await getAccount(connection, senderTokenAccount);
+        if (tokenAccountInfo.amount < totalRequired) {
+          const requiredTokens = Number(totalRequired) / (10 ** token.decimals);
+          const availableTokens = Number(tokenAccountInfo.amount) / (10 ** token.decimals);
+          return { 
+            success: false, 
+            error: `Insufficient ${token.ticker} balance. Required: ${requiredTokens} ${token.ticker}, Available: ${availableTokens} ${token.ticker}` 
+          };
+        }
+        
+        // Also check SOL balance for transaction fees and potential service fees in SOL
+        const senderSolBalance = await connection.getBalance(senderPubkey);
+        const solFeesRequired = (serviceFeeToken === "So11111111111111111111111111111111111111112" ? serviceFeeRaw : 0n) + 15000n; // tx fee estimate
+        
+        if (BigInt(senderSolBalance) < solFeesRequired + 890880n) { // Include rent exemption
+          const requiredSol = Number(solFeesRequired + 890880n) / LAMPORTS_PER_SOL;
+          const availableSol = senderSolBalance / LAMPORTS_PER_SOL;
+          return { 
+            success: false, 
+            error: `Insufficient SOL for fees. Required: ${requiredSol.toFixed(6)} SOL, Available: ${availableSol.toFixed(6)} SOL` 
+          };
+        }
+      } catch (error) {
+        return { success: false, error: `Token account error: ${error instanceof Error ? error.message : "Unknown error"}` };
+      }
+    }
+
     const transaction = new Transaction();
 
     if (mint === "So11111111111111111111111111111111111111112") {
       // Native SOL transfer
-      // Send net amount to recipient (not full amount)
-      const netAmount = amountRaw - feeRaw - (serviceFeeRaw || 0n);
+      // IMPORTANT: Recipient gets the FULL amount, sender pays amount + fees
       transaction.add(
         SystemProgram.transfer({
           fromPubkey: senderPubkey,
           toPubkey: recipientPubkey,
-          lamports: Number(netAmount)
+          lamports: Number(amountRaw) // Recipient receives full amount
         })
       );
 
@@ -171,14 +226,13 @@ export async function executeTransfer(params: TransferParams): Promise<TransferR
         }
       }
 
-      // Transfer net amount to recipient (not full amount)
-      const netAmount = amountRaw - feeRaw - (serviceFeeRaw || 0n);
+      // IMPORTANT: Recipient gets the FULL amount, sender pays amount + fees
       transaction.add(
         createTransferInstruction(
           senderTokenAccount,
           recipientTokenAccount,
           senderPubkey,
-          Number(netAmount),
+          Number(amountRaw), // Recipient receives full amount
           [],
           TOKEN_PROGRAM_ID
         )

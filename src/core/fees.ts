@@ -142,20 +142,22 @@ export async function calculateFee(
     }
   }
 
-  // Calculate minimum transfer fee (0.000005 SOL)
-  const { feeRaw, netRaw: netAfterTxFee } = calcFeeRaw(amountRaw, feeBps, minRaw);
+  // Calculate transaction fee (percentage of amount or minimum)
+  const pctFee = (amountRaw * BigInt(feeBps)) / BigInt(10_000);
+  const feeRaw = pctFee < minRaw ? minRaw : pctFee;
   
   // Calculate flexible 0.25% service fee using blue-chip token or SOL fallback
   const serviceFeeResult = await calculateServiceFee(amountRaw, mint, token);
   
-  // Net amount after both fees (only deduct transfer fee from amount, service fee handled separately)
-  const netRaw = amountRaw - feeRaw;
+  // IMPORTANT: Receiver gets the FULL amount sent
+  // The sender pays: amount + transaction fee + service fee
+  const netRaw = amountRaw; // Receiver gets full amount
 
   return {
     feeRaw,
     serviceFeeRaw: serviceFeeResult.serviceFeeRaw,
     serviceFeeToken: serviceFeeResult.serviceFeeToken,
-    netRaw,
+    netRaw, // This is what the receiver gets (full amount)
     feeAmount: Number(feeRaw) / (10 ** token.decimals),
     serviceFeeAmount: Number(serviceFeeResult.serviceFeeRaw) / (10 ** (serviceFeeResult.fallbackToSol ? 9 : token.decimals)),
     netAmount: Number(netRaw) / (10 ** token.decimals)

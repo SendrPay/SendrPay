@@ -124,19 +124,20 @@ export async function commandPay(ctx: BotContext) {
     }
 
     // Show payment confirmation with flexible service fee information
-    const grossAmount = Number(amountRaw) / (10 ** token.decimals);
-    const feeAmount = Number(feeRaw) / (10 ** token.decimals);
-    const netAmount = Number(netRaw) / (10 ** token.decimals);
+    const recipientReceives = Number(amountRaw) / (10 ** token.decimals);
+    const transactionFee = Number(feeRaw) / (10 ** token.decimals);
+    const serviceFeeAmount = Number(serviceFeeRaw) / (10 ** token.decimals);
+    const totalYouPay = Number(amountRaw + feeRaw + serviceFeeRaw) / (10 ** token.decimals);
     
     // Get service fee confirmation message
     const serviceFeeMessage = await generateFeeConfirmationMessage(amountRaw, token.mint, token);
     
     const confirmationText = `💳 **Payment Confirmation**
 
-**Sending:** ${grossAmount} ${token.ticker}
+**Recipient Receives:** ${recipientReceives} ${token.ticker}
 **To:** @${payeeHandle}
-**Transaction Fee:** ${feeAmount} ${token.ticker}
-**Net Amount:** ${netAmount} ${token.ticker}
+**Transaction Fee:** ${transactionFee} ${token.ticker}
+**Total You Pay:** ${totalYouPay} ${token.ticker}
 ${note ? `**Note:** ${note}` : ''}
 
 **Service Fee:** ${serviceFeeMessage}
@@ -242,14 +243,16 @@ export async function handlePaymentConfirmation(ctx: BotContext, confirmed: bool
     const feeRaw = BigInt(payment.feeRaw);
     // @ts-ignore - New fields from schema update
     const serviceFeeRaw = BigInt(payment.serviceFeeRaw || "0");
-    const netRaw = amountRaw - feeRaw;
+    
+    // IMPORTANT: Recipient gets the FULL amount, sender pays amount + fees
+    const recipientReceives = amountRaw; // Full amount goes to recipient
 
     // Execute transfer with flexible service fee
     const result = await executeTransfer({
       fromWallet: payerWallet,
       toAddress: payment.toWallet,
       mint: token.mint,
-      amountRaw: netRaw, // Pass net amount (recipient receives this)
+      amountRaw: recipientReceives, // Recipient gets full amount
       feeRaw,
       serviceFeeRaw,
       // @ts-ignore - New fields from schema update
@@ -268,16 +271,17 @@ export async function handlePaymentConfirmation(ctx: BotContext, confirmed: bool
       });
 
       // Send confirmation
-      const grossAmount = Number(amountRaw) / (10 ** token.decimals);
+      const recipientAmount = Number(recipientReceives) / (10 ** token.decimals);
       const feeAmount = Number(feeRaw) / (10 ** token.decimals);
-      const netAmount = Number(netRaw) / (10 ** token.decimals);
+      const serviceFeeAmount = Number(serviceFeeRaw) / (10 ** token.decimals);
+      const totalPaid = Number(amountRaw + feeRaw + serviceFeeRaw) / (10 ** token.decimals);
 
       const receipt = formatReceipt({
         from: `@${payment.from?.handle || 'user'}`,
         to: `@${payment.to?.handle || 'user'}`,
-        gross: grossAmount,
+        gross: totalPaid,
         fee: feeAmount,
-        net: netAmount,
+        net: recipientAmount,
         token: token.ticker,
         signature: result.signature,
         note: payment.note || undefined

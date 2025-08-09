@@ -124,7 +124,33 @@ export async function commandPay(ctx: BotContext) {
       return ctx.reply(`❌ User @${payeeHandle} needs to create a wallet first.`);
     }
 
-    // Create payment record
+    // Show payment confirmation
+    const grossAmount = Number(amountRaw) / (10 ** token.decimals);
+    const feeAmount = Number(feeRaw) / (10 ** token.decimals);
+    const netAmount = Number(netRaw) / (10 ** token.decimals);
+    
+    const confirmationText = `💳 **Payment Confirmation**
+
+**Sending:** ${grossAmount} ${token.ticker}
+**To:** @${payeeHandle}
+**Fee:** ${feeAmount} ${token.ticker}
+**Net Amount:** ${netAmount} ${token.ticker}
+${note ? `**Note:** ${note}` : ''}
+
+Confirm this payment?`;
+
+    const confirmationKeyboard = {
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: "✅ Confirm Payment", callback_data: `confirm_pay_${paymentId}` },
+            { text: "❌ Cancel", callback_data: `cancel_pay_${paymentId}` }
+          ]
+        ]
+      }
+    };
+
+    // Create payment record in pending state
     const payment = await prisma.payment.create({
       data: {
         id: paymentId,
@@ -138,35 +164,80 @@ export async function commandPay(ctx: BotContext) {
         amountRaw: amountRaw.toString(),
         feeRaw: feeRaw.toString(),
         note,
-        status: "pending"
+        status: "awaiting_confirmation"
       }
     });
 
-    // If payee doesn't have wallet, create escrow
-    if (!payeeWallet && payeeHandle) {
-      await createEscrow({
-        paymentId,
-        chatId: chat.id.toString(),
-        payerWallet: payerWallet.address,
-        payeeHandle,
-        payeeTid: payeeId,
-        mint: token.mint,
-        amountRaw: netRaw,
-        feeRaw
+    await ctx.reply(confirmationText, {
+      parse_mode: "Markdown",
+      ...confirmationKeyboard
+    });
+
+  } catch (error) {
+    logger.error("Pay command error:", error);
+    await ctx.reply("❌ Payment failed. Please try again.");
+  }
+}
+
+export async function handlePaymentConfirmation(ctx: BotContext, confirmed: boolean) {
+  try {
+    const paymentId = ctx.callbackQuery?.data?.split('_')[2];
+    if (!paymentId) {
+      return ctx.reply("❌ Invalid payment confirmation.");
+    }
+
+    // Get payment record
+    const payment = await prisma.payment.findUnique({
+      where: { id: paymentId },
+      include: {
+        from: true,
+        to: true
+      }
+    });
+
+    if (!payment) {
+      return ctx.reply("❌ Payment not found.");
+    }
+
+    if (payment.status !== "awaiting_confirmation") {
+      return ctx.reply("❌ Payment already processed.");
+    }
+
+    if (!confirmed) {
+      // Cancel payment
+      await prisma.payment.update({
+        where: { id: paymentId },
+        data: { status: "cancelled" }
       });
-
-      await ctx.reply(`💰 Payment escrowed for ${payeeHandle}! They can claim it by DMing @${ctx.me.username}.`);
-      return;
+      return ctx.reply("❌ Payment cancelled.");
     }
 
-    if (!payeeWallet) {
-      return ctx.reply("❌ Could not determine recipient wallet.");
+    // Get token info
+    const token = await resolveToken(payment.mint === "So11111111111111111111111111111111111111112" ? "SOL" : payment.mint);
+    if (!token) {
+      return ctx.reply("❌ Token not found.");
     }
+
+    // Get wallet info
+    const payerWallet = await prisma.wallet.findFirst({
+      where: { 
+        address: payment.fromWallet,
+        isActive: true 
+      }
+    });
+
+    if (!payerWallet) {
+      return ctx.reply("❌ Payer wallet not found.");
+    }
+
+    const amountRaw = BigInt(payment.amountRaw);
+    const feeRaw = BigInt(payment.feeRaw);
+    const netRaw = amountRaw - feeRaw;
 
     // Execute transfer
     const result = await executeTransfer({
       fromWallet: payerWallet,
-      toAddress: payeeWallet.address,
+      toAddress: payment.toWallet,
       mint: token.mint,
       amountRaw: netRaw,
       feeRaw,
@@ -184,26 +255,37 @@ export async function commandPay(ctx: BotContext) {
       });
 
       // Send confirmation
+      const grossAmount = Number(amountRaw) / (10 ** token.decimals);
+      const feeAmount = Number(feeRaw) / (10 ** token.decimals);
+      const netAmount = Number(netRaw) / (10 ** token.decimals);
+
       const receipt = formatReceipt({
-        from: `@${ctx.from?.username || 'user'}`,
-        to: payeeHandle || payeeWallet.address.slice(0, 8) + "...",
-        gross: amount,
-        fee: Number(feeRaw) / (10 ** token.decimals),
-        net: Number(netRaw) / (10 ** token.decimals),
+        from: `@${payment.from?.handle || 'user'}`,
+        to: `@${payment.to?.handle || 'user'}`,
+        gross: grossAmount,
+        fee: feeAmount,
+        net: netAmount,
         token: token.ticker,
         signature: result.signature,
-        note
+        note: payment.note || undefined
       });
 
-      await ctx.reply(receipt, { parse_mode: "Markdown" });
-
-      logger.info(`Payment sent: ${paymentId}, tx: ${result.signature}`);
+      await ctx.reply(`✅ **Payment Sent Successfully!**\n\n${receipt}`, { parse_mode: "Markdown" });
+      logger.info(`Payment confirmed and sent: ${paymentId}, tx: ${result.signature}`);
     } else {
+      // Update payment as failed
+      await prisma.payment.update({
+        where: { id: paymentId },
+        data: { 
+          status: "failed",
+          errorMsg: result.error
+        }
+      });
       await ctx.reply(`❌ Transfer failed: ${result.error}`);
     }
 
   } catch (error) {
-    logger.error("Pay command error:", error);
-    await ctx.reply("❌ Payment failed. Please try again.");
+    logger.error("Payment confirmation error:", error);
+    await ctx.reply("❌ Payment confirmation failed. Please try again.");
   }
 }

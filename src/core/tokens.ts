@@ -136,7 +136,7 @@ async function fetchTokenMetadata(mint: string): Promise<{ ticker: string; name:
   if (!env.HELIUS_API_KEY) return null;
 
   try {
-    const response = await fetch(env.RPC_URL, {
+    const response = await fetch(env.RPC_URL!, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

@@ -107,4 +107,17 @@ Send your private key now:`, { parse_mode: "Markdown" });
     const { handleSettingsCallback } = await import("./settings");
     await handleSettingsCallback(ctx);
   });
+
+  // Payment confirmation handlers
+  bot.callbackQuery(/^confirm_pay_(.+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const { handlePaymentConfirmation } = await import("./pay");
+    await handlePaymentConfirmation(ctx, true);
+  });
+
+  bot.callbackQuery(/^cancel_pay_(.+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const { handlePaymentConfirmation } = await import("./pay");
+    await handlePaymentConfirmation(ctx, false);
+  });
 }

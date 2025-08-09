@@ -1,0 +1,41 @@
+Replit Prompt: Flexible 0.25% Service Fee in Blue-Chip Tokens or SOL (Fallback)
+
+Task:
+We need to implement a 0.25% service fee that is taken in the same token that the user is sending if that token is one of our verified “blue-chip” tokens. If it’s not possible to take the fee in that token, we’ll fall back to taking the fee in SOL.
+
+Instructions:
+	1.	Blue-Chip Token Priority:
+	•	If the transaction is in SOL, take the fee in SOL.
+	•	If the transaction is in USDC, take the fee in USDC.
+	•	Do the same for other verified tokens like BONK, JUP, USDT, wrapped ETH, and wrapped BTC.
+	•	Essentially, the fee should be taken in the same token as the transfer token if it’s on the verified list.
+	2.	Fallback to SOL:
+	•	If for any reason the fee cannot be taken in the transfer token (or if it’s not on the verified list), then default to taking the fee in SOL.
+	•	This ensures that there’s always a fallback mechanism and no unsupported tokens are used for fees.
+	3.	User Confirmation:
+	•	Before finalizing the transaction, confirm with the user which token will be used for the fee. For example, say: “We will take a 0.25% fee in USDC” or “We will take a 0.25% fee in SOL as a fallback.” This way, they know exactly what’s happening.
+	4.	Code Adaptation:
+	•	Modify the fee calculation logic to first attempt to take the fee in the same token as the transfer, if it’s on the allowlisted blue-chip list.
+	•	If not, default to taking the fee in SOL.
+
+⸻
+
+Replit Prompt Text:
+
+# Replit Build Task: Flexible Service Fee in Blue-Chip Tokens or SOL Fallback
+
+We need to implement a 0.25% service fee that prioritizes taking the fee in the same token as the user’s transfer if that token is one of our verified blue-chip tokens. If it’s not possible, we will use SOL as a fallback fee token.
+
+**Instructions:**
+1. When a user sends a transaction in a verified token (e.g., SOL, USDC, BONK, JUP, USDT, wrapped ETH, wrapped BTC), calculate the 0.25% fee in that same token and add it to the total amount the sender must provide.
+2. If for any reason the fee cannot be taken in that token, or if the token is not on the verified list, default to taking the fee in SOL.
+3. Before finalizing the transaction, confirm with the user which token will be used for the fee (either the same token or SOL as a fallback).
+
+**Example Workflow:**
+- User wants to send 100 USDC. Calculate 0.25% fee (0.25 USDC) and add it on top. Confirm “We will take a 0.25% fee in USDC.”
+- If USDC fee is not possible, fallback to SOL and confirm “We will take a 0.25% fee in SOL as a fallback.”
+
+**Adjust the existing transfer logic to support this flexible fee structure.**
+
+
+⸻

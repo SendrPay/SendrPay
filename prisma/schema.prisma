@@ -232,6 +232,7 @@ model Transaction {
   note                  String?
   type                  String   // "payment", "tip", "split", "giveaway", "withdrawal"
   status                String   @default("confirmed") // "pending", "confirmed", "failed"
+  reactionSent          Boolean  @default(false) // Track if recipient has reacted
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 

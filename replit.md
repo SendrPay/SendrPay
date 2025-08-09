@@ -103,16 +103,14 @@ Preferred communication style: Simple, everyday language.
   - Added automatic recipient wallet funding for new users (0 balance wallets)
   - Confirmed working: Direct transfers successful with proper service fee collection
   - Receiver gets full amount specified, sender pays amount + fees + service fee + admin/recipient funding if needed
-- **Payment Notification System**: Comprehensive recipient notification with reactions and thank you features (August 9, 2025)
+- **Payment Notification System**: Simplified emoji-only reaction system with one-reaction-per-payment limit (August 9, 2025)
   - Automatic payment notifications sent to recipients with transaction details and Solana Explorer link
-  - Interactive inline buttons: Heart reaction (❤️), Fire reaction (🔥), Thank you message, and GIF/sticker sending
-  - Thank you message system: Recipients can send custom messages or GIFs/stickers back to senders
-  - Transaction tracking: All payments recorded in database for notification lookup and thank you routing
-  - Secure callback handling: Reaction and thank you callbacks properly validated and routed
+  - Simplified interactive buttons: Only emoji reactions (❤️ Heart, 🔥 Fire)
+  - One reaction per payment: Recipients can only react once, button becomes "✅ Reacted" after use
+  - Reaction tracking: Database tracks reactionSent status to prevent multiple reactions
+  - Reaction routing: Emoji reactions sent back to original payment sender with notification
   - Cross-context support: Notifications work for both group and DM payments
-  - Enhanced user experience: Recipients feel acknowledged and can express gratitude easily
-  - **Telegram Compatibility Fix**: Resolved BUTTON_DATA_INVALID error by truncating callback data to meet 64-byte limit
-  - **Fully Operational**: Confirmed working with real bot API and actual user accounts
-  - **Enhanced Interactivity**: Fixed reaction buttons to send reactions back to original sender
-  - **Auto-Reply Feature**: Added trading bot-style auto-reply prompts that highlight messages for easy responding
-  - **Complete Flow**: Recipients receive notification → auto-reply prompt → reactions/messages go back to sender
+  - **Removed Features**: Custom thank you messages, GIFs, stickers, and auto-reply prompts removed for simplicity
+  - **Telegram Compatibility**: Callback data within 64-byte limit using signature prefixes
+  - **Database Integration**: Added reactionSent boolean field to Transaction model
+  - **Clean User Experience**: Simple, focused reaction system without overwhelming options

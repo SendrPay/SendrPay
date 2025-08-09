@@ -42,7 +42,7 @@ if (bot) {
   registerGroupRoutes(bot);
   registerDMRoutes(bot);
 
-  // Handle notification callbacks (reactions and thank you messages)
+  // Handle notification callbacks (reactions only)
   bot.on("callback_query", async (ctx) => {
     const data = ctx.callbackQuery?.data;
     if (!data) return;
@@ -51,35 +51,20 @@ if (bot) {
       // Handle payment reactions
       const { handleReactionCallback } = await import("./core/notifications-simple");
       await handleReactionCallback(ctx);
-    } else if (data.startsWith("thank_")) {
-      // Handle thank you message setup
-      const { handleThankYouCallback } = await import("./core/notifications-simple");
-      await handleThankYouCallback(ctx);
+    } else if (data === "already_reacted") {
+      // Handle already reacted button
+      const { handleAlreadyReacted } = await import("./core/notifications-simple");
+      await handleAlreadyReacted(ctx);
     }
     // Other callback handlers will be processed by command routers
   });
 
-  // Handle thank you replies and media
+  // Handle private messages (commands only, no more thank you replies)
   bot.on("message", async (ctx) => {
     const chatType = ctx.chat?.type;
     
-    // Handle thank you replies and GIFs/stickers
     if (chatType === "private") {
-      const { handleThankYouReply, handleThankYouMedia } = await import("./core/notifications-simple");
-      
-      // Check for thank you message replies
-      if (ctx.message?.reply_to_message) {
-        await handleThankYouReply(ctx);
-        return;
-      }
-      
-      // Check for thank you GIFs/stickers
-      if (ctx.message?.animation || ctx.message?.sticker) {
-        await handleThankYouMedia(ctx);
-        return;
-      }
-      
-      // Default private message handler
+      // Default private message handler - only respond to commands
       await ctx.reply("Use /start to begin or /help for commands.");
     }
     // Ignore group messages without commands

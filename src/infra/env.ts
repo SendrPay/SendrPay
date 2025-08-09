@@ -65,13 +65,9 @@ function parseEnv() {
   } catch (error) {
     if (error instanceof z.ZodError) {
       console.error('❌ Environment validation failed:');
-      if (error.errors) {
-        error.errors.forEach((err) => {
-          console.error(`  - ${err.path.join('.')}: ${err.message}`);
-        });
-      } else {
-        console.error('  - Validation error details unavailable');
-      }
+      error.issues.forEach((err) => {
+        console.error(`  - ${err.path.join('.')}: ${err.message}`);
+      });
       console.error('\n💡 Please check your environment variables and try again.');
       process.exit(1);
     }
@@ -110,7 +106,7 @@ export function validateCriticalConfig(): boolean {
   }
 
   // Check fee configuration
-  const feeBps = parseInt(env.FEE_BPS);
+  const feeBps = parseInt(env.FEE_BPS || '50');
   if (isNaN(feeBps) || feeBps < 0 || feeBps > 1000) {
     errors.push('FEE_BPS must be between 0 and 1000 (0% to 10%)');
   }
@@ -125,7 +121,7 @@ export function validateCriticalConfig(): boolean {
   }
 
   // Check Helius RPC URL
-  if (!env.RPC_URL.includes('helius')) {
+  if (env.RPC_URL && !env.RPC_URL.includes('helius')) {
     console.warn('⚠️ RPC_URL does not appear to be a Helius endpoint');
   }
 
@@ -141,11 +137,11 @@ export function validateCriticalConfig(): boolean {
 // Runtime configuration helpers
 export function getRuntimeConfig() {
   return {
-    feeBps: parseInt(env.FEE_BPS),
-    feeMinRawSol: BigInt(env.FEE_MIN_RAW_SOL),
+    feeBps: parseInt(env.FEE_BPS || '50'),
+    feeMinRawSol: BigInt(env.FEE_MIN_RAW_SOL || '5000'),
     sponsorFees: env.SPONSOR_FEES === 'true',
-    sponsorDailyCap: BigInt(env.SPONSOR_DAILY_CAP_LAMPORTS),
-    escrowExpiryHours: parseInt(env.ESCROW_EXPIRY_HOURS),
+    sponsorDailyCap: BigInt(env.SPONSOR_DAILY_CAP_LAMPORTS || '2000000'),
+    escrowExpiryHours: parseInt(env.ESCROW_EXPIRY_HOURS || '168'),
     isDevelopment,
     isProduction,
   };
@@ -185,7 +181,7 @@ export function getConfigSummary(): Record<string, any> {
     feeBps: env.FEE_BPS,
     sponsorFees: env.SPONSOR_FEES,
     escrowExpiryHours: env.ESCROW_EXPIRY_HOURS,
-    rpcEndpoint: env.RPC_URL.replace(/api-key=[^&]+/g, 'api-key=***'),
+    rpcEndpoint: env.RPC_URL?.replace(/api-key=[^&]+/g, 'api-key=***') || 'not configured',
   };
 }
 

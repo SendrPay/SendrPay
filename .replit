@@ -15,19 +15,19 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "Solana Pay Bot"
+args = "solana-bot"
 
 [[workflows.workflow]]
-name = "Solana Pay Bot"
+name = "solana-bot"
 author = "agent"
-
-[workflows.workflow.metadata]
-outputType = "console"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "npm install && npx prisma generate && npx prisma db push && npx tsx src/index.ts"
+args = "npx prisma generate && npx prisma db push && npx tsx src/index.ts"
 waitForPort = 5000
+
+[workflows.workflow.metadata]
+outputType = "webview"
 
 [[ports]]
 localPort = 5000

@@ -57,13 +57,15 @@ export async function generateWallet(ctx: BotContext): Promise<void> {
       return ctx.reply("❌ Could not identify user.");
     }
 
-    // Create or get user
+    // Create or get user - always update handle from Telegram account
     const user = await prisma.user.upsert({
       where: { telegramId: userId },
-      update: { handle: ctx.from?.username },
+      update: { 
+        handle: ctx.from?.username || null // Update with current Telegram username
+      },
       create: {
         telegramId: userId,
-        handle: ctx.from?.username
+        handle: ctx.from?.username || null // Use Telegram username, not custom
       }
     });
 
@@ -149,13 +151,15 @@ export async function importWallet(ctx: BotContext, privateKeyInput: string): Pr
     const keypair = Keypair.fromSecretKey(privateKeyBytes);
     const publicKey = keypair.publicKey.toBase58();
 
-    // Create or get user
+    // Create or get user - always update handle from Telegram account
     const user = await prisma.user.upsert({
       where: { telegramId: userId },
-      update: { handle: ctx.from?.username },
+      update: { 
+        handle: ctx.from?.username || null // Update with current Telegram username
+      },
       create: {
         telegramId: userId,
-        handle: ctx.from?.username
+        handle: ctx.from?.username || null // Use Telegram username, not custom
       }
     });
 

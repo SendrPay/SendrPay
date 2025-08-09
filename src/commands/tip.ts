@@ -121,21 +121,21 @@ export async function commandTip(ctx: BotContext) {
     let payeeWallet = null;
 
     if (payeeHandle) {
-      // Look up user by their verified Telegram handle
+      // Look up user by their actual Telegram handle (from their Telegram account)
       payee = await prisma.user.findFirst({
         where: { 
-          handle: payeeHandle,
+          handle: payeeHandle, // Must match their actual Telegram username
         },
         include: { wallets: { where: { isActive: true } } }
       });
 
       if (!payee) {
-        return ctx.reply(`❌ User @${payeeHandle} not found or hasn't set up a wallet yet.`);
+        return ctx.reply(`❌ User @${payeeHandle} not found. They need to start the bot to register their Telegram username.`);
       }
 
-      // Verify the recipient's handle matches exactly what was requested
+      // Strict verification: the handle must exactly match their registered Telegram username
       if (payee.handle?.toLowerCase() !== payeeHandle.toLowerCase()) {
-        return ctx.reply(`❌ Username verification failed. Tip can only be sent to verified handle @${payee.handle}.`);
+        return ctx.reply(`❌ Username verification failed. This user's verified handle is @${payee.handle}.`);
       }
 
       payeeWallet = payee.wallets[0];

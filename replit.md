@@ -77,6 +77,6 @@ Preferred communication style: Simple, everyday language.
 ## Recent Changes (August 2025)
 - **Updated Architecture**: Removed Phantom wallet integration in favor of private key import system
 - **Enhanced Security**: Fixed encryption to use proper AES-256-GCM with createCipheriv/createDecipheriv
-- **Username Verification**: Implemented strict username verification where @vi100x can only receive payments when directed to that exact username
+- **Username Verification**: Implemented strict username verification using actual Telegram usernames - users cannot set custom usernames, preventing scams by ensuring @vi100x can only receive payments when directed to their verified Telegram handle
 - **DM Payment Support**: All payment commands (/pay, /tip, /split) now work in direct messages for private transactions
 - **Cross-Context Functionality**: Users can now pay people they're not in group chats with via direct messages

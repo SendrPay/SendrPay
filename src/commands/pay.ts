@@ -8,6 +8,7 @@ import { createEscrow } from "../core/escrow";
 import { formatReceipt } from "../core/receipts";
 import { checkRateLimit } from "../core/ratelimit";
 import { generateClientIntentId } from "../core/idempotency";
+import { sendPaymentNotification } from "../core/notifications";
 import { logger } from "../infra/logger";
 import { v4 as uuidv4 } from "uuid";
 
@@ -247,7 +248,7 @@ export async function handlePaymentConfirmation(ctx: BotContext, confirmed: bool
     // IMPORTANT: Recipient gets the FULL amount, sender pays amount + fees
     const recipientReceives = amountRaw; // Full amount goes to recipient
 
-    // Execute transfer with flexible service fee
+    // Execute transfer with flexible service fee and notification data
     const result = await executeTransfer({
       fromWallet: payerWallet,
       toAddress: payment.toWallet,
@@ -257,7 +258,11 @@ export async function handlePaymentConfirmation(ctx: BotContext, confirmed: bool
       serviceFeeRaw,
       // @ts-ignore - New fields from schema update
       serviceFeeToken: payment.serviceFeeToken || payment.mint,
-      token
+      token,
+      senderTelegramId: payment.from?.telegramId,
+      recipientTelegramId: payment.to?.telegramId,
+      note: payment.note,
+      type: "payment"
     });
 
     if (result.success) {
@@ -289,6 +294,26 @@ export async function handlePaymentConfirmation(ctx: BotContext, confirmed: bool
 
       await ctx.reply(`✅ **Payment Sent Successfully!**\n\n${receipt}`, { parse_mode: "Markdown" });
       logger.info(`Payment confirmed and sent: ${paymentId}, tx: ${result.signature}`);
+
+      // Send payment notification to recipient
+      if (payment.to?.telegramId && payment.from?.handle && result.signature) {
+        try {
+          await sendPaymentNotification(ctx.api, {
+            senderHandle: payment.from.handle,
+            senderName: payment.from.handle,
+            recipientTelegramId: payment.to.telegramId,
+            amount: recipientAmount,
+            tokenTicker: token.ticker,
+            signature: result.signature,
+            note: payment.note || undefined,
+            isNewWallet: false
+          });
+          
+          logger.info("Payment notification sent successfully");
+        } catch (notificationError) {
+          logger.error("Failed to send payment notification", notificationError);
+        }
+      }
     } else {
       // Update payment as failed
       await prisma.payment.update({

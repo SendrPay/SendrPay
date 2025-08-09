@@ -31,6 +31,11 @@ export interface TransferParams {
   token: Token;
   isWithdrawal?: boolean;
   isGiveaway?: boolean;
+  // For notifications
+  senderTelegramId?: string;
+  recipientTelegramId?: string;
+  note?: string;
+  type?: string;
 }
 
 export interface TransferResult {
@@ -53,7 +58,11 @@ export async function executeTransfer(params: TransferParams): Promise<TransferR
       serviceFeeToken,
       token,
       isWithdrawal = false,
-      isGiveaway = false
+      isGiveaway = false,
+      senderTelegramId,
+      recipientTelegramId,
+      note,
+      type = "payment"
     } = params;
 
     // Get sender keypair
@@ -401,6 +410,33 @@ export async function executeTransfer(params: TransferParams): Promise<TransferR
     }
 
       logger.info(`Transfer completed: ${signature}`);
+    
+    // Record transaction in database for notifications and tracking
+    try {
+      const { PrismaClient } = await import("@prisma/client");
+      const prisma = new PrismaClient();
+      
+      await prisma.transaction.create({
+        data: {
+          signature,
+          senderTelegramId: senderTelegramId || "",
+          recipientTelegramId: recipientTelegramId || null,
+          recipientAddress: toAddress,
+          amount: amountRaw.toString(),
+          tokenMint: mint,
+          tokenTicker: token.ticker,
+          fee: feeRaw?.toString(),
+          serviceFee: serviceFeeRaw?.toString(),
+          note: note || null,
+          type: type,
+          status: "confirmed"
+        }
+      });
+      
+      await prisma.$disconnect();
+    } catch (dbError) {
+      logger.warn("Failed to record transaction in database", dbError);
+    }
       return { success: true, signature };
       
     } catch (sendError) {

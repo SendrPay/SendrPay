@@ -42,10 +42,44 @@ if (bot) {
   registerGroupRoutes(bot);
   registerDMRoutes(bot);
 
-  // Default handler
+  // Handle notification callbacks (reactions and thank you messages)
+  bot.on("callback_query", async (ctx) => {
+    const data = ctx.callbackQuery?.data;
+    if (!data) return;
+
+    if (data.startsWith("react_")) {
+      // Handle payment reactions
+      const { handleReactionCallback } = await import("./core/notifications");
+      await handleReactionCallback(ctx);
+    } else if (data.startsWith("thank_")) {
+      // Handle thank you message setup
+      const { handleThankYouCallback } = await import("./core/notifications");
+      await handleThankYouCallback(ctx);
+    }
+    // Other callback handlers will be processed by command routers
+  });
+
+  // Handle thank you replies and media
   bot.on("message", async (ctx) => {
     const chatType = ctx.chat?.type;
+    
+    // Handle thank you replies and GIFs/stickers
     if (chatType === "private") {
+      const { handleThankYouReply, handleThankYouMedia } = await import("./core/notifications");
+      
+      // Check for thank you message replies
+      if (ctx.message?.reply_to_message) {
+        await handleThankYouReply(ctx);
+        return;
+      }
+      
+      // Check for thank you GIFs/stickers
+      if (ctx.message?.animation || ctx.message?.sticker) {
+        await handleThankYouMedia(ctx);
+        return;
+      }
+      
+      // Default private message handler
       await ctx.reply("Use /start to begin or /help for commands.");
     }
     // Ignore group messages without commands

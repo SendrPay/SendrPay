@@ -100,5 +100,14 @@ Preferred communication style: Simple, everyday language.
   - Root cause: Admin service fee wallet had 0 SOL balance, couldn't receive transfers due to rent exemption requirements
   - Solution: Automatic admin wallet funding system that ensures rent exemption minimum (0.00089088 SOL)
   - Enhanced balance calculation to include potential admin wallet funding in total required amount
+  - Added automatic recipient wallet funding for new users (0 balance wallets)
   - Confirmed working: Direct transfers successful with proper service fee collection
-  - Receiver gets full amount specified, sender pays amount + fees + service fee + admin funding if needed
+  - Receiver gets full amount specified, sender pays amount + fees + service fee + admin/recipient funding if needed
+- **Payment Notification System**: Comprehensive recipient notification with reactions and thank you features (August 9, 2025)
+  - Automatic payment notifications sent to recipients with transaction details and Solana Explorer link
+  - Interactive inline buttons: Heart reaction (❤️), Fire reaction (🔥), Thank you message, and GIF/sticker sending
+  - Thank you message system: Recipients can send custom messages or GIFs/stickers back to senders
+  - Transaction tracking: All payments recorded in database for notification lookup and thank you routing
+  - Secure callback handling: Reaction and thank you callbacks properly validated and routed
+  - Cross-context support: Notifications work for both group and DM payments
+  - Enhanced user experience: Recipients feel acknowledged and can express gratitude easily

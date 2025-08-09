@@ -218,4 +218,41 @@ model SystemStats {
   @@map("system_stats")
 }
 
+model Transaction {
+  id                    String   @id @default(cuid())
+  signature             String   @unique
+  senderTelegramId      String
+  recipientTelegramId   String?
+  recipientAddress      String
+  amount                String
+  tokenMint             String
+  tokenTicker           String
+  fee                   String?
+  serviceFee            String?
+  note                  String?
+  type                  String   // "payment", "tip", "split", "giveaway", "withdrawal"
+  status                String   @default("confirmed") // "pending", "confirmed", "failed"
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([signature])
+  @@index([senderTelegramId])
+  @@index([recipientTelegramId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("transactions")
+}
+
+model PendingThankYou {
+  id                    String   @id @default(cuid())
+  recipientTelegramId   String   @unique
+  signature             String
+  type                  String   @default("message") // "message", "gif"
+  createdAt             DateTime @default(now())
+
+  @@index([recipientTelegramId])
+  @@index([signature])
+  @@map("pending_thank_yous")
+}
+
 

@@ -31,14 +31,19 @@ app.listen(port, "0.0.0.0", () => {
   logger.info(`HTTP server listening on port ${port}`);
 });
 
-// For deployed bots, use webhook mode only. For local development, avoid polling conflicts
-if (bot) {
-  if (isDevelopment) {
-    logger.info("Bot configured for development - webhook mode to avoid polling conflicts");
-    logger.info("To test locally: send messages via webhook endpoints or use a separate test bot");
-  } else {
-    logger.info("Bot configured for production webhook mode");
-  }
+// Start bot in long polling for development only
+if (bot && isDevelopment) {
+  logger.info("Starting Telegram bot in polling mode...");
+  bot.start().then(() => {
+    logger.info("Telegram bot started successfully in polling mode");
+  }).catch((error) => {
+    logger.error(`Failed to start bot: ${error instanceof Error ? error.message : String(error)}`);
+    if (error instanceof Error && error.stack) {
+      logger.error(`Stack: ${error.stack}`);
+    }
+  });
+} else if (bot) {
+  logger.info("Bot configured for webhook mode");
 } else {
   logger.warn("Bot not configured - missing BOT_TOKEN");
 }

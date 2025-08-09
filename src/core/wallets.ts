@@ -105,13 +105,24 @@ Address: \`${publicKey}\`
 \`${bs58.encode(privateKeyBytes)}\`
 
 **This is shown ONLY ONCE. Save it securely!**
-• Anyone with this key controls your wallet
-• Keep it private and secure
-• You can import it later with /import
+
+- Anyone with this key controls your wallet
+- Keep it private and secure  
+- You can import it later with /import
 
 Use this wallet for payments!`;
 
     await ctx.reply(warningText, { parse_mode: "Markdown" });
+
+    // Show home page after wallet creation
+    const { showHomePage } = await import("../commands/settings");
+    setTimeout(async () => {
+      try {
+        await showHomePage(ctx);
+      } catch (error) {
+        logger.error("Error showing home page:", error);
+      }
+    }, 2000);
 
     logger.info(`Wallet generated for user ${userId}: ${publicKey}`);
   } catch (error) {

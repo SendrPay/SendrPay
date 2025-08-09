@@ -101,4 +101,10 @@ Supported formats:
 
 Send your private key now:`, { parse_mode: "Markdown" });
   });
+
+  // Settings menu callback handlers
+  bot.callbackQuery(/^(home|wallet|send_payment|receive_payment|security|history|help|bot_settings|settings_main|quick_pay)$/, async (ctx) => {
+    const { handleSettingsCallback } = await import("./settings");
+    await handleSettingsCallback(ctx);
+  });
 }

@@ -8,7 +8,7 @@ import { createEscrow } from "../core/escrow";
 import { formatReceipt } from "../core/receipts";
 import { checkRateLimit } from "../core/ratelimit";
 import { generateClientIntentId } from "../core/idempotency";
-import { sendPaymentNotification } from "../core/notifications";
+import { sendPaymentNotification } from "../core/notifications-simple";
 import { logger } from "../infra/logger";
 import { v4 as uuidv4 } from "uuid";
 
@@ -296,8 +296,24 @@ export async function handlePaymentConfirmation(ctx: BotContext, confirmed: bool
       logger.info(`Payment confirmed and sent: ${paymentId}, tx: ${result.signature}`);
 
       // Send payment notification to recipient
+      logger.info("Checking notification requirements", {
+        hasRecipientId: !!payment.to?.telegramId,
+        recipientId: payment.to?.telegramId,
+        hasSenderHandle: !!payment.from?.handle,
+        senderHandle: payment.from?.handle,
+        hasSignature: !!result.signature,
+        signature: result.signature
+      });
+
       if (payment.to?.telegramId && payment.from?.handle && result.signature) {
         try {
+          logger.info("Sending payment notification", {
+            to: payment.to.telegramId,
+            from: payment.from.handle,
+            amount: recipientAmount,
+            token: token.ticker
+          });
+
           await sendPaymentNotification(ctx.api, {
             senderHandle: payment.from.handle,
             senderName: payment.from.handle,
@@ -309,10 +325,23 @@ export async function handlePaymentConfirmation(ctx: BotContext, confirmed: bool
             isNewWallet: false
           });
           
-          logger.info("Payment notification sent successfully");
+          logger.info("Payment notification sent successfully", {
+            recipient: payment.to.telegramId,
+            signature: result.signature
+          });
         } catch (notificationError) {
-          logger.error("Failed to send payment notification", notificationError);
+          logger.error("Failed to send payment notification", {
+            error: notificationError,
+            recipient: payment.to?.telegramId,
+            signature: result.signature
+          });
         }
+      } else {
+        logger.warn("Payment notification skipped - missing required data", {
+          hasRecipientId: !!payment.to?.telegramId,
+          hasSenderHandle: !!payment.from?.handle,
+          hasSignature: !!result.signature
+        });
       }
     } else {
       // Update payment as failed

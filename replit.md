@@ -111,3 +111,5 @@ Preferred communication style: Simple, everyday language.
   - Secure callback handling: Reaction and thank you callbacks properly validated and routed
   - Cross-context support: Notifications work for both group and DM payments
   - Enhanced user experience: Recipients feel acknowledged and can express gratitude easily
+  - **Telegram Compatibility Fix**: Resolved BUTTON_DATA_INVALID error by truncating callback data to meet 64-byte limit
+  - **Fully Operational**: Confirmed working with real bot API and actual user accounts

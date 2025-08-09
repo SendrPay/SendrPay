@@ -49,11 +49,11 @@ if (bot) {
 
     if (data.startsWith("react_")) {
       // Handle payment reactions
-      const { handleReactionCallback } = await import("./core/notifications");
+      const { handleReactionCallback } = await import("./core/notifications-simple");
       await handleReactionCallback(ctx);
     } else if (data.startsWith("thank_")) {
       // Handle thank you message setup
-      const { handleThankYouCallback } = await import("./core/notifications");
+      const { handleThankYouCallback } = await import("./core/notifications-simple");
       await handleThankYouCallback(ctx);
     }
     // Other callback handlers will be processed by command routers
@@ -65,7 +65,7 @@ if (bot) {
     
     // Handle thank you replies and GIFs/stickers
     if (chatType === "private") {
-      const { handleThankYouReply, handleThankYouMedia } = await import("./core/notifications");
+      const { handleThankYouReply, handleThankYouMedia } = await import("./core/notifications-simple");
       
       // Check for thank you message replies
       if (ctx.message?.reply_to_message) {

@@ -3,8 +3,10 @@ import { resolveToken } from "./tokens";
 
 export interface FeeCalculation {
   feeRaw: bigint;
+  serviceFeeRaw: bigint;
   netRaw: bigint;
   feeAmount: number;
+  serviceFeeAmount: number;
   netAmount: number;
 }
 
@@ -58,12 +60,21 @@ export async function calculateFee(
     }
   }
 
-  const { feeRaw, netRaw } = calcFeeRaw(amountRaw, feeBps, minRaw);
+  // Calculate minimum transfer fee (0.000005 SOL)
+  const { feeRaw, netRaw: netAfterTxFee } = calcFeeRaw(amountRaw, feeBps, minRaw);
+  
+  // Calculate 0.25% service fee
+  const serviceFeeRaw = (amountRaw * 25n) / 10000n; // 0.25%
+  
+  // Net amount after both fees
+  const netRaw = amountRaw - feeRaw - serviceFeeRaw;
 
   return {
     feeRaw,
+    serviceFeeRaw,
     netRaw,
     feeAmount: Number(feeRaw) / (10 ** token.decimals),
+    serviceFeeAmount: Number(serviceFeeRaw) / (10 ** token.decimals),
     netAmount: Number(netRaw) / (10 ** token.decimals)
   };
 }

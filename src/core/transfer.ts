@@ -82,12 +82,13 @@ export async function executeTransfer(params: TransferParams): Promise<TransferR
 
     if (mint === "So11111111111111111111111111111111111111112") {
       // Native SOL transfer
-      // Send net amount to recipient
+      // Send net amount to recipient (not full amount)
+      const netAmount = amountRaw - feeRaw - (serviceFeeRaw || 0n);
       transaction.add(
         SystemProgram.transfer({
           fromPubkey: senderPubkey,
           toPubkey: recipientPubkey,
-          lamports: Number(amountRaw)
+          lamports: Number(netAmount)
         })
       );
 
@@ -153,13 +154,14 @@ export async function executeTransfer(params: TransferParams): Promise<TransferR
         }
       }
 
-      // Transfer net amount to recipient
+      // Transfer net amount to recipient (not full amount)
+      const netAmount = amountRaw - feeRaw - (serviceFeeRaw || 0n);
       transaction.add(
         createTransferInstruction(
           senderTokenAccount,
           recipientTokenAccount,
           senderPubkey,
-          Number(amountRaw),
+          Number(netAmount),
           [],
           TOKEN_PROGRAM_ID
         )

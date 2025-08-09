@@ -234,12 +234,12 @@ export async function handlePaymentConfirmation(ctx: BotContext, confirmed: bool
     const serviceFeeRaw = (amountRaw * 25n) / 10000n; // 0.25%
     const netRaw = amountRaw - feeRaw - serviceFeeRaw;
 
-    // Execute transfer (include service fee)
+    // Execute transfer (pass full amount, let transfer logic handle fees)
     const result = await executeTransfer({
       fromWallet: payerWallet,
       toAddress: payment.toWallet,
       mint: token.mint,
-      amountRaw: netRaw,
+      amountRaw: amountRaw, // Pass full amount
       feeRaw,
       serviceFeeRaw,
       token

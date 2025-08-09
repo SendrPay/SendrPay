@@ -35,8 +35,8 @@ export async function sendPaymentNotification(
     } = data;
 
     // Create notification message
-    let message = `💰 **Payment Received!**\n\n`;
-    message += `**From:** @${senderHandle} (${senderName})\n`;
+    let message = `💸 **Payment Received**\n\n`;
+    message += `**From:** @${senderHandle}\n`;
     message += `**Amount:** ${amount} ${tokenTicker}\n`;
     
     if (note) {
@@ -44,10 +44,10 @@ export async function sendPaymentNotification(
     }
     
     if (isNewWallet) {
-      message += `\n🎉 Welcome! Your wallet was automatically set up to receive this payment.\n`;
+      message += `\n✨ Welcome! Your wallet was set up automatically.\n`;
     }
     
-    message += `\n**Transaction:** [View on Solana Explorer](${getSolanaExplorerLink(signature)})`;
+    message += `\n[View Transaction](${getSolanaExplorerLink(signature)})`;
 
     // Create shorter callback data (Telegram limit is 64 bytes)
     const shortSig = signature.slice(0, 20); // Use first 20 chars of signature

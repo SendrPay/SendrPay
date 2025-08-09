@@ -40,24 +40,22 @@ export async function commandStart(ctx: BotContext) {
   }
 
   const keyboard = new InlineKeyboard()
-    .text("🔐 Generate Wallet", "generate_wallet")
+    .text("✨ Create New Wallet", "generate_wallet")
     .row()
-    .text("📥 Import Private Key", "import_wallet");
+    .text("🔑 Import Existing Wallet", "import_wallet");
 
-  const welcomeText = `🚀 **Welcome to Solana Pay Bot!**
+  const welcomeText = `✨ **Welcome to Solana Pay**
 
-**Features:**
-• 🎁 Create giveaways
-• 💰 Escrow for non-users  
-• 🔒 Secure encrypted wallet storage
+Send crypto payments instantly on Telegram
 
-**Terms of Service:**
-By using this bot, you agree to:
-• Use only legitimate funds
-• Understand blockchain risks
-• Take responsibility for your wallet security
+**What you can do:**
+• Send payments to any user
+• Create group giveaways  
+• Split bills automatically
+• Track all transactions
 
-**Choose an option to get started:**`;
+**Getting started:**
+Choose how to set up your wallet`;
 
   await ctx.reply(welcomeText, { 
     reply_markup: keyboard,

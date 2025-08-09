@@ -29,14 +29,14 @@ export async function commandBalance(ctx: BotContext) {
     
     if (!balances || balances.length === 0) {
       const keyboard = new InlineKeyboard()
-        .text("💰 Deposit", "deposit")
-        .text("📤 Withdraw", "withdraw");
+        .text("📱 Receive", "deposit")
+        .text("💸 Withdraw", "withdraw");
 
-      await ctx.reply(`💰 **Your Balance**
+      await ctx.reply(`💳 **Balance**
 
-Wallet: \`${wallet.address.slice(0, 8)}...\`
+\`${wallet.address.slice(0, 8)}...${wallet.address.slice(-4)}\`
 
-No tokens found. Deposit some tokens to get started!`, {
+Ready to receive payments`, {
         parse_mode: "Markdown",
         reply_markup: keyboard
       });
@@ -44,26 +44,26 @@ No tokens found. Deposit some tokens to get started!`, {
     }
 
     // Format balance display
-    let balanceText = `💰 **Your Balance**\n\nWallet: \`${wallet.address.slice(0, 8)}...\`\n\n`;
+    let balanceText = `💳 **Balance**\n\n\`${wallet.address.slice(0, 8)}...${wallet.address.slice(-4)}\`\n\n`;
     
     // Sort by USD value (if available) or amount
     balances.sort((a, b) => (b.uiAmount || 0) - (a.uiAmount || 0));
     
-    for (const balance of balances.slice(0, 10)) { // Show top 10
+    for (const balance of balances.slice(0, 8)) { // Show top 8
       const token = await resolveTokenByMint(balance.mint);
       const symbol = token?.ticker || balance.mint.slice(0, 4);
       const amount = balance.uiAmount?.toFixed(4) || "0";
       
-      balanceText += `${symbol}: ${amount}\n`;
+      balanceText += `${amount} ${symbol}\n`;
     }
 
-    if (balances.length > 10) {
-      balanceText += `\n... and ${balances.length - 10} more tokens`;
+    if (balances.length > 8) {
+      balanceText += `\n+${balances.length - 8} more tokens`;
     }
 
     const keyboard = new InlineKeyboard()
-      .text("💰 Deposit", "deposit")
-      .text("📤 Withdraw", "withdraw")
+      .text("📱 Receive", "deposit")
+      .text("💸 Withdraw", "withdraw")
       .row()
       .text("🔄 Refresh", "refresh_balance");
 

@@ -49,7 +49,7 @@ export async function commandTip(ctx: BotContext) {
       // Group tip: reply to message required
       const parsed = parseTipCommand(ctx);
       if (!parsed) {
-        return ctx.reply("❌ Usage: /tip amount [TOKEN]");
+        return ctx.reply("❌ Usage: \`/tip amount [TOKEN]\` (reply required)", { parse_mode: "Markdown" });
       }
       amount = parsed.amount;
       tokenTicker = parsed.tokenTicker;
@@ -63,7 +63,7 @@ export async function commandTip(ctx: BotContext) {
       // DM tip: parse @username from command
       const parsed = await parsePayCommand(ctx); // Reuse pay command parser for @username
       if (!parsed || !parsed.payeeHandle) {
-        return ctx.reply("❌ Usage: /tip @username amount [TOKEN]");
+        return ctx.reply("❌ Usage: \`/tip @username amount [TOKEN]\`", { parse_mode: "Markdown" });
       }
       amount = parsed.amount;
       tokenTicker = parsed.tokenTicker;
@@ -200,12 +200,10 @@ export async function commandTip(ctx: BotContext) {
       });
 
       // Send confirmation with tip emoji
-      const receipt = `🎉 **Tip Sent!**
+      const receipt = `✨ **Tip Sent**
 
-From: @${ctx.from?.username || 'user'}
-To: @${payeeHandle || 'user'}
-Amount: ${amount} ${token.ticker}
-Fee: ${Number(feeRaw) / (10 ** token.decimals)} ${token.ticker}
+**To:** @${payeeHandle || 'user'}
+**Amount:** ${amount} ${token.ticker}
 
 [View Transaction](https://explorer.solana.com/tx/${result.signature}?cluster=devnet)`;
 

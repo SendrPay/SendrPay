@@ -28,29 +28,20 @@ export function formatReceipt(params: ReceiptParams): string {
   const emoji = getReceiptEmoji(type);
   const title = getReceiptTitle(type);
 
-  let receipt = `${emoji} **${title} Complete**\n\n`;
+  let receipt = `**From:** ${from}\n`;
+  receipt += `**To:** ${to}\n`;
+  receipt += `**Amount:** ${formatAmount(net)} ${token}\n`;
   
-  receipt += `From: ${from}\n`;
-  receipt += `To: ${to}\n`;
-  
-  if (gross > 0) {
-    receipt += `\n💰 **Breakdown:**\n`;
-    receipt += `Gross: ${formatAmount(gross)} ${token}\n`;
-    
-    if (fee > 0) {
-      receipt += `Fee: ${formatAmount(fee)} ${token}\n`;
-      receipt += `Net: ${formatAmount(net)} ${token}\n`;
-    } else {
-      receipt += `Amount: ${formatAmount(gross)} ${token}\n`;
-    }
+  if (fee > 0) {
+    receipt += `**Network Fee:** ${formatAmount(fee)} ${token}\n`;
   }
 
   if (note) {
-    receipt += `\n📝 Note: ${note}`;
+    receipt += `**Note:** ${note}\n`;
   }
 
   if (signature) {
-    receipt += `\n\n[View on Explorer](https://explorer.solana.com/tx/${signature}?cluster=devnet)`;
+    receipt += `\n[View Transaction](https://explorer.solana.com/tx/${signature}?cluster=devnet)`;
   }
 
   return receipt;

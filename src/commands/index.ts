@@ -41,18 +41,20 @@ export function registerDMRoutes(bot: Bot<BotContext>) {
       return ctx.reply("This command only works in DM.");
     }
     ctx.session.awaitingPrivateKey = true;
-    await ctx.reply(`⚠️ **Send your private key in the next message**
+    await ctx.reply(`🔑 **Import Wallet**
 
-Supported formats:
-• Base58 string (e.g. 5Kb8kLf...)
-• JSON array (e.g. [1,2,3,...])
+Send your private key in your next message:
 
-**Security Warning:**
+**Supported formats:**
+• Base58 string
+• JSON array
+
+**Security:**
 • Only import keys you control
-• Never share your private key
-• Message will be deleted after processing
+• Never share private keys
+• Message will be deleted automatically
 
-Send your private key now:`, { parse_mode: "Markdown" });
+Send private key now:`, { parse_mode: "Markdown" });
   });
 
   // Payment commands also work in DM for direct payments
@@ -88,18 +90,20 @@ Send your private key now:`, { parse_mode: "Markdown" });
   bot.callbackQuery("import_wallet", async (ctx) => {
     await ctx.answerCallbackQuery();
     ctx.session.awaitingPrivateKey = true;
-    await ctx.reply(`⚠️ **Send your private key in the next message**
+    await ctx.reply(`🔑 **Import Wallet**
 
-Supported formats:
-• Base58 string (e.g. 5Kb8kLf...)
-• JSON array (e.g. [1,2,3,...])
+Send your private key in your next message:
 
-**Security Warning:**
+**Supported formats:**
+• Base58 string
+• JSON array
+
+**Security:**
 • Only import keys you control
-• Never share your private key
-• Message will be deleted after processing
+• Never share private keys
+• Message will be deleted automatically
 
-Send your private key now:`, { parse_mode: "Markdown" });
+Send private key now:`, { parse_mode: "Markdown" });
   });
 
   // Settings menu callback handlers

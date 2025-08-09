@@ -89,26 +89,24 @@ export async function showHomePage(ctx: BotContext) {
     const welcomeMenu = {
       reply_markup: {
         inline_keyboard: [
-          [{ text: "🔐 Generate Wallet", callback_data: "generate_wallet" }],
-          [{ text: "📥 Import Private Key", callback_data: "import_wallet" }]
+          [{ text: "✨ Create New Wallet", callback_data: "generate_wallet" }],
+          [{ text: "🔑 Import Existing Wallet", callback_data: "import_wallet" }]
         ]
       }
     };
 
-    return ctx.reply(`🚀 **Welcome to Solana Pay Bot!**
+    return ctx.reply(`✨ **Welcome to Solana Pay**
 
-**Features:**
-• 🎁 Create giveaways
-• 💰 Escrow for non-users  
-• 🔒 Secure encrypted wallet storage
+Send crypto payments instantly on Telegram
 
-**Terms of Service:**
-By using this bot, you agree to:
-• Use only legitimate funds
-• Understand blockchain risks
-• Take responsibility for your wallet security
+**What you can do:**
+• Send payments to any user
+• Create group giveaways  
+• Split bills automatically
+• Track all transactions
 
-**Choose an option to get started:**`, {
+**Getting started:**
+Choose how to set up your wallet`, {
       parse_mode: "Markdown",
       ...welcomeMenu
     });
@@ -118,46 +116,44 @@ By using this bot, you agree to:
   const wallet = user.wallets[0];
   const balances = await getWalletBalance(wallet.address);
   
-  let balanceText = "💰 **Your Balances:**\n";
+  let balanceText = "💳 **Balance**\n";
   if (balances && balances.length > 0) {
     balances.forEach(balance => {
       const amount = balance.uiAmount?.toFixed(4) || "0";
       const symbol = balance.mint.slice(0, 4);
-      balanceText += `• ${amount} ${symbol}\n`;
+      balanceText += `${amount} ${symbol}\n`;
     });
   } else {
-    balanceText += "No tokens found\n";
+    balanceText += "Ready to receive payments\n";
   }
 
   const homeMenu = {
     reply_markup: {
       inline_keyboard: [
         [
-          { text: "💸 Send Payment", callback_data: "send_payment" },
-          { text: "🎁 Receive", callback_data: "receive_payment" }
+          { text: "💸 Send", callback_data: "send_payment" },
+          { text: "📱 Receive", callback_data: "receive_payment" }
         ],
         [
-          { text: "📊 History", callback_data: "history" },
+          { text: "📋 History", callback_data: "history" },
           { text: "⚙️ Settings", callback_data: "settings_main" }
         ]
       ]
     }
   };
 
-  const homeText = `🏠 **Home** - @${user.handle || 'No username'}
+  const homeText = `🏠 **Home**
+@${user.handle || 'Set username in Telegram'}
 
 ${balanceText}
 
-🏦 **Wallet Address:**
-\`${wallet.address}\`
+**Wallet:** \`${wallet.address.slice(0, 8)}...${wallet.address.slice(-4)}\`
 
-**How to use:**
-• **In Groups:** Reply to messages with /tip or /pay
-• **In DMs:** Use /pay @username amount TOKEN
-• **Giveaways:** Use /giveaway in groups
-• **Split Bills:** Use /split amount TOKEN @user1 @user2
-
-Ready to make payments!`;
+**Quick commands:**
+• Reply + /tip amount - Tip a message
+• /pay @user amount TOKEN - Send payment  
+• /split 100 USDC @user1 @user2 - Split bills
+• /giveaway start - Create group giveaways`;
 
   return ctx.reply(homeText, {
     parse_mode: "Markdown",
@@ -379,28 +375,27 @@ async function showHelp(ctx: BotContext) {
     }
   };
 
-  const helpText = `❓ **Help & Support**
+  const helpText = `❓ **Help**
 
-**Basic Commands:**
-• \`/start\` - Start the bot
-• \`/wallet\` - Show wallet info
+**Commands:**
 • \`/pay @user amount TOKEN\` - Send payment
-• \`/tip amount TOKEN\` - Tip (reply to message)
-• \`/balance\` - Check balance
+• \`/tip amount\` - Tip a message (reply required)
+• \`/split 100 USDC @user1 @user2\` - Split bills
+• \`/balance\` - Check your balance
+• \`/giveaway start\` - Create group giveaway
 
-**Group Commands:**
-• \`/enable\` - Enable bot (admins only)
-• \`/giveaway amount TOKEN\` - Create giveaway
-• \`/split 100 USDC @user1 @user2\` - Split bill
+**Groups:**
+• Admins use \`/enable\` to activate bot
+• Reply to messages with \`/tip amount\`
+• Use \`/giveaway\` for community events
 
-**Support:**
-• Bot runs on Solana devnet (test network)
-• Transactions are real but on test network
-• Report issues to bot administrator
-• Keep your private keys secure
+**Network:**
+Operates on Solana devnet (test network)
 
-**Need Help?**
-Contact the bot administrator or check our documentation.`;
+**Security:**
+• Keep private keys secure
+• Only import wallets you control
+• Verify recipients before sending`;
 
   return ctx.reply(helpText, {
     parse_mode: "Markdown",

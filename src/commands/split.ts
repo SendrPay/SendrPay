@@ -40,7 +40,7 @@ export async function commandSplit(ctx: BotContext) {
     // Parse split command
     const parsed = parseSplitCommand(ctx);
     if (!parsed) {
-      return ctx.reply("❌ Usage: /split amount TOKEN @user1 @user2 [@user3:30%]");
+      return ctx.reply("❌ Usage: \`/split amount TOKEN @user1 @user2\`", { parse_mode: "Markdown" });
     }
 
     const { totalAmount, tokenTicker, recipients } = parsed;
@@ -69,7 +69,7 @@ export async function commandSplit(ctx: BotContext) {
     });
 
     if (!payer || !payer.wallets[0]) {
-      return ctx.reply("❌ You need to create a wallet first. DM me with /start.");
+      return ctx.reply("❌ Create wallet first: DM me with \`/start\`", { parse_mode: "Markdown" });
     }
 
     const payerWallet = payer.wallets[0];

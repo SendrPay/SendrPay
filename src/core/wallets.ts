@@ -97,20 +97,19 @@ export async function generateWallet(ctx: BotContext): Promise<void> {
       data: { isActive: false }
     });
 
-    const warningText = `🔐 **Wallet Generated Successfully!**
+    const warningText = `✨ **Wallet Created**
 
-Address: \`${publicKey}\`
+**Address:** \`${publicKey.slice(0, 8)}...${publicKey.slice(-4)}\`
 
-⚠️ **IMPORTANT - Save Your Private Key:**
+🔑 **Private Key** (save this securely):
 \`${bs58.encode(privateKeyBytes)}\`
 
-**This is shown ONLY ONCE. Save it securely!**
+**Important:**
+• Save your private key - shown only once
+• Keep it private and secure
+• Anyone with this key controls your wallet
 
-- Anyone with this key controls your wallet
-- Keep it private and secure  
-- You can import it later with /import
-
-Use this wallet for payments!`;
+Ready for payments!`;
 
     await ctx.reply(warningText, { parse_mode: "Markdown" });
 
@@ -187,7 +186,11 @@ export async function importWallet(ctx: BotContext, privateKeyInput: string): Pr
           data: { isActive: true }
         });
 
-        await ctx.reply(`✅ Wallet re-activated: \`${publicKey}\``, { parse_mode: "Markdown" });
+        await ctx.reply(`✅ **Wallet Reactivated**
+
+**Address:** \`${publicKey.slice(0, 8)}...${publicKey.slice(-4)}\`
+
+Ready for payments`, { parse_mode: "Markdown" });
       } else {
         return ctx.reply("❌ This wallet is already imported by another user.");
       }
@@ -205,11 +208,11 @@ export async function importWallet(ctx: BotContext, privateKeyInput: string): Pr
         }
       });
 
-      await ctx.reply(`✅ **Wallet Imported Successfully!**
+      await ctx.reply(`✅ **Wallet Imported**
 
-Address: \`${publicKey}\`
+**Address:** \`${publicKey.slice(0, 8)}...${publicKey.slice(-4)}\`
 
-The wallet is now active for payments.`, { parse_mode: "Markdown" });
+Ready for payments`, { parse_mode: "Markdown" });
     }
 
     // Deactivate other wallets

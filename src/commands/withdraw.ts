@@ -79,10 +79,10 @@ export async function commandWithdraw(ctx: BotContext) {
     });
 
     if (result.success) {
-      const receipt = `✅ **Withdrawal Complete**
+      const receipt = `✅ **Withdrawal Sent**
 
-Amount: ${amount} ${token.ticker}
-To: \`${toAddress.slice(0, 8)}...\`
+**Amount:** ${amount} ${token.ticker}
+**To:** \`${toAddress.slice(0, 8)}...${toAddress.slice(-4)}\`
 
 [View Transaction](https://explorer.solana.com/tx/${result.signature}?cluster=devnet)`;
 

@@ -53,11 +53,13 @@ export async function commandGiveaway(ctx: BotContext) {
         await handleGiveawayList(ctx);
         break;
       default:
-        await ctx.reply(`❌ Usage:
-/giveaway start <amount> <TOKEN> "<description>"
-/giveaway enter
-/giveaway draw [winners]
-/giveaway list`);
+        await ctx.reply(`❌ **Giveaway Commands:**
+
+\`/giveaway start 100 USDC "Prize description"\`
+\`/giveaway draw [winners]\`
+\`/giveaway list\`
+
+Use the button to enter giveaways`, { parse_mode: "Markdown" });
     }
 
   } catch (error) {
@@ -68,7 +70,7 @@ export async function commandGiveaway(ctx: BotContext) {
 
 async function handleGiveawayStart(ctx: BotContext, args: string[]) {
   if (args.length < 3) {
-    return ctx.reply("❌ Usage: /giveaway start <amount> <TOKEN> \"<description>\"");
+    return ctx.reply("❌ Usage: \`/giveaway start 100 USDC \"Prize description\"\`", { parse_mode: "Markdown" });
   }
 
   const amount = parseFloat(args[0]);
@@ -103,16 +105,16 @@ async function handleGiveawayStart(ctx: BotContext, args: string[]) {
   // Create giveaway
   const giveawayId = uuidv4();
   const keyboard = new InlineKeyboard()
-    .text("🎁 Enter Giveaway", `enter_giveaway:${giveawayId}`);
+    .text("🎟️ Enter", `enter_giveaway:${giveawayId}`);
 
-  const giveawayText = `🎁 **GIVEAWAY STARTED!**
+  const giveawayText = `🎁 **Giveaway**
 
-Prize: ${amount} ${token.ticker}
-Description: ${description}
-Host: @${ctx.from?.username || 'user'}
+**Prize:** ${amount} ${token.ticker}
+**Host:** @${ctx.from?.username || 'user'}
 
-Click below to enter!
-Participants: 0`;
+${description}
+
+**Participants:** 0`;
 
   const message = await ctx.reply(giveawayText, {
     parse_mode: "Markdown",
@@ -314,16 +316,16 @@ export async function handleGiveawayCallback(ctx: BotContext, giveawayId: string
 
   // Update message
   const keyboard = new InlineKeyboard()
-    .text("🎁 Enter Giveaway", `enter_giveaway:${giveawayId}`);
+    .text("🎟️ Enter", `enter_giveaway:${giveawayId}`);
 
-  const updatedText = `🎁 **GIVEAWAY STARTED!**
+  const updatedText = `🎁 **Giveaway**
 
-Prize: ${giveaway.amount} ${giveaway.token}
-Description: ${giveaway.description}
-Host: @${(await prisma.user.findUnique({ where: { telegramId: giveaway.hostId } }))?.handle || 'user'}
+**Prize:** ${giveaway.amount} ${giveaway.token}
+**Host:** @${(await prisma.user.findUnique({ where: { telegramId: giveaway.hostId } }))?.handle || 'user'}
 
-Click below to enter!
-Participants: ${giveaway.participants.size}`;
+${giveaway.description}
+
+**Participants:** ${giveaway.participants.size}`;
 
   try {
     await ctx.editMessageText(updatedText, {

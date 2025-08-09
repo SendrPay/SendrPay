@@ -42,14 +42,14 @@ export async function commandPay(ctx: BotContext) {
     // Parse command
     const parsed = await parsePayCommand(ctx);
     if (!parsed) {
-      return ctx.reply("❌ Usage: /pay @username amount TOKEN [note]");
+      return ctx.reply("❌ Usage: \`/pay @username amount TOKEN [note]\`", { parse_mode: "Markdown" });
     }
 
     const { payeeId, payeeHandle, amount, tokenTicker, note } = parsed;
 
     // Username verification: payments only succeed when directed to verified usernames
     if (!payeeHandle) {
-      return ctx.reply("❌ Must specify recipient username (e.g. @vi100x)");
+      return ctx.reply("❌ Specify recipient username: \`/pay @username amount TOKEN\`", { parse_mode: "Markdown" });
     }
 
     // Resolve token
@@ -76,7 +76,7 @@ export async function commandPay(ctx: BotContext) {
     });
 
     if (!payer || !payer.wallets[0]) {
-      return ctx.reply("❌ You need to create a wallet first. DM me with /start.");
+      return ctx.reply("❌ Create wallet first: DM me with \`/start\`", { parse_mode: "Markdown" });
     }
 
     const payerWallet = payer.wallets[0];
@@ -133,23 +133,23 @@ export async function commandPay(ctx: BotContext) {
     // Get service fee confirmation message
     const serviceFeeMessage = await generateFeeConfirmationMessage(amountRaw, token.mint, token);
     
-    const confirmationText = `💳 **Payment Confirmation**
+    const confirmationText = `💸 **Confirm Payment**
 
-**Recipient Receives:** ${recipientReceives} ${token.ticker}
 **To:** @${payeeHandle}
-**Transaction Fee:** ${transactionFee} ${token.ticker}
-**Total You Pay:** ${totalYouPay} ${token.ticker}
-${note ? `**Note:** ${note}` : ''}
-
+**Amount:** ${recipientReceives} ${token.ticker}
+${note ? `**Note:** ${note}\n` : ''}
+**Network Fee:** ${transactionFee} ${token.ticker}
 **Service Fee:** ${serviceFeeMessage}
 
-Confirm this payment?`;
+**Total:** ${totalYouPay} ${token.ticker}
+
+Proceed with payment?`;
 
     const confirmationKeyboard = {
       reply_markup: {
         inline_keyboard: [
           [
-            { text: "✅ Confirm Payment", callback_data: `confirm_pay_${paymentId}` },
+            { text: "✅ Send Payment", callback_data: `confirm_pay_${paymentId}` },
             { text: "❌ Cancel", callback_data: `cancel_pay_${paymentId}` }
           ]
         ]
@@ -292,7 +292,7 @@ export async function handlePaymentConfirmation(ctx: BotContext, confirmed: bool
         note: payment.note || undefined
       });
 
-      await ctx.reply(`✅ **Payment Sent Successfully!**\n\n${receipt}`, { parse_mode: "Markdown" });
+      await ctx.reply(`✅ **Payment Sent**\n\n${receipt}`, { parse_mode: "Markdown" });
       logger.info(`Payment confirmed and sent: ${paymentId}, tx: ${result.signature}`);
 
       // Send payment notification to recipient

@@ -37,7 +37,7 @@ export interface TransferResult {
   error?: string;
 }
 
-const connection = new Connection(env.RPC_URL, 'confirmed');
+const connection = new Connection(env.RPC_URL!, 'confirmed');
 
 export async function executeTransfer(params: TransferParams): Promise<TransferResult> {
   try {
@@ -74,7 +74,7 @@ export async function executeTransfer(params: TransferParams): Promise<TransferR
 
     const transaction = new Transaction();
 
-    if (mint === "SOL") {
+    if (mint === "So11111111111111111111111111111111111111112") {
       // Native SOL transfer
       // Send net amount to recipient
       transaction.add(
@@ -87,7 +87,7 @@ export async function executeTransfer(params: TransferParams): Promise<TransferR
 
       // Send fee to treasury (if not a withdrawal)
       if (!isWithdrawal && feeRaw > 0n && feeKeypair) {
-        const feeTreasuryPubkey = new PublicKey(feeKeypair.publicKey);
+        const feeTreasuryPubkey = new PublicKey((feeKeypair as any).publicKey);
         transaction.add(
           SystemProgram.transfer({
             fromPubkey: senderPubkey,
@@ -150,7 +150,7 @@ export async function executeTransfer(params: TransferParams): Promise<TransferR
 
       // Transfer fee to treasury (if not a withdrawal)
       if (!isWithdrawal && feeRaw > 0n && feeKeypair) {
-        const feeTreasuryPubkey = new PublicKey(feeKeypair.publicKey);
+        const feeTreasuryPubkey = new PublicKey((feeKeypair as any).publicKey);
         const feeTokenAccount = await getAssociatedTokenAddress(
           mintPubkey,
           feeTreasuryPubkey,
@@ -242,7 +242,7 @@ export async function estimateTransactionFee(
     
     const transaction = new Transaction();
 
-    if (mint === "SOL") {
+    if (mint === "So11111111111111111111111111111111111111112") {
       transaction.add(
         SystemProgram.transfer({
           fromPubkey: senderPubkey,
@@ -297,7 +297,7 @@ export async function checkSufficientBalance(
   requiredAmount: bigint
 ): Promise<boolean> {
   try {
-    if (mint === "SOL") {
+    if (mint === "So11111111111111111111111111111111111111112") {
       const balance = await connection.getBalance(new PublicKey(address));
       return BigInt(balance) >= requiredAmount;
     } else {

@@ -26,7 +26,14 @@ if (bot) {
 
   // Global error handling
   bot.catch((err) => {
-    logger.error("Bot error:", err);
+    const error = err.error;
+    const ctx = err.ctx;
+    logger.error("Bot error:", error instanceof Error ? error.message : String(error));
+    logger.error("Error context:", {
+      updateId: ctx.update.update_id,
+      chatId: ctx.chat?.id,
+      userId: ctx.from?.id
+    });
   });
 
   // Log all updates for debugging

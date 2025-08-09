@@ -1,0 +1,3 @@
+# Replit Environment Configuration for Deployment
+NODE_ENV=production
+PORT=5000

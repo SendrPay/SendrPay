@@ -32,7 +32,17 @@ export async function commandTip(ctx: BotContext) {
   console.log("Reply to username:", ctx.message?.reply_to_message?.from?.username);
   console.log("From user ID:", ctx.from?.id);
   console.log("From username:", ctx.from?.username);
-  console.log("Raw update:", JSON.stringify(ctx.update, null, 2));
+  
+  // Check different possible locations for reply data
+  console.log("UPDATE STRUCTURE ANALYSIS:");
+  console.log("- ctx.update.message?.reply_to_message:", !!ctx.update.message?.reply_to_message);
+  console.log("- ctx.message.reply_to_message:", !!ctx.message?.reply_to_message);
+  console.log("- ctx.msg?.reply_to_message:", !!(ctx as any).msg?.reply_to_message);
+  console.log("- ctx.update:", Object.keys(ctx.update));
+  console.log("- ctx.message keys:", ctx.message ? Object.keys(ctx.message) : 'no message');
+  
+  console.log("FULL CTX.UPDATE:", JSON.stringify(ctx.update, null, 2));
+  console.log("FULL CTX.MESSAGE:", JSON.stringify(ctx.message, null, 2));
   console.log("=== TIP COMMAND DEBUG END ===");
   
   logger.info("Tip command received");

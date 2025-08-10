@@ -135,4 +135,17 @@ Send private key now:`, { parse_mode: "Markdown" });
     const { handlePaymentConfirmation } = await import("./pay");
     await handlePaymentConfirmation(ctx, false);
   });
+
+  // Tip confirmation handlers
+  bot.callbackQuery(/^confirm_tip_(.+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const { handleTipConfirmation } = await import("./tip");
+    await handleTipConfirmation(ctx, true);
+  });
+
+  bot.callbackQuery(/^cancel_tip_(.+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const { handleTipConfirmation } = await import("./tip");
+    await handleTipConfirmation(ctx, false);
+  });
 }

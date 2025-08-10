@@ -10,6 +10,7 @@ import { generateClientIntentId } from "../core/idempotency";
 import { logger } from "../infra/logger";
 import { v4 as uuidv4 } from "uuid";
 import util from 'util';
+import { sendPaymentNotification } from "../core/notifications-simple";
 
 // Helper function to resolve username to user ID (for the robust tip handler)
 async function resolveUsername(username: string): Promise<string | null> {
@@ -216,11 +217,22 @@ export async function commandTip(ctx: BotContext) {
       return ctx.reply("❌ Could not identify tip recipient.");
     }
 
+    // Create confirmation message with fee details
+    const feeMessage = `💰 **Confirm Tip**
+
+**To:** ${payeeHandle ? `@${payeeHandle}` : "recipient"}
+**Amount:** ${amount} ${finalTokenTicker}
+**Network Fee:** ${Number(feeRaw) / (10 ** token.decimals)} ${finalTokenTicker}
+**Service Fee:** ${Number(serviceFeeRaw) / (10 ** token.decimals)} ${serviceFeeToken === token.mint ? finalTokenTicker : (serviceFeeToken === "So11111111111111111111111111111111111111112" ? "SOL" : serviceFeeToken)}
+**Total:** ${Number(amountRaw + feeRaw + serviceFeeRaw) / (10 ** token.decimals)} ${finalTokenTicker}
+
+Proceed with this tip?`;
+
     // Generate payment ID
     const paymentId = uuidv4();
     const clientIntentId = generateClientIntentId(tipperId, paymentId);
 
-    // Create payment record
+    // Create payment record with awaiting_confirmation status
     await prisma.payment.create({
       data: {
         id: paymentId,
@@ -233,21 +245,108 @@ export async function commandTip(ctx: BotContext) {
         mint: token.mint,
         amountRaw: amountRaw.toString(),
         feeRaw: feeRaw.toString(),
+        // @ts-ignore - New fields from schema update
+        serviceFeeRaw: serviceFeeRaw.toString(),
+        serviceFeeToken,
         note: "tip",
-        status: "pending"
+        status: "awaiting_confirmation"
       }
     });
 
-    // Execute transfer with flexible service fee
+    // Create confirmation buttons
+    const { InlineKeyboard } = await import("grammy");
+    const keyboard = new InlineKeyboard()
+      .text("✅ Confirm Tip", `confirm_tip_${paymentId}`)
+      .text("❌ Cancel", `cancel_tip_${paymentId}`);
+
+    // Send confirmation message
+    await ctx.reply(feeMessage, { 
+      parse_mode: "Markdown",
+      reply_markup: keyboard
+    });
+
+    logger.info(`Tip confirmation requested: ${paymentId}`);
+
+  } catch (error) {
+    logger.error("Tip command error:", error);
+    await ctx.reply("❌ Tip failed. Please try again.");
+  }
+}
+
+export async function handleTipConfirmation(ctx: BotContext, confirmed: boolean) {
+  try {
+    const paymentId = ctx.callbackQuery?.data?.split('_')[2];
+    if (!paymentId) {
+      return ctx.reply("❌ Invalid tip confirmation.");
+    }
+
+    // Get payment record
+    const payment = await prisma.payment.findUnique({
+      where: { id: paymentId },
+      include: {
+        from: true,
+        to: true
+      }
+    });
+
+    if (!payment) {
+      return ctx.reply("❌ Tip not found.");
+    }
+
+    if (payment.status !== "awaiting_confirmation") {
+      return ctx.reply("❌ Tip already processed.");
+    }
+
+    if (!confirmed) {
+      // Cancel tip
+      await prisma.payment.update({
+        where: { id: paymentId },
+        data: { status: "cancelled" }
+      });
+      return ctx.reply("❌ Tip cancelled.");
+    }
+
+    // Get token info
+    const token = await resolveToken(payment.mint === "So11111111111111111111111111111111111111112" ? "SOL" : payment.mint);
+    if (!token) {
+      return ctx.reply("❌ Token not found.");
+    }
+
+    // Get wallet info
+    const tipperWallet = await prisma.wallet.findFirst({
+      where: { 
+        address: payment.fromWallet,
+        isActive: true 
+      }
+    });
+
+    if (!tipperWallet) {
+      return ctx.reply("❌ Tipper wallet not found.");
+    }
+
+    const amountRaw = BigInt(payment.amountRaw);
+    const feeRaw = BigInt(payment.feeRaw);
+    // @ts-ignore - New fields from schema update
+    const serviceFeeRaw = BigInt(payment.serviceFeeRaw || "0");
+    
+    // IMPORTANT: Recipient gets the FULL amount, sender pays amount + fees
+    const recipientReceives = amountRaw; // Full amount goes to recipient
+
+    // Execute transfer with flexible service fee and notification data
     const result = await executeTransfer({
       fromWallet: tipperWallet,
-      toAddress: payeeWallet.address,
+      toAddress: payment.toWallet,
       mint: token.mint,
-      amountRaw: netRaw,
+      amountRaw: recipientReceives, // Recipient gets full amount
       feeRaw,
       serviceFeeRaw,
-      serviceFeeToken,
-      token
+      // @ts-ignore - New fields from schema update
+      serviceFeeToken: payment.serviceFeeToken || payment.mint,
+      token,
+      senderTelegramId: payment.from?.telegramId,
+      recipientTelegramId: payment.to?.telegramId,
+      note: "tip",
+      type: "tip"
     });
 
     if (result.success) {
@@ -260,23 +359,56 @@ export async function commandTip(ctx: BotContext) {
         }
       });
 
-      // Send confirmation with tip emoji
-      const receipt = `✨ **Tip Sent**
+      // Send confirmation with tip emoji and receipt
+      const receipt = formatReceipt({
+        from: payment.from?.handle ? `@${payment.from.handle}` : `User ${payment.from?.telegramId}`,
+        to: payment.to?.handle ? `@${payment.to.handle}` : `User ${payment.to?.telegramId}`,
+        gross: Number(amountRaw) / (10 ** token.decimals),
+        fee: Number(feeRaw) / (10 ** token.decimals),
+        net: Number(amountRaw) / (10 ** token.decimals),
+        token: token.ticker,
+        signature: result.signature,
+        note: "tip",
+        type: "tip"
+      });
 
-**To:** @${payeeHandle || 'user'}
-**Amount:** ${amount} ${token.ticker}
+      await ctx.reply(`✨ **Tip Sent Successfully!**\n\n${receipt}`, { parse_mode: "Markdown" });
 
-[View Transaction](https://explorer.solana.com/tx/${result.signature}?cluster=devnet)`;
+      // Send notification to recipient if we have their details
+      if (payment.to?.telegramId && payment.from?.handle && result.signature) {
+        try {
+          await sendPaymentNotification(
+            ctx.api,
+            {
+              senderHandle: payment.from.handle,
+              senderName: payment.from.handle, // Use handle as name fallback
+              recipientTelegramId: payment.to.telegramId,
+              amount: Number(amountRaw) / (10 ** token.decimals),
+              tokenTicker: token.ticker,
+              signature: result.signature,
+              note: "tip",
+              isNewWallet: false
+            }
+          );
+          logger.info("Tip notification sent to recipient", { paymentId, signature: result.signature });
+        } catch (notificationError) {
+          logger.error("Failed to send tip notification", notificationError);
+          // Don't fail the tip if notification fails
+        }
+      }
 
-      await ctx.reply(receipt, { parse_mode: "Markdown" });
-
-      logger.info(`Tip sent: ${paymentId}, tx: ${result.signature}`);
+      logger.info(`Tip completed: ${paymentId}, tx: ${result.signature}`);
     } else {
+      // Update payment status to failed
+      await prisma.payment.update({
+        where: { id: paymentId },
+        data: { status: "failed" }
+      });
       await ctx.reply(`❌ Tip failed: ${result.error}`);
     }
 
   } catch (error) {
-    logger.error("Tip command error:", error);
-    await ctx.reply("❌ Tip failed. Please try again.");
+    logger.error("Tip confirmation error:", error);
+    await ctx.reply("❌ Tip confirmation failed. Please try again.");
   }
 }

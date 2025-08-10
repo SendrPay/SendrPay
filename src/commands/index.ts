@@ -59,7 +59,7 @@ Send private key now:`, { parse_mode: "Markdown" });
 
   // Payment commands also work in DM for direct payments
   bot.command("pay", commandPay);
-  bot.command("tip", commandTip);
+  // tip command handled in main message handler for both groups and DMs
   bot.command("split", commandSplit);
   bot.command("balance", commandBalance);
   bot.command("withdraw", commandWithdraw);

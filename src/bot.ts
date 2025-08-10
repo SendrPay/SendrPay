@@ -77,12 +77,24 @@ if (bot) {
       });
     }
     
-    // Handle tip commands in replies specifically 
-    if (chatType !== "private" && ctx.message?.reply_to_message && text.startsWith("/tip")) {
-      logger.info("Processing group tip command with reply context");
-      // Import and call tip command directly
-      const { commandTip } = await import("./commands/tip");
-      return commandTip(ctx);
+    // Handle tip commands for both groups (with replies) and DMs (with @username)
+    if (text.startsWith("/tip")) {
+      if (chatType !== "private") {
+        // Group tip: requires reply
+        if (ctx.message?.reply_to_message) {
+          logger.info("Processing group tip command with reply context");
+          const { commandTip } = await import("./commands/tip");
+          return commandTip(ctx);
+        } else {
+          logger.info("Group tip command without reply - showing error");
+          return ctx.reply("❌ Reply to a message to tip its author.");
+        }
+      } else {
+        // DM tip: handle directly
+        logger.info("Processing DM tip command");
+        const { commandTip } = await import("./commands/tip");
+        return commandTip(ctx);
+      }
     }
     
     if (chatType === "private") {

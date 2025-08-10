@@ -138,3 +138,9 @@ Preferred communication style: Simple, everyday language.
   - Removed giveaway parameters from transfer functions
   - Updated help documentation and welcome messages to remove giveaway references
   - Simplified bot to focus on core payment functionality: pay, tip, split, balance, withdraw
+- **Bot Polling Conflict Resolution**: Fixed persistent 409 "multiple instances" error (August 10, 2025)
+  - Root cause: grammY's built-in polling mechanism conflicting with unknown instances
+  - Solution: Implemented manual polling using direct Telegram API calls to bypass grammY conflicts
+  - Added comprehensive debug logging to track message updates and reply context detection
+  - Bot now successfully starts and receives updates without 409 conflicts
+  - Manual polling approach provides better control and debugging capabilities

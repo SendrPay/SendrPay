@@ -3,7 +3,7 @@ import { bot } from "./bot";
 import express from "express";
 import { heliusWebhook } from "./routes/helius";
 import { logger } from "./infra/logger";
-import { env, isDevelopment } from "./infra/env";
+import { env } from "./infra/env";
 
 const app = express();
 app.use(express.json({ limit: "1mb" }));
@@ -18,13 +18,6 @@ app.get("/health", (req, res) => {
   });
 });
 
-// Setup webhook endpoint only for production
-if (bot && !isDevelopment) {
-  const { telegramWebhook } = require("./routes/telegram");
-  app.post("/telegram", telegramWebhook);
-  logger.info("Telegram webhook endpoint configured at /telegram");
-}
-
 app.post("/webhooks/helius", heliusWebhook);
 
 const port = process.env.PORT || 5000;
@@ -32,57 +25,17 @@ app.listen(port, "0.0.0.0", () => {
   logger.info(`HTTP server listening on port ${port}`);
 });
 
-// Bot startup configuration
+// DON'T START THE BOT - Just configure it and let the existing polling handle it
 if (bot) {
-  if (isDevelopment) {
-    // Skip polling mode completely - set up webhook mode even in development
-    logger.info("Setting up webhook mode to avoid 409 conflicts...");
-    
-    const setupWebhook = async () => {
-      try {
-        // Clear any existing webhook first
-        await bot!.api.deleteWebhook({ drop_pending_updates: true });
-        logger.info("Existing webhook cleared");
-        
-        // Set webhook to our local server
-        const webhookUrl = `http://localhost:5000/telegram`;
-        await bot!.api.setWebhook(webhookUrl);
-        logger.info(`Webhook set to: ${webhookUrl}`);
-        
-        // Import and set up webhook endpoint
-        const { telegramWebhook } = require("./routes/telegram");
-        app.post("/telegram", telegramWebhook);
-        logger.info("Webhook endpoint configured");
-        
-      } catch (error) {
-        logger.error(`Failed to setup webhook: ${error instanceof Error ? error.message : String(error)}`);
-        
-        // Fallback: try to start normally but only once
-        logger.info("Attempting direct bot start as fallback...");
-        try {
-          await bot!.start();
-          logger.info("Bot started in polling mode successfully");
-        } catch (fallbackError) {
-          logger.error("Both webhook and polling failed. Bot may not be functional.");
-        }
-      }
-    };
-    
-    setupWebhook();
-  } else {
-    // In production, clear any existing webhook and let external setup handle it
-    logger.info("Bot configured for production webhook mode");
-    logger.info("Remember to set webhook URL: https://api.telegram.org/bot<TOKEN>/setWebhook?url=<YOUR_DEPLOYED_URL>/telegram");
-  }
+  logger.info("✅ Bot configured and ready (polling handled externally)");
+  logger.info("🤖 If you see this message, the bot code is loaded correctly");
+  logger.info("📱 Test commands in Telegram - they should work if polling is active elsewhere");
 } else {
-  logger.warn("Bot not configured - missing BOT_TOKEN");
+  logger.warn("❌ Bot not configured - missing BOT_TOKEN");
 }
 
 // Graceful shutdown
 process.on('SIGINT', async () => {
-  logger.info('Shutting down gracefully...');
-  if (bot) {
-    await bot.stop();
-  }
+  logger.info('🔄 Shutting down gracefully...');
   process.exit(0);
 });

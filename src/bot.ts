@@ -79,10 +79,24 @@ if (bot) {
     
     // Handle tip commands for both groups (with replies) and DMs (with @username)
     if (text.startsWith("/tip")) {
+      logger.debug("Tip command detected", {
+        chatType,
+        hasReplyTo: !!ctx.message?.reply_to_message,
+        messageStructure: {
+          messageId: ctx.message?.message_id,
+          replyToMessageId: ctx.message?.reply_to_message?.message_id,
+          replyFromUser: ctx.message?.reply_to_message?.from?.username,
+          text: ctx.message?.text
+        }
+      });
+      
       if (chatType !== "private") {
         // Group tip: requires reply
         if (ctx.message?.reply_to_message) {
-          logger.info("Processing group tip command with reply context");
+          logger.info("Processing group tip command with reply context", {
+            originalAuthor: ctx.message.reply_to_message.from?.username,
+            originalMessageId: ctx.message.reply_to_message.message_id
+          });
           const { commandTip } = await import("./commands/tip");
           return commandTip(ctx);
         } else {

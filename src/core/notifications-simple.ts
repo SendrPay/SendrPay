@@ -36,13 +36,37 @@ export async function sendPaymentNotification(
       type = 'payment'
     } = data;
 
+    // Get recipient's wallet balance for notification
+    const { PrismaClient } = await import("@prisma/client");
+    const prisma = new PrismaClient();
+    
+    let balanceText = "Calculating...";
+    try {
+      const user = await prisma.user.findUnique({
+        where: { telegramId: recipientTelegramId },
+        include: { wallet: true }
+      });
+      
+      if (user?.wallet?.address) {
+        const { Connection } = await import("@solana/web3.js");
+        const connection = new Connection(process.env.SOLANA_RPC_URL!);
+        const balance = await connection.getBalance(new (await import("@solana/web3.js")).PublicKey(user.wallet.address));
+        balanceText = `${(balance / 1e9).toFixed(4)} SOL`;
+      }
+    } catch (error) {
+      console.error("Error fetching balance for notification:", error);
+    } finally {
+      await prisma.$disconnect();
+    }
+
     // Create standardized notification message using templates
     const messageData: MessageData = {
       amount: amount.toString(),
       token: tokenTicker,
       sender: senderHandle,
       timestamp: formatTimestamp(),
-      explorer_link: formatExplorerLink(signature)
+      explorer_link: formatExplorerLink(signature),
+      balance: balanceText
     };
 
     const baseMessage = type === 'tip' 

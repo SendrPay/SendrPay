@@ -59,38 +59,19 @@ if (bot) {
     // Other callback handlers will be processed by command routers
   });
 
-  // Handle reply messages for tips in groups
+  // Handle general messages (non-command)
   bot.on("message", async (ctx) => {
     const chatType = ctx.chat?.type;
     const text = ctx.message?.text || "";
     
-    // Handle tip commands for both groups (with replies) and DMs (with @username)
-    if (text.startsWith("/tip")) {
-      logger.info("Tip command detected: chatType=" + chatType + ", hasReply=" + !!ctx.message?.reply_to_message + ", messageId=" + ctx.message?.message_id);
-      
-      if (chatType !== "private") {
-        // Group tip: requires reply
-        if (ctx.message?.reply_to_message) {
-          logger.info("Processing group tip command with reply context: originalAuthor=" + ctx.message.reply_to_message.from?.username + ", originalMessageId=" + ctx.message.reply_to_message.message_id);
-          const { commandTip } = await import("./commands/tip");
-          return commandTip(ctx);
-        } else {
-          logger.info("Group tip command without reply - showing error");
-          return ctx.reply("❌ Reply to a message to tip its author.");
-        }
-      } else {
-        // DM tip: handle directly
-        logger.info("Processing DM tip command");
-        const { commandTip } = await import("./commands/tip");
-        return commandTip(ctx);
+    // Only handle non-command messages
+    if (!text.startsWith("/")) {
+      if (chatType === "private") {
+        // Default private message handler - only respond to non-commands
+        await ctx.reply("Use /start to begin or /help for commands.");
       }
+      // Ignore other group messages without commands
     }
-    
-    if (chatType === "private") {
-      // Default private message handler - only respond to commands
-      await ctx.reply("Use /start to begin or /help for commands.");
-    }
-    // Ignore other group messages without commands
   });
 }
 

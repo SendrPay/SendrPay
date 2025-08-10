@@ -16,7 +16,7 @@ export function registerGroupRoutes(bot: Bot<BotContext>) {
   // Group commands
   bot.command("enable", commandEnable);
   bot.command("pay", commandPay);
-  // tip command handled in message handler to preserve reply context
+  bot.command("tip", commandTip);
   bot.command("split", commandSplit);
   bot.command("balance", commandBalance);
 
@@ -59,7 +59,7 @@ Send private key now:`, { parse_mode: "Markdown" });
 
   // Payment commands also work in DM for direct payments
   bot.command("pay", commandPay);
-  // tip command handled in main message handler for both groups and DMs
+  bot.command("tip", commandTip);
   bot.command("split", commandSplit);
   bot.command("balance", commandBalance);
   bot.command("withdraw", commandWithdraw);

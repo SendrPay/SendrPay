@@ -9,6 +9,21 @@ import { checkRateLimit } from "../core/ratelimit";
 import { generateClientIntentId } from "../core/idempotency";
 import { logger } from "../infra/logger";
 import { v4 as uuidv4 } from "uuid";
+import util from 'util';
+
+// Helper function to resolve username to user ID (for the robust tip handler)
+async function resolveUsername(username: string): Promise<string | null> {
+  const cleanUsername = username.startsWith('@') ? username.slice(1).toLowerCase() : username.toLowerCase();
+  const user = await prisma.user.findFirst({
+    where: { 
+      handle: { 
+        equals: cleanUsername, 
+        mode: 'insensitive' 
+      } 
+    }
+  });
+  return user?.telegramId || null;
+}
 
 export async function commandTip(ctx: BotContext) {
   const chat = ctx.chat;
@@ -18,7 +33,13 @@ export async function commandTip(ctx: BotContext) {
 
   const isGroupChat = chat.type !== "private";
   
-  // DETAILED DEBUG LOGGING
+  // ROBUST LOGGING - Prove reply exists (from troubleshooting guide)
+  const u = ctx.update as any;
+  console.log('TIP RAW:', util.inspect(u, { depth: 6, colors: true }));
+  const msg = u.message || u.edited_message;
+  console.log('HAS reply_to_message?', !!msg?.reply_to_message);
+  
+  // Additional detailed logging
   console.log("=== TIP COMMAND DEBUG START ===");
   console.log("Chat ID:", chat.id);
   console.log("Chat type:", chat.type);
@@ -46,12 +67,50 @@ export async function commandTip(ctx: BotContext) {
   console.log("=== TIP COMMAND DEBUG END ===");
   
   logger.info("Tip command received");
-  
-  // In group chats, require reply to message. In DMs, allow direct tipping with @username
-  if (isGroupChat && !ctx.message?.reply_to_message) {
-    console.log("REJECTING: Group tip without reply");
-    logger.warn("Group tip command rejected - no reply message detected");
-    return ctx.reply("❌ Reply to a message to tip its author.");
+
+  // ROBUST TIP HANDLER - Tolerant to reply OR mention (from troubleshooting guide)
+  if (!msg) return;
+
+  const text: string = msg.text || '';
+  const parts = text.trim().split(/\s+/);
+  parts.shift(); // remove /tip
+
+  // Try reply first (most reliable) - check multiple paths as suggested in guide
+  const reply = msg.reply_to_message
+             || (msg.message && msg.message.reply_to_message)
+             || (ctx as any).msg?.reply_to_message;
+
+  // Extract inline mention if present
+  const entities = msg.entities || [];
+  const textMention = entities.find((e: any) => e.type === 'text_mention');
+  const mentionUser = textMention?.user;
+
+  // Parse @username form if given
+  let explicitMention = parts[0]?.startsWith('@') ? parts.shift() : undefined;
+
+  // Amount + token
+  let amountStr = parts.shift();
+  let tokenTicker = (parts.shift() || 'SOL').toUpperCase();
+
+  const amount = Number(amountStr);
+  if (!amount || amount <= 0) {
+    return ctx.reply('❌ Amount missing/invalid. Example: *reply* then `/tip 0.1 SOL` or `/tip @username 0.1 SOL`', { parse_mode: 'Markdown' });
+  }
+
+  // Resolve recipient
+  let target = reply?.from || mentionUser;
+  if (!target && explicitMention) {
+    // Your lookup → username -> telegram_id (only works if they started your bot)
+    const userId = await resolveUsername(explicitMention);
+    if (userId) target = { id: userId, username: explicitMention.slice(1) };
+  }
+
+  if (!target) {
+    return ctx.reply('❌ Reply to the user OR use `/tip @username <amount> [TOKEN]`.\nIf they\'ve never started the bot, ask them to DM me once.', { parse_mode: 'Markdown' });
+  }
+
+  if (target.id === ctx.from?.id) {
+    return ctx.reply("❌ Cannot tip yourself!");
   }
 
   try {
@@ -70,41 +129,9 @@ export async function commandTip(ctx: BotContext) {
       return ctx.reply("⏰ Rate limit exceeded. Please wait.");
     }
 
-    // Parse tip command (different logic for groups vs DMs)
-    let payeeId: string | undefined;
-    let payeeHandle: string | undefined;
-    let amount: number;
-    let tokenTicker: string | undefined;
-
-    if (isGroupChat) {
-      // Group tip: reply to message required
-      const parsed = parseTipCommand(ctx);
-      if (!parsed) {
-        return ctx.reply("❌ Usage: \`/tip amount [TOKEN]\` (reply required)", { parse_mode: "Markdown" });
-      }
-      amount = parsed.amount;
-      tokenTicker = parsed.tokenTicker;
-      payeeId = ctx.message?.reply_to_message?.from?.id.toString();
-      payeeHandle = ctx.message?.reply_to_message?.from?.username?.toLowerCase(); // Normalize to lowercase
-
-      if (!payeeId) {
-        return ctx.reply("❌ Could not identify tip recipient.");
-      }
-    } else {
-      // DM tip: parse @username from command
-      const parsed = await parsePayCommand(ctx); // Reuse pay command parser for @username
-      if (!parsed || !parsed.payeeHandle) {
-        return ctx.reply("❌ Usage: \`/tip @username amount [TOKEN]\`", { parse_mode: "Markdown" });
-      }
-      amount = parsed.amount;
-      tokenTicker = parsed.tokenTicker;
-      payeeHandle = parsed.payeeHandle;
-      payeeId = parsed.payeeId; // May be undefined, will resolve via username
-    }
-
-    if (payeeId === ctx.from?.id.toString()) {
-      return ctx.reply("❌ Cannot tip yourself!");
-    }
+    // Set the recipient values for the rest of the function
+    const payeeId = target.id.toString();
+    const payeeHandle = target.username?.toLowerCase();
 
     // Use default token if not specified (use chat default for groups, USDC for DMs)
     const finalTokenTicker = tokenTicker || chatRecord?.defaultTicker || "USDC";

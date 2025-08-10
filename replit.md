@@ -144,3 +144,12 @@ Preferred communication style: Simple, everyday language.
   - Added comprehensive debug logging to track message updates and reply context detection
   - Bot now successfully starts and receives updates without 409 conflicts
   - Manual polling approach provides better control and debugging capabilities
+- **Telegram Reply Detection Fixes**: Implemented comprehensive troubleshooting for "must reply" issues (August 10, 2025)
+  - **Robust Reply Detection**: Added multi-path reply detection checking msg.reply_to_message, msg.message.reply_to_message, and ctx.msg.reply_to_message
+  - **Tolerant Tip Handler**: Made tip command work with both replies AND @username mentions in all contexts
+  - **Queue Flush Mechanism**: Added hard reset functionality to clear cached Telegram updates after privacy setting changes
+  - **Enhanced Debug Tools**: Created debug commands (/debug_reply, /debug_reset, /debug_message) for troubleshooting
+  - **Comprehensive Logging**: Added util.inspect with depth 6 for detailed update structure analysis
+  - **Username Resolution**: Implemented database lookup for @username to Telegram ID mapping
+  - **Admin Controls**: Added ADMIN_USER_IDS environment variable for secure debug command access
+  - **Cross-Context Support**: Tip commands now work reliably in both groups and DMs with flexible recipient targeting

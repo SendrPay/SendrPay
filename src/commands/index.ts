@@ -11,6 +11,7 @@ import { commandWithdraw } from "./withdraw";
 import { commandSettings } from "./settings";
 import { commandAdmin } from "./admin";
 import { commandStart } from "./start";
+import { commandDebugReply, commandDebugReset, commandDebugMessage } from "./debug";
 
 export function registerGroupRoutes(bot: Bot<BotContext>) {
   // Group commands
@@ -22,6 +23,11 @@ export function registerGroupRoutes(bot: Bot<BotContext>) {
 
   bot.command("settings", commandSettings);
   bot.command("admin", commandAdmin);
+  
+  // Debug commands for troubleshooting (admin-only)
+  bot.command("debug_reply", commandDebugReply);
+  bot.command("debug_reset", commandDebugReset);
+  bot.command("debug_message", commandDebugMessage);
 }
 
 export function registerDMRoutes(bot: Bot<BotContext>) {
@@ -63,6 +69,11 @@ Send private key now:`, { parse_mode: "Markdown" });
   bot.command("split", commandSplit);
   bot.command("balance", commandBalance);
   bot.command("withdraw", commandWithdraw);
+  
+  // Debug commands for troubleshooting (admin-only)
+  bot.command("debug_reply", commandDebugReply);
+  bot.command("debug_reset", commandDebugReset);
+  bot.command("debug_message", commandDebugMessage);
   
   // Handle private key import when user sends a message in DM
   bot.on("message:text", async (ctx) => {

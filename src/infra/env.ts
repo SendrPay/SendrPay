@@ -27,6 +27,7 @@ const envSchema = z.object({
 
   // Admin
   OWNER_TELEGRAM_ID: z.string().optional(),
+  ADMIN_USER_IDS: z.string().optional(), // Comma-separated admin user IDs
 
   // System
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
@@ -54,6 +55,7 @@ function parseEnv() {
     SPONSOR_DAILY_CAP_LAMPORTS: process.env.SPONSOR_DAILY_CAP_LAMPORTS || '2000000',
     ESCROW_EXPIRY_HOURS: process.env.ESCROW_EXPIRY_HOURS || '168',
     OWNER_TELEGRAM_ID: process.env.OWNER_TELEGRAM_ID,
+    ADMIN_USER_IDS: process.env.ADMIN_USER_IDS,
     NODE_ENV: process.env.NODE_ENV || 'development',
     PORT: process.env.PORT || '5000',
     DATABASE_URL: process.env.DATABASE_URL,

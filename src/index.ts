@@ -21,21 +21,26 @@ app.get("/health", (req, res) => {
 app.post("/webhooks/helius", heliusWebhook);
 
 const port = process.env.PORT || 5000;
-app.listen(port, "0.0.0.0", () => {
+app.listen(port, "0.0.0.0", async () => {
   logger.info(`HTTP server listening on port ${port}`);
+  
+  // Start bot polling for production deployment
+  if (bot) {
+    try {
+      logger.info("Starting bot polling...");
+      await bot.start();
+      logger.info("✅ Bot started successfully");
+    } catch (error) {
+      logger.error("Bot start error:", error);
+    }
+  }
 });
-
-// DON'T START THE BOT - Just configure it and let the existing polling handle it
-if (bot) {
-  logger.info("✅ Bot configured and ready (polling handled externally)");
-  logger.info("🤖 If you see this message, the bot code is loaded correctly");
-  logger.info("📱 Test commands in Telegram - they should work if polling is active elsewhere");
-} else {
-  logger.warn("❌ Bot not configured - missing BOT_TOKEN");
-}
 
 // Graceful shutdown
 process.on('SIGINT', async () => {
   logger.info('🔄 Shutting down gracefully...');
+  if (bot) {
+    await bot.stop();
+  }
   process.exit(0);
 });

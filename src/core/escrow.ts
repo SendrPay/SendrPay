@@ -12,7 +12,7 @@ export interface CreateEscrowParams {
   paymentId?: string;
   chatId?: string;
   payerWallet: string;
-  payerTelegramId: string;
+  payerTelegramId?: string;
   payeeHandle: string;
   payeeTid?: string;
   mint: string;

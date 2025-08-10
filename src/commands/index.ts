@@ -117,10 +117,10 @@ Send private key now:`, { parse_mode: "Markdown" });
         const { isValidSolanaAddress } = await import("./claim");
         if (isValidSolanaAddress(text)) {
           // Check if user has pending address claims (simplified - in production use Redis)
-          const sessions = claimSessions.get(`address_${userId}`);
-          if (sessions) {
+          const session = claimSessions.get(`address_${userId}`);
+          if (session) {
             const { handleAddressClaim } = await import("./claim");
-            await handleAddressClaim(ctx, sessions.escrowId, text);
+            await handleAddressClaim(ctx, session.escrowId, text);
             claimSessions.delete(`address_${userId}`);
             return;
           }

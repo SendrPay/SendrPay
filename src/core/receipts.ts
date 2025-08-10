@@ -130,42 +130,7 @@ Expires: ${expiryDate}
 [Claim Link](${claimUrl})`;
 }
 
-export function formatGiveawayAnnouncement(
-  amount: number,
-  token: string,
-  description: string,
-  host: string,
-  participantCount: number = 0
-): string {
-  return `🎁 **GIVEAWAY STARTED!**
 
-Prize: ${formatAmount(amount)} ${token}
-Description: ${description}
-Host: ${host}
-
-Participants: ${participantCount}
-
-Click the button below to enter!`;
-}
-
-export function formatGiveawayResults(
-  winners: Array<{ handle: string; amount: number }>,
-  token: string,
-  totalParticipants: number
-): string {
-  let results = `🎉 **GIVEAWAY RESULTS**\n\n`;
-  
-  if (winners.length > 0) {
-    results += `🏆 **Winners:**\n`;
-    for (const winner of winners) {
-      results += `@${winner.handle}: ${formatAmount(winner.amount)} ${token}\n`;
-    }
-  }
-
-  results += `\nTotal participants: ${totalParticipants}`;
-  
-  return results;
-}
 
 export function formatTransactionError(error: string, operation: string): string {
   return `❌ **${operation} Failed**

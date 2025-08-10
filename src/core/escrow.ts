@@ -68,7 +68,7 @@ export async function createEscrow(params: CreateEscrowParams): Promise<EscrowRe
       amountRaw: amountRaw + feeRaw, // Hold full amount including fee
       feeRaw: 0n, // No additional fees for escrow funding
       token,
-      isGiveaway: true // Treat as giveaway to avoid double fees
+      isEscrow: true // No additional fees for escrow funding
     });
 
     if (!transferResult.success) {

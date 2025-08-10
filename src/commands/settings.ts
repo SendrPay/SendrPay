@@ -101,8 +101,7 @@ Send crypto payments instantly on Telegram
 
 **What you can do:**
 • Send payments to any user
-• Create group giveaways  
-• Split bills automatically
+• Tip users in group chats
 • Track all transactions
 
 **Getting started:**
@@ -152,8 +151,7 @@ ${balanceText}
 **Quick commands:**
 • Reply + /tip amount - Tip a message
 • /pay @user amount TOKEN - Send payment  
-• /split 100 USDC @user1 @user2 - Split bills
-• /giveaway start - Create group giveaways`;
+`;
 
   return ctx.reply(homeText, {
     parse_mode: "Markdown",
@@ -380,14 +378,11 @@ async function showHelp(ctx: BotContext) {
 **Commands:**
 • \`/pay @user amount TOKEN\` - Send payment
 • \`/tip amount\` - Tip a message (reply required)
-• \`/split 100 USDC @user1 @user2\` - Split bills
 • \`/balance\` - Check your balance
-
 
 **Groups:**
 • Admins use \`/enable\` to activate bot
 • Reply to messages with \`/tip amount\`
-• Use \`/giveaway\` for community events
 
 **Network:**
 Operates on Solana devnet (test network)

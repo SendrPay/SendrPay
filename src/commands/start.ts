@@ -50,7 +50,7 @@ Send crypto payments instantly on Telegram
 
 **What you can do:**
 • Send payments to any user
-• Split bills automatically  
+• Tip users in group chats
 • Track all transactions
 • Secure wallet management
 

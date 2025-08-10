@@ -16,7 +16,7 @@ export function registerGroupRoutes(bot: Bot<BotContext>) {
   // Group commands
   bot.command("enable", commandEnable);
   bot.command("pay", commandPay);
-  bot.command("tip", commandTip);
+  // tip command handled in message handler to preserve reply context
   bot.command("split", commandSplit);
   bot.command("balance", commandBalance);
 

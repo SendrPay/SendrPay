@@ -59,15 +59,23 @@ if (bot) {
     // Other callback handlers will be processed by command routers
   });
 
-  // Handle private messages (commands only, no more thank you replies)
+  // Handle reply messages for tips in groups
   bot.on("message", async (ctx) => {
     const chatType = ctx.chat?.type;
+    const text = ctx.message?.text || "";
+    
+    // Handle tip commands in replies specifically 
+    if (chatType !== "private" && ctx.message?.reply_to_message && text.startsWith("/tip")) {
+      // Import and call tip command directly
+      const { commandTip } = await import("./commands/tip");
+      return commandTip(ctx);
+    }
     
     if (chatType === "private") {
       // Default private message handler - only respond to commands
       await ctx.reply("Use /start to begin or /help for commands.");
     }
-    // Ignore group messages without commands
+    // Ignore other group messages without commands
   });
 }
 

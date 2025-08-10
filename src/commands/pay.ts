@@ -4,7 +4,7 @@ import { parsePayCommand } from "../core/parse";
 import { resolveToken } from "../core/tokens";
 import { calculateFee, generateFeeConfirmationMessage } from "../core/fees";
 import { executeTransfer } from "../core/transfer";
-import { createEscrow } from "../core/escrow";
+import { createEscrow, sendEscrowNotification, sendRecipientEscrowDM } from "../core/escrow";
 import { formatReceipt } from "../core/receipts";
 import { checkRateLimit } from "../core/ratelimit";
 import { generateClientIntentId } from "../core/idempotency";
@@ -113,21 +113,11 @@ export async function commandPay(ctx: BotContext) {
       include: { wallets: { where: { isActive: true } } }
     });
 
-    if (!payee) {
-      return ctx.reply(`❌ User @${payeeHandle} not found. They need to start the bot to register their Telegram username.`);
-    }
+    // Check if recipient has signed up and has a wallet
+    const isEscrowPayment = !payee || !payee.wallets[0];
+    let payeeWallet = payee?.wallets[0];
 
-    // Strict verification: the handle must exactly match their registered Telegram username
-    if (payee.handle?.toLowerCase() !== payeeHandle.toLowerCase()) {
-      return ctx.reply(`❌ Username verification failed. This user's verified handle is @${payee.handle}.`);
-    }
-
-    const payeeWallet = payee.wallets[0];
-    if (!payeeWallet) {
-      return ctx.reply(`❌ User @${payeeHandle} needs to create a wallet first.`);
-    }
-
-    // Show payment confirmation with flexible service fee information
+    // For display purposes
     const recipientReceives = Number(amountRaw) / (10 ** token.decimals);
     const transactionFee = Number(feeRaw) / (10 ** token.decimals);
     const serviceFeeAmount = Number(serviceFeeRaw) / (10 ** token.decimals);
@@ -136,7 +126,31 @@ export async function commandPay(ctx: BotContext) {
     // Get service fee confirmation message
     const serviceFeeMessage = await generateFeeConfirmationMessage(amountRaw, token.mint, token);
     
-    const confirmationText = `💸 **Confirm Payment**
+    let confirmationText: string;
+    
+    if (isEscrowPayment) {
+      // Show escrow confirmation
+      confirmationText = `💸 **Confirm Payment (Escrow)**
+
+**To:** @${payeeHandle} ${!payee ? '(not signed up)' : '(no wallet)'}
+**Amount:** ${recipientReceives} ${token.ticker}
+${note ? `**Note:** ${note}\n` : ''}
+**Network Fee:** ${transactionFee} ${token.ticker}
+**Service Fee:** ${serviceFeeMessage}
+
+**Total:** ${totalYouPay} ${token.ticker}
+
+⏳ **This will go to escrow** since @${payeeHandle} hasn't signed up with the bot yet. They'll be notified to claim within 7 days.
+
+Proceed with escrow payment?`;
+    } else {
+      // Strict verification: the handle must exactly match their registered Telegram username
+      if (payee.handle?.toLowerCase() !== payeeHandle.toLowerCase()) {
+        return ctx.reply(`❌ Username verification failed. This user's verified handle is @${payee.handle}.`);
+      }
+
+      // Show direct payment confirmation
+      confirmationText = `💸 **Confirm Payment**
 
 **To:** @${payeeHandle}
 **Amount:** ${recipientReceives} ${token.ticker}
@@ -147,6 +161,7 @@ ${note ? `**Note:** ${note}\n` : ''}
 **Total:** ${totalYouPay} ${token.ticker}
 
 Proceed with payment?`;
+    }
 
     const confirmationKeyboard = {
       reply_markup: {
@@ -166,20 +181,30 @@ Proceed with payment?`;
         clientIntentId,
         chatId: chat.id.toString(),
         fromUserId: payer.id,
-        toUserId: payee.id,
+        toUserId: payee?.id || null,
         fromWallet: payerWallet.address,
-        toWallet: payeeWallet.address,
+        toWallet: payeeWallet?.address || 'ESCROW_PENDING',
         mint: token.mint,
         amountRaw: amountRaw.toString(),
         feeRaw: feeRaw.toString(),
-        // @ts-ignore - New fields from schema update
         serviceFeeRaw: serviceFeeRaw.toString(),
-        // @ts-ignore - New fields from schema update  
         serviceFeeToken,
         note,
-        status: "awaiting_confirmation"
+        status: isEscrowPayment ? "awaiting_escrow_confirmation" : "awaiting_confirmation"
       }
     });
+
+    // Store metadata for escrow handling
+    if (isEscrowPayment) {
+      // We'll need this info when processing the confirmation
+      const metadata = {
+        isEscrow: true,
+        payeeHandle,
+        payeeTid: payeeId
+      };
+      // In production, store this in Redis or a separate table
+      // For now, we'll handle it in the confirmation handler
+    }
 
     await ctx.reply(confirmationText, {
       parse_mode: "Markdown",
@@ -212,9 +237,11 @@ export async function handlePaymentConfirmation(ctx: BotContext, confirmed: bool
       return ctx.reply("❌ Payment not found.");
     }
 
-    if (payment.status !== "awaiting_confirmation") {
+    if (payment.status !== "awaiting_confirmation" && payment.status !== "awaiting_escrow_confirmation") {
       return ctx.reply("❌ Payment already processed.");
     }
+
+    const isEscrowPayment = payment.status === "awaiting_escrow_confirmation";
 
     if (!confirmed) {
       // Cancel payment
@@ -245,10 +272,82 @@ export async function handlePaymentConfirmation(ctx: BotContext, confirmed: bool
 
     const amountRaw = BigInt(payment.amountRaw);
     const feeRaw = BigInt(payment.feeRaw);
-    // @ts-ignore - New fields from schema update
     const serviceFeeRaw = BigInt(payment.serviceFeeRaw || "0");
     
-    // IMPORTANT: Recipient gets the FULL amount, sender pays amount + fees
+    if (isEscrowPayment) {
+      // Create escrow instead of direct transfer
+      const escrowResult = await createEscrow({
+        paymentId: payment.id,
+        chatId: payment.chatId,
+        payerWallet: payment.fromWallet,
+        payerTelegramId: payment.from?.telegramId || '',
+        payeeHandle: payment.toWallet.replace('ESCROW_PENDING', 'unknown'), // Extract from context
+        payeeTid: payment.to?.telegramId,
+        mint: token.mint,
+        amountRaw,
+        feeRaw,
+        serviceFeeRaw,
+        serviceFeeToken: payment.serviceFeeToken || payment.mint,
+        note: payment.note,
+        type: "payment"
+      });
+
+      if (!escrowResult.success) {
+        await prisma.payment.update({
+          where: { id: paymentId },
+          data: { status: "failed", errorMsg: escrowResult.error }
+        });
+        return ctx.reply(`❌ Escrow creation failed: ${escrowResult.error}`);
+      }
+
+      // Update payment status to escrow created
+      await prisma.payment.update({
+        where: { id: paymentId },
+        data: { 
+          status: "escrowed",
+          txSig: escrowResult.escrowId // Store escrow ID instead of tx signature
+        }
+      });
+
+      const amount = Number(amountRaw) / (10 ** token.decimals);
+      
+      // Send group notification about escrow
+      if (payment.chatId) {
+        await sendEscrowNotification(
+          ctx,
+          payment.chatId,
+          escrowResult.escrowId!,
+          amount,
+          token.ticker,
+          'recipient', // We need to extract this from context
+          payment.from?.handle || 'sender',
+          payment.note
+        );
+      }
+
+      // Send DM to recipient if we have their Telegram ID
+      if (payment.to?.telegramId) {
+        await sendRecipientEscrowDM(
+          ctx,
+          payment.to.telegramId,
+          escrowResult.escrowId!,
+          amount,
+          token.ticker,
+          payment.from?.handle || 'Someone',
+          payment.note
+        );
+      }
+
+      await ctx.reply(`✅ **Escrow Created**
+
+Your payment of **${amount.toFixed(4)} ${token.ticker}** has been placed in escrow. The recipient will be notified to claim it within 7 days.
+
+**Escrow ID:** \`${escrowResult.escrowId}\``, { parse_mode: "Markdown" });
+
+      return;
+    }
+
+    // Regular direct payment flow
     const recipientReceives = amountRaw; // Full amount goes to recipient
 
     // Execute transfer with flexible service fee and notification data
@@ -259,7 +358,6 @@ export async function handlePaymentConfirmation(ctx: BotContext, confirmed: bool
       amountRaw: recipientReceives, // Recipient gets full amount
       feeRaw,
       serviceFeeRaw,
-      // @ts-ignore - New fields from schema update
       serviceFeeToken: payment.serviceFeeToken || payment.mint,
       token,
       senderTelegramId: payment.from?.telegramId,

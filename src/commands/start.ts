@@ -13,6 +13,14 @@ export async function commandStart(ctx: BotContext) {
     return ctx.reply("❌ Could not identify user.");
   }
 
+  // Check if this is an escrow claim link
+  const startPayload = ctx.message?.text?.split(' ')[1];
+  if (startPayload && startPayload.startsWith('claim_')) {
+    const escrowId = startPayload.replace('claim_', '');
+    const { handleClaimStart } = await import("./claim");
+    return handleClaimStart(ctx, escrowId);
+  }
+
   // Create or update user record with their current Telegram username
   const user = await prisma.user.upsert({
     where: { telegramId: userId },

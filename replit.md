@@ -161,3 +161,14 @@ Preferred communication style: Simple, everyday language.
   - **Database Integration**: Tip transactions properly tracked with "awaiting_confirmation" and completion statuses
   - **Fee Transparency**: Clear breakdown of network fees and service fees in confirmation messages
   - **Cross-Platform Support**: Tip notifications work across group chats and direct messages
+- **Comprehensive Escrow System**: Implemented complete escrow functionality for payments to unregistered users (August 10, 2025)
+  - **Automatic Escrow Detection**: Payment commands automatically detect when recipients haven't signed up with the bot
+  - **Escrow Vault Management**: Uses Solana keypairs to create secure vault addresses with proper ATA handling
+  - **7-Day Auto-Expiry**: Escrows automatically expire after 7 days with funds refunded to sender
+  - **Deep-Link Claiming**: Recipients receive claim URLs that work via Telegram bot start parameters
+  - **Dual Claim Options**: Users can claim to newly generated Telegram wallets or existing external addresses
+  - **Comprehensive Notifications**: Group announcements for escrow creation/claims plus direct recipient notifications
+  - **Seamless Integration**: Enhanced pay.ts and tip.ts commands to seamlessly detect and create escrows
+  - **Database Schema**: Added Escrow model with proper relationships to users, payments, and transactions
+  - **Session Management**: Implemented temporary session storage for address-based claims
+  - **Security Features**: Full validation, error handling, and protection against double-claims

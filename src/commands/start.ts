@@ -44,13 +44,13 @@ export async function commandStart(ctx: BotContext) {
     .row()
     .text("🔑 Import Existing Wallet", "import_wallet");
 
-  const welcomeText = `✨ **Welcome to Solana Pay**
+  const welcomeText = `✨ **Welcome to SendrPay**
 
 Send crypto payments instantly on Telegram
 
 **What you can do:**
 • Send payments to any user
-• Split bills automatically
+• Split bills automatically  
 • Track all transactions
 • Secure wallet management
 

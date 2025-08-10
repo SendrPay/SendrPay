@@ -11,6 +11,9 @@ import { commandWithdraw } from "./withdraw";
 import { commandSettings } from "./settings";
 import { commandAdmin } from "./admin";
 import { commandStart } from "./start";
+import { commandHelp } from "./help";
+import { commandDeposit } from "./deposit";
+import { commandHistory } from "./history";
 import { commandDebugReply, commandDebugReset, commandDebugMessage } from "./debug";
 
 export function registerGroupRoutes(bot: Bot<BotContext>) {
@@ -69,6 +72,9 @@ Send private key now:`, { parse_mode: "Markdown" });
   bot.command("split", commandSplit);
   bot.command("balance", commandBalance);
   bot.command("withdraw", commandWithdraw);
+  bot.command("help", commandHelp);
+  bot.command("deposit", commandDeposit);
+  bot.command("history", commandHistory);
   
   // Debug commands for troubleshooting (admin-only)
   bot.command("debug_reply", commandDebugReply);

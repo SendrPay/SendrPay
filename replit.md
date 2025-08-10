@@ -1,4 +1,4 @@
-# Solana Pay Bot
+# SendrPay (@SendrPayBot)
 
 ## Overview
 
@@ -161,3 +161,13 @@ Preferred communication style: Simple, everyday language.
   - **Database Integration**: Tip transactions properly tracked with "awaiting_confirmation" and completion statuses
   - **Fee Transparency**: Clear breakdown of network fees and service fees in confirmation messages
   - **Cross-Platform Support**: Tip notifications work across group chats and direct messages
+  - **Custom Tip Notes**: Users can add personalized messages to tips like `/tip @user 0.1 SOL you're awesome!`
+- **Complete Bot Rebrand to SendrPay**: Official rebrand from "Solana Pay Bot" to "SendrPay" with handle @SendrPayBot (August 10, 2025)
+  - **Brand Identity**: Updated all bot names, welcome messages, and documentation to SendrPay branding
+  - **Missing Commands Added**: Implemented all essential commands for complete user experience
+    - `/help` - Comprehensive help guide with examples and supported features
+    - `/deposit` - Display wallet address for receiving funds with clear instructions
+    - `/history` - View last 10 transactions with full details and blockchain links
+  - **Enhanced UX**: All commands now available in both group chats and direct messages
+  - **Professional Documentation**: Updated README, replit.md, and all user-facing text with SendrPay branding
+  - **Complete Command Set**: Bot now supports full feature set: start, help, pay, tip, split, balance, deposit, withdraw, history

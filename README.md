@@ -1,4 +1,4 @@
-# Solana Pay Bot
+# SendrPay (@SendrPayBot)
 
 A production-ready Telegram bot for Solana payments with real blockchain transactions via Helius API on devnet.
 

@@ -23,7 +23,6 @@ export async function commandHelp(ctx: BotContext) {
 **Payments**
 /pay @user amount [token] [note] - Send crypto to another user
 /tip @user amount [token] [note] - Tip a user in group chat
-/split amount [token] [note] - Split a bill among group members
 
 **Transaction History**
 /history - View your recent transactions
@@ -31,7 +30,6 @@ export async function commandHelp(ctx: BotContext) {
 **Examples**
 \`/pay @username 10 USDC lunch money\`
 \`/tip @alice 0.1 SOL great job!\`
-\`/split 50 USDC dinner bill\`
 
 **Supported Tokens**
 • SOL - Solana

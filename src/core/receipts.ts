@@ -9,7 +9,7 @@ export interface ReceiptParams {
   token: string;
   signature?: string;
   note?: string;
-  type?: 'payment' | 'tip' | 'split' | 'giveaway' | 'withdrawal';
+  type?: 'payment' | 'tip' | 'withdrawal';
 }
 
 export function formatReceipt(params: ReceiptParams): string {
@@ -235,8 +235,6 @@ function formatAmount(amount: number, maxDecimals: number = 6): string {
 function getReceiptEmoji(type: string): string {
   switch (type) {
     case 'tip': return '🎉';
-    case 'split': return '💰';
-    case 'giveaway': return '🎁';
     case 'withdrawal': return '📤';
     default: return '✅';
   }
@@ -245,8 +243,6 @@ function getReceiptEmoji(type: string): string {
 function getReceiptTitle(type: string): string {
   switch (type) {
     case 'tip': return 'Tip Sent';
-    case 'split': return 'Split Payment';
-    case 'giveaway': return 'Giveaway Payout';
     case 'withdrawal': return 'Withdrawal';
     default: return 'Payment';
   }

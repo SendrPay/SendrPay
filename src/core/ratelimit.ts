@@ -100,8 +100,7 @@ export const RATE_LIMITS = {
   // Tip operations
   TIP: { capacity: 8, refillRate: 0.1 }, // 8 tips, 1 per 10 seconds
 
-  // Giveaway operations
-  GIVEAWAY: { capacity: 2, refillRate: 0.01 }, // 2 giveaways, 1 per 100 seconds
+
 
   // Wallet operations
   WALLET: { capacity: 3, refillRate: 0.02 }, // 3 operations, 1 per 50 seconds

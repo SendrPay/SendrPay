@@ -150,13 +150,9 @@ export function generateTipIntentId(userId: string, messageId: number, amount: n
   return idempotencyManager.generateClientIntentId(userId, 'tip', { messageId, amount });
 }
 
-export function generateSplitIntentId(userId: string, recipients: string[], amount: number): string {
-  return idempotencyManager.generateClientIntentId(userId, 'split', { recipients, amount });
-}
 
-export function generateGiveawayIntentId(userId: string, chatId: string, amount: number): string {
-  return idempotencyManager.generateClientIntentId(userId, 'giveaway', { chatId, amount });
-}
+
+
 
 export function generateWithdrawIntentId(userId: string, address: string, amount: number): string {
   return idempotencyManager.generateClientIntentId(userId, 'withdraw', { address, amount });

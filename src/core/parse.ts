@@ -14,15 +14,7 @@ export interface TipCommand {
   tokenTicker?: string;
 }
 
-export interface SplitCommand {
-  totalAmount: number;
-  tokenTicker: string;
-  recipients: Array<{
-    userId?: string;
-    handle?: string;
-    weight: number;
-  }>;
-}
+
 
 export interface WithdrawCommand {
   amount: number;
@@ -113,58 +105,7 @@ export function parseTipCommand(ctx: BotContext): TipCommand | null {
   };
 }
 
-export function parseSplitCommand(ctx: BotContext): SplitCommand | null {
-  const text = ctx.message?.text || "";
-  const args = text.split(' ').slice(1); // Remove /split
 
-  if (args.length < 3) return null;
-
-  // Parse amount
-  const amountStr = args[0];
-  const totalAmount = parseFloat(amountStr);
-  if (isNaN(totalAmount) || totalAmount <= 0) return null;
-
-  // Parse token
-  const tokenTicker = args[1].toUpperCase();
-  if (!/^[A-Z]{2,10}$/.test(tokenTicker)) return null;
-
-  // Parse recipients @user1 @user2 @user3:30%
-  const recipients: Array<{
-    userId?: string;
-    handle?: string;
-    weight: number;
-  }> = [];
-  
-  for (let i = 2; i < args.length; i++) {
-    const arg = args[i];
-    if (!arg.startsWith('@')) continue;
-
-    let handle = arg.slice(1);
-    let weight = 1;
-
-    // Check for weight specification @user:30%
-    const weightMatch = handle.match(/^([^:]+):(\d+)%?$/);
-    if (weightMatch) {
-      handle = weightMatch[1].toLowerCase(); // Normalize username to lowercase
-      weight = parseInt(weightMatch[2]) / 100;
-    } else {
-      handle = handle.toLowerCase(); // Normalize username to lowercase
-    }
-
-    recipients.push({
-      handle,
-      weight
-    });
-  }
-
-  if (recipients.length === 0) return null;
-
-  return {
-    totalAmount,
-    tokenTicker,
-    recipients
-  };
-}
 
 export function parseWithdrawCommand(ctx: BotContext): WithdrawCommand | null {
   const text = ctx.message?.text || "";

@@ -4,7 +4,7 @@ import { logger } from "../infra/logger";
 import { commandPay } from "./pay";
 import { commandEnable } from "./enable";
 import { commandTip } from "./tip";
-import { commandSplit } from "./split";
+
 import { commandBalance } from "./balance";
 import { commandWithdraw } from "./withdraw";
 
@@ -21,7 +21,6 @@ export function registerGroupRoutes(bot: Bot<BotContext>) {
   bot.command("enable", commandEnable);
   bot.command("pay", commandPay);
   bot.command("tip", commandTip);
-  bot.command("split", commandSplit);
   bot.command("balance", commandBalance);
 
   bot.command("settings", commandSettings);
@@ -69,7 +68,6 @@ Send private key now:`, { parse_mode: "Markdown" });
   // Payment commands also work in DM for direct payments
   bot.command("pay", commandPay);
   bot.command("tip", commandTip);
-  bot.command("split", commandSplit);
   bot.command("balance", commandBalance);
   bot.command("withdraw", commandWithdraw);
   bot.command("help", commandHelp);

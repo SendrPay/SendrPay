@@ -15,7 +15,6 @@ A production-ready Telegram bot for Solana payments with real blockchain transac
 ### 💸 Payment Commands
 - `/pay @user amount TOKEN [note]` - Send tokens to another user
 - `/tip amount [TOKEN]` - Tip by replying to a message  
-- `/split amount TOKEN @user1 @user2 [@user3:30%]` - Split payments
 - `/balance` - Check wallet balances with deposit/withdraw options
 - `/withdraw amount TOKEN address` - Withdraw to external address
 

@@ -1,7 +1,7 @@
 # SendrPay (@SendrPayBot)
 
 ## Overview
-SendrPay is a production-ready Telegram bot that facilitates Solana blockchain payments within Telegram groups and direct messages. Its core purpose is to simplify cryptocurrency transactions, making them accessible and user-friendly. Key capabilities include custodial wallet management with private key import, support for multiple SPL tokens (SOL, USDC, BONK, JUP), and functionalities for payments, tipping, bill splitting, and escrow. All transactions are processed on the Solana devnet, leveraging Helius RPC infrastructure. The vision is to enable seamless, secure, and integrated crypto payments directly within the Telegram ecosystem.
+SendrPay is a production-ready Telegram bot that facilitates Solana blockchain payments within Telegram groups and direct messages. Its core purpose is to simplify cryptocurrency transactions, making them accessible and user-friendly. Key capabilities include custodial wallet management with private key import, support for multiple SPL tokens (SOL, USDC, BONK, JUP), and functionalities for payments, tipping, and escrow. All transactions are processed on the Solana devnet, leveraging Helius RPC infrastructure. The vision is to enable seamless, secure, and integrated crypto payments directly within the Telegram ecosystem.
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.

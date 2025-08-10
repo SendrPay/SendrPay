@@ -4,6 +4,7 @@ import { getWalletBalance } from "../core/wallets";
 import { resolveTokenByMint } from "../core/tokens";
 import { InlineKeyboard } from "grammy";
 import { logger } from "../infra/logger";
+import { messages, formatBalanceList, MessageData } from "../core/message-templates";
 
 export async function commandBalance(ctx: BotContext) {
   try {
@@ -43,8 +44,8 @@ Ready to receive payments`, {
       return;
     }
 
-    // Format balance display
-    let balanceText = `💳 **Balance**\n\n\`${wallet.address.slice(0, 8)}...${wallet.address.slice(-4)}\`\n\n`;
+    // Format balance display using message templates
+    const balanceList: Array<{token: string, amount: string}> = [];
     
     // Sort by USD value (if available) or amount
     balances.sort((a, b) => (b.uiAmount || 0) - (a.uiAmount || 0));
@@ -54,11 +55,21 @@ Ready to receive payments`, {
       const symbol = token?.ticker || balance.mint.slice(0, 4);
       const amount = balance.uiAmount?.toFixed(4) || "0";
       
-      balanceText += `${amount} ${symbol}\n`;
+      balanceList.push({
+        token: symbol,
+        amount: amount
+      });
     }
 
+    const messageData: MessageData = {
+      balance: formatBalanceList(balanceList)
+    };
+
+    let balanceText = messages.dm.balance_display(messageData);
+    balanceText += `\n\n\`${wallet.address.slice(0, 8)}...${wallet.address.slice(-4)}\``;
+
     if (balances.length > 8) {
-      balanceText += `\n+${balances.length - 8} more tokens`;
+      balanceText += `\n\n+${balances.length - 8} more tokens`;
     }
 
     const keyboard = new InlineKeyboard()

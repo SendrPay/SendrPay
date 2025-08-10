@@ -1,6 +1,7 @@
 import { BotContext } from "../bot";
 import { prisma } from "../infra/prisma";
 import { logger } from "../infra/logger";
+import { messages, MessageData } from "../core/message-templates";
 
 export async function commandDeposit(ctx: BotContext) {
   const chat = ctx.chat;
@@ -32,10 +33,14 @@ export async function commandDeposit(ctx: BotContext) {
     const walletAddress = wallet.address;
     const shortAddress = `${walletAddress.slice(0, 6)}...${walletAddress.slice(-6)}`;
     
-    const depositMessage = `💰 **Your SendrPay Wallet**
+    const messageData: MessageData = {
+      token: "All supported tokens (SOL, USDC, BONK, JUP)",
+      address: walletAddress
+    };
 
-**Wallet Address:**
-\`${walletAddress}\`
+    const baseMessage = messages.dm.deposit_address(messageData);
+    
+    const depositMessage = `${baseMessage}
 
 **Send any supported token to this address:**
 • SOL (Solana)

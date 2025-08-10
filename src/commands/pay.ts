@@ -11,6 +11,7 @@ import { generateClientIntentId } from "../core/idempotency";
 import { sendPaymentNotification } from "../core/notifications-simple";
 import { logger } from "../infra/logger";
 import { v4 as uuidv4 } from "uuid";
+import { messages, formatTimestamp, formatExplorerLink, MessageData } from "../core/message-templates";
 
 export async function commandPay(ctx: BotContext) {
   const chat = ctx.chat;
@@ -262,9 +263,9 @@ export async function handlePaymentConfirmation(ctx: BotContext, confirmed: bool
       // @ts-ignore - New fields from schema update
       serviceFeeToken: payment.serviceFeeToken || payment.mint,
       token,
-      senderTelegramId: payment.from?.telegramId,
-      recipientTelegramId: payment.to?.telegramId,
-      note: payment.note,
+      senderTelegramId: payment.from?.telegramId || undefined,
+      recipientTelegramId: payment.to?.telegramId || undefined,
+      note: payment.note || undefined,
       type: "payment"
     });
 
@@ -299,23 +300,11 @@ export async function handlePaymentConfirmation(ctx: BotContext, confirmed: bool
       logger.info(`Payment confirmed and sent: ${paymentId}, tx: ${result.signature}`);
 
       // Send payment notification to recipient
-      logger.info("Checking notification requirements", {
-        hasRecipientId: !!payment.to?.telegramId,
-        recipientId: payment.to?.telegramId,
-        hasSenderHandle: !!payment.from?.handle,
-        senderHandle: payment.from?.handle,
-        hasSignature: !!result.signature,
-        signature: result.signature
-      });
+      logger.info("Checking notification requirements");
 
       if (payment.to?.telegramId && payment.from?.handle && result.signature) {
         try {
-          logger.info("Sending payment notification", {
-            to: payment.to.telegramId,
-            from: payment.from.handle,
-            amount: recipientAmount,
-            token: token.ticker
-          });
+          logger.info("Sending payment notification");
 
           await sendPaymentNotification(ctx.api, {
             senderHandle: payment.from.handle,
@@ -328,23 +317,12 @@ export async function handlePaymentConfirmation(ctx: BotContext, confirmed: bool
             isNewWallet: false
           });
           
-          logger.info("Payment notification sent successfully", {
-            recipient: payment.to.telegramId,
-            signature: result.signature
-          });
+          logger.info("Payment notification sent successfully");
         } catch (notificationError) {
-          logger.error("Failed to send payment notification", {
-            error: notificationError,
-            recipient: payment.to?.telegramId,
-            signature: result.signature
-          });
+          logger.error("Failed to send payment notification");
         }
       } else {
-        logger.warn("Payment notification skipped - missing required data", {
-          hasRecipientId: !!payment.to?.telegramId,
-          hasSenderHandle: !!payment.from?.handle,
-          hasSignature: !!result.signature
-        });
+        logger.warn("Payment notification skipped - missing required data");
       }
     } else {
       // Update payment as failed

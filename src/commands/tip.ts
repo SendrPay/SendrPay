@@ -406,11 +406,7 @@ export async function handleTipConfirmation(ctx: BotContext, confirmed: boolean)
               isNewWallet: false
             }
           );
-          logger.info("Tip notification sent to recipient", { 
-            paymentId, 
-            signature: result.signature,
-            recipientId: payment.to.telegramId 
-          });
+          logger.info("Tip notification sent to recipient");
         } catch (notificationError) {
           logger.error("Failed to send tip notification", notificationError);
           // Don't fail the tip if notification fails

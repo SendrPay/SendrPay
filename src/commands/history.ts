@@ -2,6 +2,7 @@ import { BotContext } from "../bot";
 import { prisma } from "../infra/prisma";
 import { logger } from "../infra/logger";
 import { resolveToken } from "../core/tokens";
+import { messages, formatTransactionList, MessageData } from "../core/message-templates";
 
 export async function commandHistory(ctx: BotContext) {
   const chat = ctx.chat;
@@ -50,7 +51,8 @@ export async function commandHistory(ctx: BotContext) {
       return ctx.reply("📋 **Transaction History**\n\nNo transactions found. Start by using /pay or /tip to send crypto!");
     }
 
-    let historyMessage = "📋 **Transaction History**\n\n";
+    // Format transactions using message templates
+    const transactionList: Array<{type: string, amount: string, token: string, counterpart: string, timestamp: string}> = [];
     
     for (const tx of transactions) {
       const isOutgoing = tx.fromUserId === user.id;
@@ -70,26 +72,24 @@ export async function commandHistory(ctx: BotContext) {
       const date = tx.createdAt.toLocaleDateString();
       const time = tx.createdAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       
-      const direction = isOutgoing ? "→" : "←";
-      const amountDisplay = isOutgoing ? `-${amount}` : `+${amount}`;
+      const type = isOutgoing ? "Sent" : "Received";
+      const amountStr = amount.toString();
       
-      historyMessage += `${direction} **${amountDisplay} ${tokenTicker}**\n`;
-      historyMessage += `${isOutgoing ? 'To' : 'From'}: ${counterpart}\n`;
-      
-      if (tx.note && tx.note !== "tip") {
-        historyMessage += `Note: ${tx.note}\n`;
-      }
-      
-      historyMessage += `${date} ${time}\n`;
-      
-      if (tx.txSig) {
-        historyMessage += `[View Transaction](https://explorer.solana.com/tx/${tx.txSig}?cluster=devnet)\n`;
-      }
-      
-      historyMessage += "\n";
+      transactionList.push({
+        type,
+        amount: amountStr,
+        token: tokenTicker,
+        counterpart,
+        timestamp: `${date} ${time}`
+      });
     }
 
-    historyMessage += "*Showing last 10 transactions*\n";
+    const messageData: MessageData = {
+      balance: formatTransactionList(transactionList) // Reusing balance field for transaction list
+    };
+
+    let historyMessage = messages.dm.transaction_history(messageData);
+    historyMessage += "\n\n*Showing last 10 transactions*\n";
     historyMessage += "*All transactions on Solana devnet*";
 
     await ctx.reply(historyMessage, { 

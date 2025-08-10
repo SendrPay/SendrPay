@@ -1,5 +1,6 @@
 import { InlineKeyboard } from "grammy";
 import { logger } from "../infra/logger";
+import { messages, formatTimestamp, formatExplorerLink, MessageData } from "./message-templates";
 
 export interface PaymentNotificationData {
   senderHandle: string;
@@ -10,6 +11,7 @@ export interface PaymentNotificationData {
   signature: string;
   note?: string;
   isNewWallet?: boolean;
+  type?: 'payment' | 'tip';
 }
 
 // Generate Solana Explorer link for transaction
@@ -25,63 +27,58 @@ export async function sendPaymentNotification(
   try {
     const {
       senderHandle,
-      senderName,
       recipientTelegramId,
       amount,
       tokenTicker,
       signature,
       note,
-      isNewWallet
+      isNewWallet,
+      type = 'payment'
     } = data;
 
-    // Create notification message
-    let message = `🎉 You've Got ${tokenTicker}!\n\n`;
-    message += `From: @${senderHandle}\n`;
-    message += `Amount: ${amount} ${tokenTicker}\n`;
+    // Create standardized notification message using templates
+    const messageData: MessageData = {
+      amount: amount.toString(),
+      token: tokenTicker,
+      sender: senderHandle,
+      timestamp: formatTimestamp(),
+      explorer_link: formatExplorerLink(signature)
+    };
+
+    const baseMessage = type === 'tip' 
+      ? messages.dm.tip_received(messageData)
+      : messages.dm.payment_received(messageData);
+
+    let message = baseMessage;
     
-    if (note) {
-      message += `Note: ${note}\n`;
+    if (note && note !== 'tip') {
+      message += `\n**Note:** ${note}`;
     }
     
     if (isNewWallet) {
-      message += `\n✨ Welcome! Your wallet was set up automatically.\n`;
+      message += `\n\n✨ Welcome! Your wallet was set up automatically.`;
     }
-    
-    message += `\n🔍 [View Transaction](${getSolanaExplorerLink(signature)})`;
 
     // Create shorter callback data (Telegram limit is 64 bytes)
-    const shortSig = signature.slice(0, 20); // Use first 20 chars of signature
+    const shortSig = signature.slice(0, 20);
     
-    // Create inline keyboard with 4 emoji reactions
+    // Create inline keyboard with emoji reactions
     const keyboard = new InlineKeyboard()
       .text("❤️", `react_heart_${shortSig}`)
       .text("🔥", `react_fire_${shortSig}`)
       .text("🙏", `react_pray_${shortSig}`)
       .text("👍", `react_thumbs_${shortSig}`);
 
-    // Send notification and store message ID for reply functionality
-    const sentMessage = await botApi.sendMessage(recipientTelegramId, message, {
+    await botApi.sendMessage(recipientTelegramId, message, {
       parse_mode: "Markdown",
       reply_markup: keyboard,
       disable_web_page_preview: false
     });
 
-    // Note: Removed auto-reply feature as we're keeping it simple with just emoji reactions
-
-    logger.info("Payment notification sent successfully", {
-      recipient: recipientTelegramId,
-      sender: senderHandle,
-      amount,
-      token: tokenTicker,
-      signature
-    });
+    logger.info(`${type} notification sent successfully`);
 
   } catch (error) {
-    logger.error("Failed to send payment notification", {
-      error: error instanceof Error ? error.message : String(error),
-      recipient: data.recipientTelegramId,
-      signature: data.signature
-    });
+    logger.error(`Failed to send ${data.type || 'payment'} notification`);
     throw error;
   }
 }
@@ -163,11 +160,7 @@ export async function handleReactionCallback(ctx: any) {
 
       await ctx.answerCallbackQuery(`${emoji} Reaction sent to sender!`);
 
-      logger.info("Reaction sent to sender", {
-        reaction: emoji,
-        sender: transaction.senderTelegramId,
-        recipient: ctx.from?.id
-      });
+      logger.info("Reaction sent to sender");
 
     } catch (dbError) {
       logger.error("Database error in reaction handler", dbError);

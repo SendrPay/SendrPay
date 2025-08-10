@@ -35,36 +35,40 @@ app.listen(port, "0.0.0.0", () => {
 // Bot startup configuration
 if (bot) {
   if (isDevelopment) {
-    // In development, clear webhook and stop any existing bot instances
-    logger.info("Clearing webhook and starting polling mode...");
+    // Skip polling mode completely - set up webhook mode even in development
+    logger.info("Setting up webhook mode to avoid 409 conflicts...");
     
-    const startBot = async () => {
+    const setupWebhook = async () => {
       try {
-        // Clear webhook and drop pending updates
+        // Clear any existing webhook first
         await bot!.api.deleteWebhook({ drop_pending_updates: true });
-        logger.info("Webhook cleared successfully");
+        logger.info("Existing webhook cleared");
         
-        // Add delay to ensure cleanup
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        // Set webhook to our local server
+        const webhookUrl = `http://localhost:5000/telegram`;
+        await bot!.api.setWebhook(webhookUrl);
+        logger.info(`Webhook set to: ${webhookUrl}`);
         
-        // Start bot
-        await bot!.start();
-        logger.info("Telegram bot started successfully in polling mode");
+        // Import and set up webhook endpoint
+        const { telegramWebhook } = require("./routes/telegram");
+        app.post("/telegram", telegramWebhook);
+        logger.info("Webhook endpoint configured");
+        
       } catch (error) {
-        logger.error(`Failed to start bot: ${error instanceof Error ? error.message : String(error)}`);
-        if (error instanceof Error && error.stack) {
-          logger.error(`Stack: ${error.stack}`);
-        }
+        logger.error(`Failed to setup webhook: ${error instanceof Error ? error.message : String(error)}`);
         
-        // Retry after delay if it's a conflict error
-        if (error instanceof Error && error.message.includes("409")) {
-          logger.info("Retrying bot start in 5 seconds due to conflict...");
-          setTimeout(() => startBot(), 5000);
+        // Fallback: try to start normally but only once
+        logger.info("Attempting direct bot start as fallback...");
+        try {
+          await bot!.start();
+          logger.info("Bot started in polling mode successfully");
+        } catch (fallbackError) {
+          logger.error("Both webhook and polling failed. Bot may not be functional.");
         }
       }
     };
     
-    startBot();
+    setupWebhook();
   } else {
     // In production, clear any existing webhook and let external setup handle it
     logger.info("Bot configured for production webhook mode");

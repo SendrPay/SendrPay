@@ -34,6 +34,17 @@ if (bot) {
 
   // Log all updates for debugging
   bot.use((ctx, next) => {
+    console.log("=== BOT UPDATE DEBUG ===");
+    console.log("Update ID:", ctx.update.update_id);
+    console.log("Chat ID:", ctx.chat?.id);
+    console.log("Chat type:", ctx.chat?.type);
+    console.log("User ID:", ctx.from?.id);
+    console.log("Message text:", ctx.message?.text);
+    console.log("Has reply:", !!ctx.message?.reply_to_message);
+    console.log("Update type:", Object.keys(ctx.update).join(", "));
+    console.log("Raw update:", JSON.stringify(ctx.update, null, 2));
+    console.log("=== BOT UPDATE DEBUG END ===");
+    
     logger.info(`Update: ${ctx.update.update_id}, Chat: ${ctx.chat?.id}, User: ${ctx.from?.id}`);
     return next();
   });

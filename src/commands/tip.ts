@@ -18,11 +18,28 @@ export async function commandTip(ctx: BotContext) {
 
   const isGroupChat = chat.type !== "private";
   
-  // Debug logging for tip command context
+  // DETAILED DEBUG LOGGING
+  console.log("=== TIP COMMAND DEBUG START ===");
+  console.log("Chat ID:", chat.id);
+  console.log("Chat type:", chat.type);
+  console.log("Is group chat:", isGroupChat);
+  console.log("Message exists:", !!ctx.message);
+  console.log("Message text:", ctx.message?.text);
+  console.log("Message ID:", ctx.message?.message_id);
+  console.log("Reply to message exists:", !!ctx.message?.reply_to_message);
+  console.log("Reply to message ID:", ctx.message?.reply_to_message?.message_id);
+  console.log("Reply to user ID:", ctx.message?.reply_to_message?.from?.id);
+  console.log("Reply to username:", ctx.message?.reply_to_message?.from?.username);
+  console.log("From user ID:", ctx.from?.id);
+  console.log("From username:", ctx.from?.username);
+  console.log("Raw update:", JSON.stringify(ctx.update, null, 2));
+  console.log("=== TIP COMMAND DEBUG END ===");
+  
   logger.info("Tip command received");
   
   // In group chats, require reply to message. In DMs, allow direct tipping with @username
   if (isGroupChat && !ctx.message?.reply_to_message) {
+    console.log("REJECTING: Group tip without reply");
     logger.warn("Group tip command rejected - no reply message detected");
     return ctx.reply("❌ Reply to a message to tip its author.");
   }

@@ -20,6 +20,13 @@ export async function commandTip(ctx: BotContext) {
   
   // In group chats, require reply to message. In DMs, allow direct tipping with @username
   if (isGroupChat && !ctx.message?.reply_to_message) {
+    logger.debug("Tip command failed - no reply message", {
+      isGroupChat,
+      hasMessage: !!ctx.message,
+      hasReplyToMessage: !!ctx.message?.reply_to_message,
+      messageText: ctx.message?.text,
+      chatId: chat.id
+    });
     return ctx.reply("❌ Reply to a message to tip its author.");
   }
 

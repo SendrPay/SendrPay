@@ -65,6 +65,10 @@ export async function handleSettingsCallback(ctx: BotContext) {
       return showSendPayment(ctx);
     case "receive_payment":
       return showReceivePayment(ctx);
+    case "withdraw":
+      return showWithdraw(ctx);
+    case "export_key":
+      return showExportKey(ctx);
     case "security":
       return showSecuritySettings(ctx);
     case "history":
@@ -131,27 +135,29 @@ Choose how to set up your wallet`, {
       inline_keyboard: [
         [
           { text: "💸 Send", callback_data: "send_payment" },
-          { text: "📱 Receive", callback_data: "receive_payment" }
+          { text: "💰 Balance", callback_data: "wallet" }
         ],
         [
           { text: "📋 History", callback_data: "history" },
-          { text: "⚙️ Settings", callback_data: "settings_main" }
+          { text: "📤 Withdraw", callback_data: "withdraw" }
         ]
       ]
     }
   };
 
-  const homeText = `🏠 **Home**
-@${user.handle || 'Set username in Telegram'}
-
-${balanceText}
+  const homeText = `💳 **SendrPay — Fast Crypto Payments in Telegram**
 
 **Wallet:** \`${wallet.address.slice(0, 8)}...${wallet.address.slice(-4)}\`
+${balanceText}
 
-**Quick commands:**
-• Reply + /tip amount - Tip a message
-• /pay @user amount TOKEN - Send payment  
-`;
+**Quick Commands:**
+• /pay @user amount TOKEN — Send instantly in chat
+• Reply with /tip amount — Tip a message
+• /receive — Get your deposit address
+• /history — View past transactions
+
+**First time using SendrPay?**
+➡️ Run /start to generate your wallet or connect your own.`;
 
   return ctx.reply(homeText, {
     parse_mode: "Markdown",
@@ -212,10 +218,34 @@ ${balanceText}
 }
 
 async function showSendPayment(ctx: BotContext) {
+  const userId = ctx.from?.id.toString();
+  if (!userId) return;
+
+  const user = await prisma.user.findUnique({
+    where: { telegramId: userId },
+    include: { wallets: { where: { isActive: true } } }
+  });
+
+  if (!user || !user.wallets[0]) {
+    return ctx.reply("❌ Please set up your wallet first with /start");
+  }
+
+  const wallet = user.wallets[0];
+  const balances = await getWalletBalance(wallet.address);
+
+  let balanceInfo = "";
+  if (balances && balances.length > 0) {
+    balanceInfo = "\n**Available Balance:**\n";
+    balances.slice(0, 3).forEach(balance => {
+      const amount = balance.uiAmount?.toFixed(4) || "0";
+      const symbol = balance.mint.slice(0, 4);
+      balanceInfo += `${symbol}: ${amount}\n`;
+    });
+  }
+
   const sendMenu = {
     reply_markup: {
       inline_keyboard: [
-        [{ text: "💳 Quick Pay", callback_data: "quick_pay" }],
         [{ text: "🏠 Back to Home", callback_data: "home" }]
       ]
     }
@@ -237,7 +267,7 @@ async function showSendPayment(ctx: BotContext) {
 • USDC (USD Coin)  
 • BONK (Bonk)
 • JUP (Jupiter)
-
+${balanceInfo}
 **Note:** Recipients must have their Telegram username set and registered with the bot.`;
 
   return ctx.reply(sendText, {
@@ -427,4 +457,145 @@ async function showBotSettings(ctx: BotContext) {
     parse_mode: "Markdown",
     ...settingsMenu
   });
+}
+
+async function showWithdraw(ctx: BotContext) {
+  const userId = ctx.from?.id.toString();
+  if (!userId) return;
+
+  const user = await prisma.user.findUnique({
+    where: { telegramId: userId },
+    include: { wallets: { where: { isActive: true } } }
+  });
+
+  if (!user || !user.wallets[0]) {
+    return ctx.reply("❌ Please set up your wallet first with /start");
+  }
+
+  const wallet = user.wallets[0];
+  const balances = await getWalletBalance(wallet.address);
+
+  let balanceInfo = "**Available to Withdraw:**\n";
+  if (balances && balances.length > 0) {
+    balances.forEach(balance => {
+      const amount = balance.uiAmount?.toFixed(4) || "0";
+      const symbol = balance.mint.slice(0, 4);
+      balanceInfo += `${symbol}: ${amount}\n`;
+    });
+  } else {
+    balanceInfo += "No tokens available\n";
+  }
+
+  const withdrawMenu = {
+    reply_markup: {
+      inline_keyboard: [
+        [{ text: "🔑 Export Private Key", callback_data: "export_key" }],
+        [{ text: "🏠 Back to Home", callback_data: "home" }]
+      ]
+    }
+  };
+
+  const withdrawText = `📤 **Withdraw Funds**
+
+**Your Wallet Address:**
+\`${wallet.address}\`
+
+${balanceInfo}
+
+**To withdraw your funds:**
+1. Export your private key (secure location only)
+2. Import into any Solana wallet (Phantom, Solflare, etc.)
+3. Transfer your tokens to external addresses
+
+**Security Warning:**
+• Only export private key on secure devices
+• Never share your private key with anyone
+• Store backups in safe locations
+
+**Alternative:**
+You can also send tokens directly using /pay commands to external wallet addresses.`;
+
+  return ctx.reply(withdrawText, {
+    parse_mode: "Markdown",
+    ...withdrawMenu
+  });
+}
+
+async function showExportKey(ctx: BotContext) {
+  const userId = ctx.from?.id.toString();
+  if (!userId) return;
+
+  const user = await prisma.user.findUnique({
+    where: { telegramId: userId },
+    include: { wallets: { where: { isActive: true } } }
+  });
+
+  if (!user || !user.wallets[0]) {
+    return ctx.reply("❌ No active wallet found.");
+  }
+
+  const wallet = user.wallets[0];
+  
+  try {
+    // Get the encrypted private key from database
+    if (!wallet.encPrivKey) {
+      return ctx.reply("❌ Private key not available for this wallet type.");
+    }
+
+    // Import decryption function
+    const { decryptPrivateKey } = await import("../core/wallets");
+    const { env } = await import("../infra/env");
+    const bs58 = require("bs58");
+
+    // Decrypt the private key
+    const privateKeyBytes = decryptPrivateKey(wallet.encPrivKey, env.MASTER_KMS_KEY);
+    const privateKeyBase58 = bs58.encode(privateKeyBytes);
+
+    const exportMenu = {
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: "🏠 Back to Home", callback_data: "home" }]
+        ]
+      }
+    };
+
+    const exportText = `🔑 **Private Key Export**
+
+**⚠️ SECURITY WARNING ⚠️**
+This is your private key. Keep it absolutely secret!
+
+**Your Private Key:**
+\`${privateKeyBase58}\`
+
+**Important:**
+• Never share this key with anyone
+• Store it in a secure location
+• Anyone with this key can access your funds
+• This message will auto-delete in 60 seconds
+
+**Next Steps:**
+1. Copy the key above
+2. Import it into Phantom, Solflare, or other Solana wallets
+3. You can then transfer your funds externally`;
+
+    // Send the message and schedule deletion
+    const sentMessage = await ctx.reply(exportText, {
+      parse_mode: "Markdown",
+      ...exportMenu
+    });
+
+    // Auto-delete the message after 60 seconds for security
+    setTimeout(async () => {
+      try {
+        if (ctx.chat?.id) {
+          await ctx.api.deleteMessage(ctx.chat.id, sentMessage.message_id);
+        }
+      } catch (error) {
+        // Message may already be deleted by user
+      }
+    }, 60000);
+
+  } catch (error) {
+    return ctx.reply("❌ Failed to export private key. Please try again or contact support.");
+  }
 }

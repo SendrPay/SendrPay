@@ -35,19 +35,36 @@ app.listen(port, "0.0.0.0", () => {
 // Bot startup configuration
 if (bot) {
   if (isDevelopment) {
-    // In development, clear any webhook first then use polling mode
-    logger.info("Clearing any existing webhook before starting polling mode...");
-    bot!.api.deleteWebhook({ drop_pending_updates: true }).then(() => {
-      logger.info("Webhook cleared, starting Telegram bot in polling mode for development...");
-      return bot!.start();
-    }).then(() => {
-      logger.info("Telegram bot started successfully in polling mode");
-    }).catch((error) => {
-      logger.error(`Failed to start bot: ${error instanceof Error ? error.message : String(error)}`);
-      if (error instanceof Error && error.stack) {
-        logger.error(`Stack: ${error.stack}`);
+    // In development, clear webhook and stop any existing bot instances
+    logger.info("Clearing webhook and starting polling mode...");
+    
+    const startBot = async () => {
+      try {
+        // Clear webhook and drop pending updates
+        await bot!.api.deleteWebhook({ drop_pending_updates: true });
+        logger.info("Webhook cleared successfully");
+        
+        // Add delay to ensure cleanup
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // Start bot
+        await bot!.start();
+        logger.info("Telegram bot started successfully in polling mode");
+      } catch (error) {
+        logger.error(`Failed to start bot: ${error instanceof Error ? error.message : String(error)}`);
+        if (error instanceof Error && error.stack) {
+          logger.error(`Stack: ${error.stack}`);
+        }
+        
+        // Retry after delay if it's a conflict error
+        if (error instanceof Error && error.message.includes("409")) {
+          logger.info("Retrying bot start in 5 seconds due to conflict...");
+          setTimeout(() => startBot(), 5000);
+        }
       }
-    });
+    };
+    
+    startBot();
   } else {
     // In production, clear any existing webhook and let external setup handle it
     logger.info("Bot configured for production webhook mode");

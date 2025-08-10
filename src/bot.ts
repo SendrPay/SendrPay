@@ -64,8 +64,22 @@ if (bot) {
     const chatType = ctx.chat?.type;
     const text = ctx.message?.text || "";
     
+    // Enhanced logging for tip command debugging
+    if (text.startsWith("/tip")) {
+      logger.info("Tip command detected", {
+        chatType,
+        hasReplyToMessage: !!ctx.message?.reply_to_message,
+        messageText: text,
+        chatId: ctx.chat?.id,
+        userId: ctx.from?.id,
+        replyToUserId: ctx.message?.reply_to_message?.from?.id,
+        replyToUsername: ctx.message?.reply_to_message?.from?.username
+      });
+    }
+    
     // Handle tip commands in replies specifically 
     if (chatType !== "private" && ctx.message?.reply_to_message && text.startsWith("/tip")) {
+      logger.info("Processing group tip command with reply context");
       // Import and call tip command directly
       const { commandTip } = await import("./commands/tip");
       return commandTip(ctx);

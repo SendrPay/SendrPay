@@ -89,13 +89,23 @@ export async function commandTip(ctx: BotContext) {
   // Parse @username form if given
   let explicitMention = parts[0]?.startsWith('@') ? parts.shift() : undefined;
 
-  // Amount + token
+  // Amount + optional token + optional note
   let amountStr = parts.shift();
-  let tokenTicker = (parts.shift() || 'SOL').toUpperCase();
+  let tokenTicker = 'SOL'; // Default
+  let tipNote: string | null = null;
+  
+  // Check if next part looks like a token (2-5 uppercase letters)
+  if (parts.length > 0 && parts[0]?.match(/^[A-Z]{2,5}$/)) {
+    tokenTicker = parts.shift()!.toUpperCase();
+  }
+  
+  // Everything remaining is the tip note/message
+  const noteText = parts.join(' ').trim();
+  tipNote = noteText.length > 0 ? noteText : null;
 
   const amount = Number(amountStr);
   if (!amount || amount <= 0) {
-    return ctx.reply('❌ Amount missing/invalid. Example: *reply* then `/tip 0.1 SOL` or `/tip @username 0.1 SOL`', { parse_mode: 'Markdown' });
+    return ctx.reply('❌ Amount missing/invalid. Example: *reply* then `/tip 0.1 SOL you\'re awesome!` or `/tip @username 0.1 SOL thanks!`', { parse_mode: 'Markdown' });
   }
 
   // Resolve recipient
@@ -218,10 +228,16 @@ export async function commandTip(ctx: BotContext) {
     }
 
     // Create confirmation message with fee details
-    const feeMessage = `💰 **Confirm Tip**
+    let feeMessage = `💰 **Confirm Tip**
 
 **To:** ${payeeHandle ? `@${payeeHandle}` : "recipient"}
-**Amount:** ${amount} ${finalTokenTicker}
+**Amount:** ${amount} ${finalTokenTicker}`;
+
+    if (tipNote) {
+      feeMessage += `\n**Note:** ${tipNote}`;
+    }
+
+    feeMessage += `
 **Network Fee:** ${Number(feeRaw) / (10 ** token.decimals)} ${finalTokenTicker}
 **Service Fee:** ${Number(serviceFeeRaw) / (10 ** token.decimals)} ${serviceFeeToken === token.mint ? finalTokenTicker : (serviceFeeToken === "So11111111111111111111111111111111111111112" ? "SOL" : serviceFeeToken)}
 **Total:** ${Number(amountRaw + feeRaw + serviceFeeRaw) / (10 ** token.decimals)} ${finalTokenTicker}
@@ -248,7 +264,7 @@ Proceed with this tip?`;
         // @ts-ignore - New fields from schema update
         serviceFeeRaw: serviceFeeRaw.toString(),
         serviceFeeToken,
-        note: "tip",
+        note: tipNote || "tip",
         status: "awaiting_confirmation"
       }
     });
@@ -345,7 +361,7 @@ export async function handleTipConfirmation(ctx: BotContext, confirmed: boolean)
       token,
       senderTelegramId: payment.from?.telegramId,
       recipientTelegramId: payment.to?.telegramId,
-      note: "tip",
+      note: payment.note || "tip",
       type: "tip"
     });
 
@@ -368,7 +384,7 @@ export async function handleTipConfirmation(ctx: BotContext, confirmed: boolean)
         net: Number(amountRaw) / (10 ** token.decimals),
         token: token.ticker,
         signature: result.signature,
-        note: "tip",
+        note: payment.note || "tip",
         type: "tip"
       });
 
@@ -386,11 +402,15 @@ export async function handleTipConfirmation(ctx: BotContext, confirmed: boolean)
               amount: Number(amountRaw) / (10 ** token.decimals),
               tokenTicker: token.ticker,
               signature: result.signature,
-              note: "tip",
+              note: payment.note || "tip",
               isNewWallet: false
             }
           );
-          logger.info("Tip notification sent to recipient", { paymentId, signature: result.signature });
+          logger.info("Tip notification sent to recipient", { 
+            paymentId, 
+            signature: result.signature,
+            recipientId: payment.to.telegramId 
+          });
         } catch (notificationError) {
           logger.error("Failed to send tip notification", notificationError);
           // Don't fail the tip if notification fails

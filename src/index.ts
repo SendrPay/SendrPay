@@ -35,9 +35,12 @@ app.listen(port, "0.0.0.0", () => {
 // Bot startup configuration
 if (bot) {
   if (isDevelopment) {
-    // In development, use polling mode for testing
-    logger.info("Starting Telegram bot in polling mode for development...");
-    bot.start().then(() => {
+    // In development, clear any webhook first then use polling mode
+    logger.info("Clearing any existing webhook before starting polling mode...");
+    bot!.api.deleteWebhook({ drop_pending_updates: true }).then(() => {
+      logger.info("Webhook cleared, starting Telegram bot in polling mode for development...");
+      return bot!.start();
+    }).then(() => {
       logger.info("Telegram bot started successfully in polling mode");
     }).catch((error) => {
       logger.error(`Failed to start bot: ${error instanceof Error ? error.message : String(error)}`);

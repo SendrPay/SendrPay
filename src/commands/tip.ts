@@ -18,9 +18,12 @@ export async function commandTip(ctx: BotContext) {
 
   const isGroupChat = chat.type !== "private";
   
+  // Debug logging for tip command context
+  logger.info("Tip command received");
+  
   // In group chats, require reply to message. In DMs, allow direct tipping with @username
   if (isGroupChat && !ctx.message?.reply_to_message) {
-    logger.debug("Tip command failed - no reply message");
+    logger.warn("Group tip command rejected - no reply message detected");
     return ctx.reply("❌ Reply to a message to tip its author.");
   }
 

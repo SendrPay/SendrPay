@@ -123,9 +123,8 @@ Top up to complete this payment.`,
     recipient_no_wallet: (data: MessageData) => 
       `💬 You've been sent crypto with SendrPay — but you don't have a wallet yet. Run /start to generate one or connect your own.`,
 
-    payment_confirmation: (data: MessageData) => {
-      console.log("🚀 NEW TEMPLATE SYSTEM ACTIVE - Payment Confirmation Called!");
-      return `💸 **SendrPay Payment Confirmation**
+    payment_confirmation: (data: MessageData) => 
+      `💸 **SendrPay Payment Confirmation**
 
 **To:** ${data.recipient}
 **Amount:** ${data.amount} ${data.token}
@@ -134,8 +133,7 @@ ${data.note ? `**Note:** ${data.note}\n` : ''}**Network Fee:** ${data.network_fe
 
 **Total:** ${data.total}
 
-Ready to send this payment?`;
-    },
+Ready to send this payment?`,
 
     payment_sent_confirmation: (data: MessageData) => 
       `✅ **Payment Sent**

@@ -149,10 +149,6 @@ export async function commandPay(ctx: BotContext) {
     };
 
     const confirmationText = messages.dm.payment_confirmation(messageData);
-    
-    // Debug logging to verify new templates are being used
-    logger.info("🔥 NEW PAYMENT TEMPLATE ACTIVATED - Using standardized confirmation message");
-    console.log("🔥 NEW TEMPLATE OUTPUT:", confirmationText.substring(0, 50));
 
     const confirmationKeyboard = {
       reply_markup: {

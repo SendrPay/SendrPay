@@ -64,39 +64,14 @@ if (bot) {
     const chatType = ctx.chat?.type;
     const text = ctx.message?.text || "";
     
-    // Enhanced logging for tip command debugging
-    if (text.startsWith("/tip")) {
-      logger.info("Tip command detected", {
-        chatType,
-        hasReplyToMessage: !!ctx.message?.reply_to_message,
-        messageText: text,
-        chatId: ctx.chat?.id,
-        userId: ctx.from?.id,
-        replyToUserId: ctx.message?.reply_to_message?.from?.id,
-        replyToUsername: ctx.message?.reply_to_message?.from?.username
-      });
-    }
-    
     // Handle tip commands for both groups (with replies) and DMs (with @username)
     if (text.startsWith("/tip")) {
-      logger.debug("Tip command detected", {
-        chatType,
-        hasReplyTo: !!ctx.message?.reply_to_message,
-        messageStructure: {
-          messageId: ctx.message?.message_id,
-          replyToMessageId: ctx.message?.reply_to_message?.message_id,
-          replyFromUser: ctx.message?.reply_to_message?.from?.username,
-          text: ctx.message?.text
-        }
-      });
+      logger.info("Tip command detected: chatType=" + chatType + ", hasReply=" + !!ctx.message?.reply_to_message + ", messageId=" + ctx.message?.message_id);
       
       if (chatType !== "private") {
         // Group tip: requires reply
         if (ctx.message?.reply_to_message) {
-          logger.info("Processing group tip command with reply context", {
-            originalAuthor: ctx.message.reply_to_message.from?.username,
-            originalMessageId: ctx.message.reply_to_message.message_id
-          });
+          logger.info("Processing group tip command with reply context: originalAuthor=" + ctx.message.reply_to_message.from?.username + ", originalMessageId=" + ctx.message.reply_to_message.message_id);
           const { commandTip } = await import("./commands/tip");
           return commandTip(ctx);
         } else {

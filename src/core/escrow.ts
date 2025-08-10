@@ -2,26 +2,47 @@ import { prisma } from "../infra/prisma";
 import { env } from "../infra/env";
 import { logger } from "../infra/logger";
 import { executeTransfer } from "./transfer";
-import { getWalletKeypair } from "./wallets";
+import { getWalletKeypair, encryptPrivateKey } from "./wallets";
 import { resolveToken } from "./tokens";
 import { v4 as uuidv4 } from "uuid";
+import { Keypair, PublicKey } from "@solana/web3.js";
+import { BotContext } from "../bot";
 
 export interface CreateEscrowParams {
-  paymentId: string;
-  chatId: string;
+  paymentId?: string;
+  chatId?: string;
   payerWallet: string;
+  payerTelegramId?: string;
   payeeHandle: string;
   payeeTid?: string;
   mint: string;
   amountRaw: bigint;
   feeRaw: bigint;
+  serviceFeeRaw?: bigint;
+  serviceFeeToken?: string;
+  note?: string;
+  type?: "payment" | "tip";
 }
 
 export interface EscrowResult {
   success: boolean;
   escrowId?: string;
   claimUrl?: string;
+  escrowVault?: string;
   error?: string;
+}
+
+export interface EscrowVaultKeypair {
+  keypair: Keypair;
+  encryptedPrivKey: Buffer;
+}
+
+// Generate a unique escrow vault keypair
+export function generateEscrowVault(): EscrowVaultKeypair {
+  const keypair = Keypair.generate();
+  const encryptedPrivKey = encryptPrivateKey(keypair.secretKey, env.MASTER_KMS_KEY);
+  
+  return { keypair, encryptedPrivKey };
 }
 
 export async function createEscrow(params: CreateEscrowParams): Promise<EscrowResult> {
@@ -30,11 +51,16 @@ export async function createEscrow(params: CreateEscrowParams): Promise<EscrowRe
       paymentId,
       chatId,
       payerWallet,
+      payerTelegramId,
       payeeHandle,
       payeeTid,
       mint,
       amountRaw,
-      feeRaw
+      feeRaw,
+      serviceFeeRaw = 0n,
+      serviceFeeToken,
+      note,
+      type = "payment"
     } = params;
 
     const escrowId = uuidv4();
@@ -47,28 +73,24 @@ export async function createEscrow(params: CreateEscrowParams): Promise<EscrowRe
       return { success: false, error: "Unknown token" };
     }
 
-    // Get payer keypair for escrow funding
-    const payerKeypair = await getWalletKeypair(payerWallet);
-    if (!payerKeypair) {
-      return { success: false, error: "Payer wallet not accessible" };
-    }
+    // Generate unique escrow vault keypair
+    const { keypair: escrowKeypair, encryptedPrivKey } = generateEscrowVault();
+    const escrowVaultAddress = escrowKeypair.publicKey.toBase58();
 
-    // Create escrow wallet (simple approach: use a derived account)
-    // In production, you might want to use a PDA (Program Derived Address)
-    const escrowKeypair = await getWalletKeypair(env.FEE_TREASURY_SECRET || payerWallet);
-    if (!escrowKeypair) {
-      return { success: false, error: "Escrow wallet not accessible" };
-    }
-
-    // Transfer funds to escrow (simplified - using fee treasury as escrow)
+    // Transfer funds to escrow vault
     const transferResult = await executeTransfer({
       fromWallet: { address: payerWallet },
-      toAddress: escrowKeypair.publicKey.toBase58(),
+      toAddress: escrowVaultAddress,
       mint,
-      amountRaw: amountRaw + feeRaw, // Hold full amount including fee
-      feeRaw: 0n, // No additional fees for escrow funding
+      amountRaw,
+      feeRaw,
+      serviceFeeRaw,
+      serviceFeeToken,
       token,
-      isGiveaway: true // Treat as giveaway to avoid double fees
+      senderTelegramId: payerTelegramId,
+      recipientTelegramId: payeeTid,
+      note,
+      type
     });
 
     if (!transferResult.success) {
@@ -77,6 +99,18 @@ export async function createEscrow(params: CreateEscrowParams): Promise<EscrowRe
         error: `Escrow funding failed: ${transferResult.error}` 
       };
     }
+
+    // Store the encrypted escrow vault private key temporarily for claiming
+    // In a production system, you'd use a proper key management system
+    const tempEscrowWallet = await prisma.wallet.create({
+      data: {
+        userId: -1, // System wallet marker
+        label: `escrow-${escrowId}`,
+        address: escrowVaultAddress,
+        encPrivKey: encryptedPrivKey,
+        isActive: false // Not a user wallet
+      }
+    });
 
     // Create escrow record
     await prisma.escrow.create({
@@ -90,20 +124,20 @@ export async function createEscrow(params: CreateEscrowParams): Promise<EscrowRe
         mint,
         amountRaw: amountRaw.toString(),
         feeRaw: feeRaw.toString(),
+        note,
         status: "open",
         expiresAt,
         txSigFund: transferResult.signature
       }
     });
 
-    const claimUrl = `${env.APP_BASE_URL}/claim/${escrowId}`;
-
-    logger.info(`Escrow created: ${escrowId} for ${payeeHandle}`);
+    logger.info(`Escrow created: ${escrowId} for ${payeeHandle}, vault: ${escrowVaultAddress}`);
 
     return {
       success: true,
       escrowId,
-      claimUrl
+      claimUrl: `t.me/${env.BOT_USERNAME || 'solanapaybot'}?start=claim_${escrowId}`,
+      escrowVault: escrowVaultAddress
     };
 
   } catch (error) {
@@ -139,7 +173,7 @@ export async function claimEscrow(
       return { success: false, error: "Escrow expired" };
     }
 
-    // Verify claimer is the intended recipient
+    // For handle-based escrows, verify the claimer matches the intended recipient
     if (escrow.payeeTid && escrow.payeeTid !== claimerTelegramId) {
       return { success: false, error: "Not authorized to claim this escrow" };
     }
@@ -150,10 +184,21 @@ export async function claimEscrow(
       return { success: false, error: "Unknown token" };
     }
 
-    // Get escrow keypair
-    const escrowKeypair = await getWalletKeypair(env.FEE_TREASURY_SECRET || "");
+    // Get escrow vault keypair from stored wallet
+    const escrowWallet = await prisma.wallet.findFirst({
+      where: { 
+        label: `escrow-${escrowId}`,
+        userId: -1
+      }
+    });
+
+    if (!escrowWallet || !escrowWallet.encPrivKey) {
+      return { success: false, error: "Escrow vault not accessible" };
+    }
+
+    const escrowKeypair = await getWalletKeypair(escrowWallet.address);
     if (!escrowKeypair) {
-      return { success: false, error: "Escrow wallet not accessible" };
+      return { success: false, error: "Escrow vault keypair not accessible" };
     }
 
     const amountRaw = BigInt(escrow.amountRaw);
@@ -165,9 +210,13 @@ export async function claimEscrow(
       toAddress: claimerWallet,
       mint: escrow.mint,
       amountRaw,
-      feeRaw,
+      feeRaw: 0n, // No additional fees for release
       token,
-      isWithdrawal: false // Apply normal fees
+      senderTelegramId: 'escrow',
+      recipientTelegramId: claimerTelegramId,
+      note: `Escrow claim: ${escrow.note || ''}`,
+      type: 'payment',
+      isWithdrawal: false
     });
 
     if (!releaseResult.success) {
@@ -177,19 +226,28 @@ export async function claimEscrow(
       };
     }
 
-    // Update escrow status
+    // Update escrow status and link to claiming user
     await prisma.escrow.update({
       where: { id: escrowId },
       data: {
         status: "claimed",
+        payeeTid: claimerTelegramId,
         payeeWallet: claimerWallet,
         txSigRelease: releaseResult.signature
       }
     });
 
-    logger.info(`Escrow claimed: ${escrowId} by ${claimerTelegramId}`);
+    // Clean up the temporary escrow vault wallet
+    await prisma.wallet.deleteMany({
+      where: { 
+        label: `escrow-${escrowId}`,
+        userId: -1
+      }
+    });
 
-    return { success: true };
+    logger.info(`Escrow claimed: ${escrowId} by ${claimerTelegramId}, released to ${claimerWallet}`);
+
+    return { success: true, escrowId };
 
   } catch (error) {
     logger.error("Error claiming escrow:", error);
@@ -217,8 +275,20 @@ export async function expireEscrow(escrowId: string): Promise<boolean> {
       return false;
     }
 
-    // Get escrow keypair
-    const escrowKeypair = await getWalletKeypair(env.FEE_TREASURY_SECRET || "");
+    // Get escrow vault keypair
+    const escrowWallet = await prisma.wallet.findFirst({
+      where: { 
+        label: `escrow-${escrowId}`,
+        userId: -1
+      }
+    });
+
+    if (!escrowWallet) {
+      logger.error(`Cannot expire escrow ${escrowId}: escrow vault not found`);
+      return false;
+    }
+
+    const escrowKeypair = await getWalletKeypair(escrowWallet.address);
     if (!escrowKeypair) {
       logger.error(`Cannot expire escrow ${escrowId}: escrow wallet not accessible`);
       return false;
@@ -234,6 +304,9 @@ export async function expireEscrow(escrowId: string): Promise<boolean> {
       amountRaw: totalAmount,
       feeRaw: 0n,
       token,
+      senderTelegramId: 'escrow',
+      note: `Escrow expired refund: ${escrow.note || ''}`,
+      type: 'payment',
       isWithdrawal: true // No fees for refunds
     });
 
@@ -244,6 +317,14 @@ export async function expireEscrow(escrowId: string): Promise<boolean> {
         data: {
           status: "refunded",
           txSigRelease: refundResult.signature
+        }
+      });
+
+      // Clean up the escrow vault wallet
+      await prisma.wallet.deleteMany({
+        where: { 
+          label: `escrow-${escrowId}`,
+          userId: -1
         }
       });
 
@@ -289,6 +370,117 @@ export async function processExpiredEscrows(): Promise<void> {
 
   } catch (error) {
     logger.error("Error processing expired escrows:", error);
+  }
+}
+
+// Notification functions for escrow events
+export async function sendEscrowNotification(
+  ctx: BotContext,
+  chatId: string | undefined,
+  escrowId: string,
+  amount: number,
+  tokenTicker: string,
+  recipientHandle: string,
+  senderHandle?: string,
+  note?: string
+): Promise<void> {
+  try {
+    const claimUrl = `t.me/${env.BOT_USERNAME || 'solanapaybot'}?start=claim_${escrowId}`;
+    
+    const message = `⏳ **Funds Reserved**
+
+@${senderHandle || 'Someone'} reserved **${amount.toFixed(4)} ${tokenTicker}** for @${recipientHandle}${note ? `\n\n💬 *${note}*` : ''}
+
+⏰ Claim within 7 days or funds will be refunded
+
+[Claim in DM](${claimUrl})`;
+
+    if (chatId && chatId !== ctx.chat?.id?.toString()) {
+      // Send to group chat
+      await ctx.api.sendMessage(chatId, message, { parse_mode: "Markdown" });
+    }
+  } catch (error) {
+    logger.error("Error sending escrow notification:", error);
+  }
+}
+
+export async function sendEscrowClaimedNotification(
+  ctx: BotContext,
+  chatId: string | undefined,
+  amount: number,
+  tokenTicker: string,
+  recipientHandle: string,
+  signature: string
+): Promise<void> {
+  try {
+    const explorerUrl = `https://explorer.solana.com/tx/${signature}?cluster=devnet`;
+    
+    const message = `✅ **Claimed**
+
+@${recipientHandle} received **${amount.toFixed(4)} ${tokenTicker}**
+
+[View Transaction](${explorerUrl})`;
+
+    if (chatId && ctx.chat?.id?.toString() !== chatId) {
+      await ctx.api.sendMessage(chatId, message, { parse_mode: "Markdown" });
+    }
+  } catch (error) {
+    logger.error("Error sending escrow claimed notification:", error);
+  }
+}
+
+export async function sendEscrowRefundNotification(
+  ctx: BotContext,
+  chatId: string | undefined,
+  amount: number,
+  tokenTicker: string,
+  senderHandle: string,
+  signature: string
+): Promise<void> {
+  try {
+    const explorerUrl = `https://explorer.solana.com/tx/${signature}?cluster=devnet`;
+    
+    const message = `↩️ **Escrow Expired**
+
+Refunded **${amount.toFixed(4)} ${tokenTicker}** to @${senderHandle}
+
+[View Transaction](${explorerUrl})`;
+
+    if (chatId) {
+      await ctx.api.sendMessage(chatId, message, { parse_mode: "Markdown" });
+    }
+  } catch (error) {
+    logger.error("Error sending escrow refund notification:", error);
+  }
+}
+
+export async function sendRecipientEscrowDM(
+  ctx: BotContext,
+  recipientTelegramId: string,
+  escrowId: string,
+  amount: number,
+  tokenTicker: string,
+  senderHandle?: string,
+  note?: string
+): Promise<void> {
+  try {
+    const message = `💸 **Payment Reserved**
+
+@${senderHandle || 'Someone'} reserved **${amount.toFixed(4)} ${tokenTicker}** for you${note ? `\n\n💬 *${note}*` : ''}
+
+Choose how to receive:`;
+
+    const keyboard = [
+      [{ text: "🔒 Claim to Telegram Wallet", callback_data: `claim_telegram_${escrowId}` }],
+      [{ text: "🏦 Claim to My Address", callback_data: `claim_address_${escrowId}` }]
+    ];
+
+    await ctx.api.sendMessage(recipientTelegramId, message, {
+      parse_mode: "Markdown",
+      reply_markup: { inline_keyboard: keyboard }
+    });
+  } catch (error) {
+    logger.error(`Error sending escrow DM to ${recipientTelegramId}:`, error);
   }
 }
 

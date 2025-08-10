@@ -12,6 +12,22 @@ import { commandSettings } from "./settings";
 import { commandAdmin } from "./admin";
 import { commandStart } from "./start";
 import { commandDebugReply, commandDebugReset, commandDebugMessage } from "./debug";
+import { handleClaimStart, handleClaimToTelegramWallet, handleClaimToAddress } from "./claim";
+
+// Simple session storage for address claims (use Redis in production)
+const claimSessions = new Map<string, { escrowId: string; type: 'address' }>();
+
+export function setClaimSession(key: string, value: { escrowId: string; type: 'address' }) {
+  claimSessions.set(key, value);
+}
+
+export function getClaimSession(key: string) {
+  return claimSessions.get(key);
+}
+
+export function deleteClaimSession(key: string) {
+  claimSessions.delete(key);
+}
 
 export function registerGroupRoutes(bot: Bot<BotContext>) {
   // Group commands
@@ -75,18 +91,40 @@ Send private key now:`, { parse_mode: "Markdown" });
   bot.command("debug_reset", commandDebugReset);
   bot.command("debug_message", commandDebugMessage);
   
-  // Handle private key import when user sends a message in DM
+  // Handle private key import and escrow address claims when user sends a message in DM
   bot.on("message:text", async (ctx) => {
-    if (ctx.chat?.type === "private" && ctx.session.awaitingPrivateKey) {
-      ctx.session.awaitingPrivateKey = false;
-      const { importWallet } = await import("../core/wallets");
-      await importWallet(ctx, ctx.message.text);
+    if (ctx.chat?.type === "private") {
+      if (ctx.session.awaitingPrivateKey) {
+        ctx.session.awaitingPrivateKey = false;
+        const { importWallet } = await import("../core/wallets");
+        await importWallet(ctx, ctx.message.text);
+        
+        // Delete the message containing the private key for security
+        try {
+          await ctx.deleteMessage();
+        } catch (error) {
+          logger.error("Could not delete private key message:", error);
+        }
+        return;
+      }
+
+      // Check if user is claiming an escrow to an address
+      const text = ctx.message.text;
+      const userId = ctx.from?.id.toString();
       
-      // Delete the message containing the private key for security
-      try {
-        await ctx.deleteMessage();
-      } catch (error) {
-        logger.error("Could not delete private key message:", error);
+      // Check if this is a Solana address for escrow claiming
+      if (userId && text && text.length >= 32 && text.length <= 44) {
+        const { isValidSolanaAddress } = await import("./claim");
+        if (isValidSolanaAddress(text)) {
+          // Check if user has pending address claims (simplified - in production use Redis)
+          const session = claimSessions.get(`address_${userId}`);
+          if (session) {
+            const { handleAddressClaim } = await import("./claim");
+            await handleAddressClaim(ctx, session.escrowId, text);
+            claimSessions.delete(`address_${userId}`);
+            return;
+          }
+        }
       }
     }
   });
@@ -147,5 +185,22 @@ Send private key now:`, { parse_mode: "Markdown" });
     await ctx.answerCallbackQuery();
     const { handleTipConfirmation } = await import("./tip");
     await handleTipConfirmation(ctx, false);
+  });
+
+  // Escrow claim handlers
+  bot.callbackQuery(/^claim_telegram_(.+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const escrowId = ctx.callbackQuery?.data?.replace("claim_telegram_", "");
+    if (escrowId) {
+      await handleClaimToTelegramWallet(ctx, escrowId);
+    }
+  });
+
+  bot.callbackQuery(/^claim_address_(.+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const escrowId = ctx.callbackQuery?.data?.replace("claim_address_", "");
+    if (escrowId) {
+      await handleClaimToAddress(ctx, escrowId);
+    }
   });
 }

@@ -11,6 +11,7 @@ import { logger } from "../infra/logger";
 import { v4 as uuidv4 } from "uuid";
 import util from 'util';
 import { sendPaymentNotification } from "../core/notifications-simple";
+import { messages, MessageData, formatExplorerLink } from "../core/message-templates";
 
 // Helper function to resolve username to user ID (for the robust tip handler)
 async function resolveUsername(username: string): Promise<string | null> {
@@ -227,22 +228,18 @@ export async function commandTip(ctx: BotContext) {
       return ctx.reply("❌ Could not identify tip recipient.");
     }
 
-    // Create confirmation message with fee details
-    let feeMessage = `💰 **Confirm Tip**
+    // Use standardized tip confirmation template
+    const messageData: MessageData = {
+      recipient: payeeHandle ? `@${payeeHandle}` : "recipient",
+      amount: amount.toString(),
+      token: finalTokenTicker,
+      network_fee: `${Number(feeRaw) / (10 ** token.decimals)} ${finalTokenTicker}`,
+      service_fee: `${Number(serviceFeeRaw) / (10 ** token.decimals)} ${serviceFeeToken === token.mint ? finalTokenTicker : (serviceFeeToken === "So11111111111111111111111111111111111111112" ? "SOL" : serviceFeeToken)}`,
+      total: `${Number(amountRaw + feeRaw + serviceFeeRaw) / (10 ** token.decimals)} ${finalTokenTicker}`,
+      note: tipNote || undefined
+    };
 
-**To:** ${payeeHandle ? `@${payeeHandle}` : "recipient"}
-**Amount:** ${amount} ${finalTokenTicker}`;
-
-    if (tipNote) {
-      feeMessage += `\n**Note:** ${tipNote}`;
-    }
-
-    feeMessage += `
-**Network Fee:** ${Number(feeRaw) / (10 ** token.decimals)} ${finalTokenTicker}
-**Service Fee:** ${Number(serviceFeeRaw) / (10 ** token.decimals)} ${serviceFeeToken === token.mint ? finalTokenTicker : (serviceFeeToken === "So11111111111111111111111111111111111111112" ? "SOL" : serviceFeeToken)}
-**Total:** ${Number(amountRaw + feeRaw + serviceFeeRaw) / (10 ** token.decimals)} ${finalTokenTicker}
-
-Proceed with this tip?`;
+    const feeMessage = messages.dm.tip_confirmation(messageData);
 
     // Generate payment ID
     const paymentId = uuidv4();
@@ -388,7 +385,16 @@ export async function handleTipConfirmation(ctx: BotContext, confirmed: boolean)
         type: "tip"
       });
 
-      await ctx.reply(`✨ **Tip Sent Successfully!**\n\n${receipt}`, { parse_mode: "Markdown" });
+      // Use standardized tip sent confirmation
+      const tipConfirmData: MessageData = {
+        amount: (Number(amountRaw) / (10 ** token.decimals)).toString(),
+        token: token.ticker,
+        recipient: payment.to?.handle ? `@${payment.to.handle}` : `User ${payment.to?.telegramId}`,
+        explorer_link: formatExplorerLink(result.signature || '')
+      };
+      
+      const tipSuccessMessage = messages.dm.tip_sent_confirmation(tipConfirmData);
+      await ctx.reply(tipSuccessMessage, { parse_mode: "Markdown" });
 
       // Send notification to recipient if we have their details
       if (payment.to?.telegramId && payment.from?.handle && result.signature) {

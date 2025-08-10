@@ -128,7 +128,7 @@ export async function commandPay(ctx: BotContext) {
       return ctx.reply(`❌ User @${payeeHandle} needs to create a wallet first.`);
     }
 
-    // Show payment confirmation with flexible service fee information
+    // Show payment confirmation using message templates
     const recipientReceives = Number(amountRaw) / (10 ** token.decimals);
     const transactionFee = Number(feeRaw) / (10 ** token.decimals);
     const serviceFeeAmount = Number(serviceFeeRaw) / (10 ** token.decimals);
@@ -137,17 +137,18 @@ export async function commandPay(ctx: BotContext) {
     // Get service fee confirmation message
     const serviceFeeMessage = await generateFeeConfirmationMessage(amountRaw, token.mint, token);
     
-    const confirmationText = `💸 **Confirm Payment**
+    // Use standardized payment confirmation template
+    const messageData: MessageData = {
+      recipient: `@${payeeHandle}`,
+      amount: recipientReceives.toString(),
+      token: token.ticker,
+      network_fee: `${transactionFee} ${token.ticker}`,
+      service_fee: serviceFeeMessage,
+      total: `${totalYouPay} ${token.ticker}`,
+      note: note || undefined
+    };
 
-**To:** @${payeeHandle}
-**Amount:** ${recipientReceives} ${token.ticker}
-${note ? `**Note:** ${note}\n` : ''}
-**Network Fee:** ${transactionFee} ${token.ticker}
-**Service Fee:** ${serviceFeeMessage}
-
-**Total:** ${totalYouPay} ${token.ticker}
-
-Proceed with payment?`;
+    const confirmationText = messages.dm.payment_confirmation(messageData);
 
     const confirmationKeyboard = {
       reply_markup: {
@@ -296,7 +297,16 @@ export async function handlePaymentConfirmation(ctx: BotContext, confirmed: bool
         note: payment.note || undefined
       });
 
-      await ctx.reply(`✅ **Payment Sent**\n\n${receipt}`, { parse_mode: "Markdown" });
+      // Use standardized payment confirmation message
+      const confirmMessageData: MessageData = {
+        amount: recipientAmount.toString(),
+        token: token.ticker,
+        recipient: `@${payment.to?.handle || 'user'}`,
+        explorer_link: formatExplorerLink(result.signature || '')
+      };
+      
+      const successMessage = messages.dm.payment_sent_confirmation(confirmMessageData);
+      await ctx.reply(successMessage, { parse_mode: "Markdown" });
       logger.info(`Payment confirmed and sent: ${paymentId}, tx: ${result.signature}`);
 
       // Send payment notification to recipient

@@ -13,6 +13,10 @@ export interface MessageData {
   balance?: string;
   address?: string;
   error?: string;
+  network_fee?: string;
+  service_fee?: string;
+  total?: string;
+  note?: string;
 }
 
 export const messages = {
@@ -117,7 +121,49 @@ Top up to complete this payment.`,
 **Supported tokens:** SOL, USDC, BONK, JUP`,
 
     recipient_no_wallet: (data: MessageData) => 
-      `💬 You've been sent crypto with SendrPay — but you don't have a wallet yet. Run /start to generate one or connect your own.`
+      `💬 You've been sent crypto with SendrPay — but you don't have a wallet yet. Run /start to generate one or connect your own.`,
+
+    payment_confirmation: (data: MessageData) => 
+      `💸 **Confirm Payment**
+
+**To:** ${data.recipient}
+**Amount:** ${data.amount} ${data.token}
+${data.note ? `**Note:** ${data.note}\n` : ''}**Network Fee:** ${data.network_fee}
+**Service Fee:** ${data.service_fee}
+
+**Total:** ${data.total}
+
+Proceed with payment?`,
+
+    payment_sent_confirmation: (data: MessageData) => 
+      `✅ **Payment Sent**
+
+**Amount:** ${data.amount} ${data.token}
+**To:** ${data.recipient}
+**Transaction:** ${data.explorer_link}
+
+Payment completed successfully!`,
+
+    tip_confirmation: (data: MessageData) => 
+      `💰 **Confirm Tip**
+
+**To:** ${data.recipient}
+**Amount:** ${data.amount} ${data.token}
+${data.note ? `**Note:** ${data.note}\n` : ''}**Network Fee:** ${data.network_fee}
+**Service Fee:** ${data.service_fee}
+
+**Total:** ${data.total}
+
+Proceed with this tip?`,
+
+    tip_sent_confirmation: (data: MessageData) => 
+      `✨ **Tip Sent Successfully!**
+
+**Amount:** ${data.amount} ${data.token}
+**To:** ${data.recipient}
+**Transaction:** ${data.explorer_link}
+
+Tip completed successfully!`
   }
 };
 

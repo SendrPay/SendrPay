@@ -66,7 +66,7 @@ if (bot) {
             }
             
           } catch (pollError) {
-            logger.error("Polling error details:", pollError);
+            logger.error("Polling error details:", pollError instanceof Error ? pollError.message : String(pollError));
             
             // Check if it's a 409 conflict again
             if (pollError instanceof Error && pollError.message.includes("409")) {

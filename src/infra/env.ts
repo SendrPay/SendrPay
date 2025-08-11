@@ -4,6 +4,7 @@ import { z } from 'zod';
 const envSchema = z.object({
   // Bot configuration
   BOT_TOKEN: z.string().min(1, "Telegram bot token is required").optional(),
+  DISCORD_TOKEN: z.string().min(1, "Discord bot token is required").optional(),
   APP_BASE_URL: z.string().url("Valid app base URL is required").optional(),
 
   // Helius configuration  
@@ -42,6 +43,7 @@ const envSchema = z.object({
 function parseEnv() {
   const rawEnv = {
     BOT_TOKEN: process.env.BOT_TOKEN,
+    DISCORD_TOKEN: process.env.DISCORD_TOKEN,
     APP_BASE_URL: process.env.APP_BASE_URL,
     HELIUS_API_KEY: process.env.HELIUS_API_KEY,
     RPC_URL: process.env.RPC_URL || `https://devnet.helius-rpc.com/?api-key=${process.env.HELIUS_API_KEY}`,

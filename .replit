@@ -15,26 +15,11 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "Bot Server"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
 args = "Discord Deploy"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "Discord Bot"
-
-[[workflows.workflow]]
-name = "Bot Server"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "npx tsx src/index-polling.ts"
-
-[workflows.workflow.metadata]
-outputType = "console"
+args = "Combined Bot"
 
 [[workflows.workflow]]
 name = "Discord Deploy"
@@ -48,15 +33,20 @@ args = "tsx src/discord/deploy-commands.ts"
 outputType = "console"
 
 [[workflows.workflow]]
-name = "Discord Bot"
+name = "Combined Bot"
 author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "tsx src/discord/bot.ts"
+args = "node src/combined-simple.js"
+waitForPort = 3000
 
 [workflows.workflow.metadata]
 outputType = "console"
+
+[[ports]]
+localPort = 3000
+externalPort = 3000
 
 [[ports]]
 localPort = 5000

@@ -1,1 +1,1 @@
-web: npx prisma generate && npx prisma db push --skip-generate && npx tsx src/index.ts
+web: npx prisma generate && npx prisma db push --skip-generate && npx tsx src/combined.ts

@@ -7,5 +7,5 @@ export NODE_ENV=production
 npx prisma generate
 npx prisma db push --skip-generate
 
-# Start the application
-npx tsx src/index.ts
+# Start the application (both Discord and Telegram bots)
+npx tsx src/combined.ts

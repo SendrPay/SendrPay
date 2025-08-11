@@ -31,7 +31,12 @@ SendrPay is a production-ready multi-platform bot that facilitates Solana blockc
    - Graceful error handling prevents one bot from crashing the other
    - Single "Combined Deploy" workflow replaces separate bot workflows
    - Fixed URL formatting issues in webhook setup
+✅ **WEBHOOK RESTORATION**: Fixed critical TypeScript errors preventing webhook deployment
+   - Fixed missing logger imports causing compilation failures
+   - Restored webhook functionality with polling fallback
+   - **Solution for future**: Check TypeScript compilation errors when deployment fails but dev works
 ✅ Both platforms now stable with complete real blockchain functionality and deployment-ready
+🔧 **CURRENT ISSUE**: Account linking detects wallets but wallet merging fails - investigating merge-wallet.ts
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.

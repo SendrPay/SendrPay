@@ -35,7 +35,8 @@ async function handleWalletMerge(ctx: BotContext, telegramUserId: number, keepPl
     const mergeRecord = await prisma.linkCode.findFirst({
       where: { 
         code: { startsWith: mergeCode },
-        platform: "merge"
+        platform: "merge",
+        used: false
       },
       include: { user: true }
     });
@@ -47,87 +48,105 @@ async function handleWalletMerge(ctx: BotContext, telegramUserId: number, keepPl
     // Extract Discord user ID from the merge code
     const discordUserId = parseInt(mergeRecord.code.split('_')[2]);
     
-    // Get both users
+    // Get both users with their wallets
     const telegramUser = await prisma.user.findFirst({
-      where: { telegramId: telegramUserId.toString() }
+      where: { telegramId: telegramUserId.toString() },
+      include: { wallets: { where: { isActive: true } } }
+    });
+
+    const discordUser = await prisma.user.findFirst({
+      where: { id: discordUserId },
+      include: { wallets: { where: { isActive: true } } }
     });
 
     if (!telegramUser) {
       return ctx.reply("❌ Could not find your Telegram account.");
     }
 
-    if (keepPlatform === "discord") {
-      // Keep Discord wallet, deactivate Telegram wallet
-      await prisma.wallet.updateMany({
-        where: { userId: telegramUser.id },
-        data: { isActive: false }
-      });
-
-      // Link Telegram user to Discord account
-      await prisma.user.update({
-        where: { id: discordUserId },
-        data: { telegramId: telegramUserId.toString() }
-      });
-
-      // Delete separate Telegram user record
-      await prisma.user.delete({ where: { id: telegramUser.id } });
-
-      await ctx.reply(`✅ **Accounts Successfully Linked!**
-
-**Discord wallet kept** - Your Telegram wallet has been deactivated.
-
-Your Discord and Telegram accounts now share the Discord wallet.
-
-**What you can now do:**
-• Send payments between Discord and Telegram users
-• Use the same balance across both platforms
-• Manage your wallet from either app
-
-Cross-platform SendrPay is ready! 🚀`, { parse_mode: "Markdown" });
-
-    } else {
-      // Keep Telegram wallet, deactivate Discord wallet
-      await prisma.wallet.updateMany({
-        where: { userId: discordUserId },
-        data: { isActive: false }
-      });
-
-      // Link Discord user to point to this Telegram user's ID
-      await prisma.user.update({
-        where: { id: discordUserId },
-        data: { telegramId: telegramUserId.toString() }
-      });
-
-      // Transfer Telegram user's wallets to Discord user record  
-      await prisma.wallet.updateMany({
-        where: { userId: telegramUser.id },
-        data: { userId: discordUserId }
-      });
-
-      // Delete the separate Telegram user record
-      await prisma.user.delete({ where: { id: telegramUser.id } });
-
-      await ctx.reply(`✅ **Accounts Successfully Linked!**
-
-**Telegram wallet kept** - Your Discord wallet has been deactivated.
-
-Your Discord and Telegram accounts now share the Telegram wallet.
-
-**What you can now do:**
-• Send payments between Discord and Telegram users
-• Use the same balance across both platforms
-• Manage your wallet from either app
-
-Cross-platform SendrPay is ready! 🚀`, { parse_mode: "Markdown" });
+    if (!discordUser) {
+      return ctx.reply("❌ Could not find the Discord account to link with.");
     }
 
-    // Clean up the merge record
-    await prisma.linkCode.delete({ where: { id: mergeRecord.id } });
+    // Use database transaction to ensure atomicity
+    await prisma.$transaction(async (tx) => {
+      if (keepPlatform === "discord") {
+        // Keep Discord wallet, deactivate Telegram wallet
+        if (telegramUser.wallets.length > 0) {
+          await tx.wallet.updateMany({
+            where: { userId: telegramUser.id },
+            data: { isActive: false }
+          });
+        }
+
+        // Link Telegram user ID to Discord account
+        await tx.user.update({
+          where: { id: discordUserId },
+          data: { telegramId: telegramUserId.toString() }
+        });
+
+        // Delete separate Telegram user record if different from Discord user
+        if (telegramUser.id !== discordUserId) {
+          await tx.user.delete({ where: { id: telegramUser.id } });
+        }
+
+      } else {
+        // Keep Telegram wallet, deactivate Discord wallet
+        if (discordUser.wallets.length > 0) {
+          await tx.wallet.updateMany({
+            where: { userId: discordUserId },
+            data: { isActive: false }
+          });
+        }
+
+        // Transfer Telegram user's wallets to Discord user record  
+        if (telegramUser.wallets.length > 0) {
+          await tx.wallet.updateMany({
+            where: { userId: telegramUser.id },
+            data: { userId: discordUserId }
+          });
+        }
+
+        // Link Telegram ID to Discord user
+        await tx.user.update({
+          where: { id: discordUserId },
+          data: { telegramId: telegramUserId.toString() }
+        });
+
+        // Delete the separate Telegram user record if different
+        if (telegramUser.id !== discordUserId) {
+          await tx.user.delete({ where: { id: telegramUser.id } });
+        }
+      }
+
+      // Mark merge code as used
+      await tx.linkCode.update({
+        where: { id: mergeRecord.id },
+        data: { used: true }
+      });
+    });
+
+    const keptWallet = keepPlatform === "discord" ? 
+      (discordUser.wallets[0]?.address || "Discord wallet") :
+      (telegramUser.wallets[0]?.address || "Telegram wallet");
+
+    await ctx.reply(`✅ **Accounts Successfully Linked!**
+
+**${keepPlatform === "discord" ? "Discord" : "Telegram"} wallet kept** - Your ${keepPlatform === "discord" ? "Telegram" : "Discord"} wallet has been deactivated.
+
+**Active wallet:** \`${keptWallet}\`
+
+**What you can now do:**
+• Send payments between Discord and Telegram users
+• Use the same balance across both platforms
+• Manage your wallet from either app
+
+Cross-platform SendrPay is ready! 🚀`, { parse_mode: "Markdown" });
 
     logger.info("Wallet merge completed", {
       telegramUserId,
       discordUserId,
-      keptPlatform: keepPlatform
+      keptPlatform: keepPlatform,
+      keptWallet
     } as any);
 
   } catch (error) {

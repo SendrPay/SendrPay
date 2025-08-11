@@ -86,13 +86,22 @@ Reply with:
 
 **Note:** The unused wallet will be deactivated but not deleted for security.`, { parse_mode: "Markdown" });
       
+      // Clean up any existing merge records for this user first
+      await prisma.linkCode.deleteMany({
+        where: {
+          code: { startsWith: `MERGE_${telegramUserId}_` },
+          platform: "merge"
+        }
+      });
+      
       // Store the pending merge info for the user to process later
       await prisma.linkCode.create({
         data: {
           code: `MERGE_${telegramUserId}_${linkRecord.userId}`,
           userId: linkRecord.userId,
           platform: "merge",
-          expiresAt: new Date(Date.now() + 30 * 60 * 1000) // 30 minutes to decide
+          expiresAt: new Date(Date.now() + 30 * 60 * 1000), // 30 minutes to decide
+          used: false
         }
       });
       

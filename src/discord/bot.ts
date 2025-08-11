@@ -33,11 +33,35 @@ const client = new Client({
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent
   ],
-  partials: [Partials.Channel]
+  partials: [Partials.Channel],
+  // Add connection resilience settings
+  closeTimeout: 5000,
+  waitGuildTimeout: 15000
 });
 
 client.once(Events.ClientReady, () => {
   console.log(`Discord logged in as ${client.user?.tag}`);
+});
+
+// Add connection management events
+client.on('disconnect', () => {
+  console.log('Discord bot disconnected');
+});
+
+client.on('warn', (info) => {
+  console.warn('Discord bot warning:', info);
+});
+
+client.on('error', (error) => {
+  console.error('Discord bot error:', error);
+  // Don't exit process - let it attempt to reconnect
+});
+
+client.on('debug', (info) => {
+  // Only log important debug info to avoid spam
+  if (info.includes('heartbeat') || info.includes('session') || info.includes('gateway')) {
+    console.debug('Discord debug:', info);
+  }
 });
 
 // DM commands: "!link CODE" and "!import PRIVATE_KEY"

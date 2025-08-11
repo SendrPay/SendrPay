@@ -6,6 +6,8 @@ import { heliusWebhook } from "./routes/helius";
 import { logger } from "./infra/logger";
 import { env } from "./infra/env";
 
+// Use built-in fetch for Node.js 18+
+
 const app = express();
 app.use(express.json({ limit: "1mb" }));
 
@@ -43,14 +45,56 @@ async function startDiscordBot() {
     return;
   }
 
+  // Add Discord client event listeners for better connection management
+  discordClient.on('disconnect', () => {
+    logger.warn('Discord bot disconnected, will attempt to reconnect');
+  });
+
+  discordClient.on('reconnecting', () => {
+    logger.info('Discord bot reconnecting...');
+  });
+
+  discordClient.on('resume', () => {
+    logger.info('Discord bot resumed connection');
+  });
+
+  discordClient.on('error', (error) => {
+    logger.error({ error }, 'Discord bot error');
+    // Don't exit - let Discord.js handle reconnection
+  });
+
+  discordClient.on('warn', (info) => {
+    logger.warn({ info }, 'Discord bot warning');
+  });
+
   try {
     logger.info("Starting Discord bot...");
     await discordClient.login(env.DISCORD_TOKEN);
     logger.info("✅ Discord bot started successfully");
+    
+    // Set up periodic status check
+    setInterval(() => {
+      if (discordClient.isReady()) {
+        logger.debug('Discord bot status: online');
+      } else {
+        logger.warn('Discord bot status: offline - attempting reconnection');
+        // Try to reconnect if not ready
+        discordClient.login(env.DISCORD_TOKEN).catch(err => {
+          logger.error('Discord reconnection failed:', err);
+        });
+      }
+    }, 60000); // Check every minute
+    
   } catch (error) {
     logger.error("Discord bot start error:", error);
     // Don't exit process - keep Telegram bot running
     logger.warn("Continuing with Telegram bot only");
+    
+    // Retry connection after 30 seconds
+    setTimeout(() => {
+      logger.info("Retrying Discord bot connection...");
+      startDiscordBot();
+    }, 30000);
   }
 }
 
@@ -106,6 +150,21 @@ async function startCombinedApp() {
     ]);
     
     logger.info("✅ Combined application started - both bots active");
+    
+    // Add keep-alive mechanism to prevent server from sleeping
+    setInterval(() => {
+      // Self-ping to keep the server active
+      const selfPing = async () => {
+        try {
+          const response = await fetch(`http://localhost:${port}/health`);
+          const data = await response.json();
+          logger.debug({ status: data.status }, 'Keep-alive ping successful');
+        } catch (error: any) {
+          logger.warn({ error: error.message }, 'Keep-alive ping failed');
+        }
+      };
+      selfPing();
+    }, 25 * 60 * 1000); // Ping every 25 minutes to prevent 30-minute timeout
   });
 }
 

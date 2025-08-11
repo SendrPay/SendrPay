@@ -74,14 +74,32 @@ app.post("/webhooks/helius", heliusWebhook);
 
 // Telegram webhook endpoint
 app.post(`/tg`, async (req, res) => {
+  logger.info('=== TELEGRAM WEBHOOK RECEIVED ===');
+  logger.info({ headers: req.headers }, 'Webhook headers');
+  logger.info({ body: req.body }, 'Webhook body');
+  logger.info({ botConfigured: !!telegramBot }, 'Bot status');
+  
   if (telegramBot) {
     try {
-      logger.debug('Received Telegram webhook update', { updateId: req.body?.update_id });
+      if (!req.body || typeof req.body !== 'object') {
+        logger.error({ body: req.body }, 'Invalid webhook body - not an object');
+        return res.status(400).json({ error: 'Invalid webhook body' });
+      }
+      
+      logger.info({ updateId: req.body?.update_id }, 'Processing webhook update...');
       await telegramBot.handleUpdate(req.body);
+      logger.info('Webhook processed successfully');
       res.status(200).send('OK');
     } catch (error) {
-      logger.error({ error }, 'Telegram webhook error');
-      res.status(500).json({ error: 'Webhook processing failed' });
+      logger.error({
+        error: error instanceof Error ? {
+          name: error.name,
+          message: error.message,
+          stack: error.stack
+        } : error,
+        body: req.body
+      }, 'Telegram webhook error details');
+      res.status(500).json({ error: 'Webhook processing failed', details: error instanceof Error ? error.message : String(error) });
     }
   } else {
     logger.warn('Telegram webhook called but bot not configured');
@@ -258,11 +276,4 @@ startCombinedApp().catch(error => {
   process.exit(1);
 });
 
-// Graceful shutdown
-process.on('SIGINT', async () => {
-  logger.info('🔄 Shutting down gracefully...');
-  if (bot) {
-    await bot.stop();
-  }
-  process.exit(0);
-});
+// Note: Main graceful shutdown handler is above, this is just cleanup

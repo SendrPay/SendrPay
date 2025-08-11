@@ -108,11 +108,17 @@ client.on(Events.InteractionCreate, async (i) => {
         
         if (setupType === "new") {
           // Immediately acknowledge the interaction to prevent timeout
-          await i.reply({ 
-            ephemeral: true, 
-            content: "🔄 Generating your wallet..." 
-          });
+          try {
+            await i.reply({ 
+              ephemeral: true, 
+              content: "🔄 Generating your wallet..." 
+            });
+          } catch (error) {
+            console.error("Failed to reply to interaction:", error);
+            return;
+          }
           
+          // Now do the heavy operations after the reply
           try {
             const user = await getOrCreateUserByDiscordId(i.user.id);
             const { Keypair } = await import("@solana/web3.js");
@@ -166,7 +172,11 @@ Ready for payments!`;
             await i.editReply(walletText);
           } catch (error) {
             console.error('Error generating Discord wallet:', error);
-            await i.editReply('❌ Error generating wallet. Please try again.');
+            try {
+              await i.editReply('❌ Error generating wallet. Please try again.');
+            } catch (editError) {
+              console.error('Failed to edit reply:', editError);
+            }
           }
           return;
         }

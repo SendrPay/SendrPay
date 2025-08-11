@@ -15,6 +15,8 @@ SendrPay is a production-ready multi-platform bot that facilitates Solana blockc
 ✅ Fixed Discord bot deployment issues with proper credential configuration
 ✅ Resolved Telegram bot polling crashes and stability issues
 ✅ Updated help command with comprehensive account linking instructions
+✅ Fixed critical wallet merging database errors in cross-platform linking
+✅ Implemented robust polling conflict resolution for simultaneous bot operation
 ✅ Both platforms now stable and ready for production use
 
 ## User Preferences

@@ -31,12 +31,21 @@ if (bot) {
   
   const startManualPolling = async () => {
     try {
-      // Clear webhook first
+      // Wait a moment to ensure any previous instances are cleared
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Clear webhook and drop ALL pending updates to avoid conflicts
       await bot!.api.deleteWebhook({ drop_pending_updates: true });
       logger.info("Webhook cleared");
       
-      // Start manual polling immediately
-      let offset = 0;
+      // Wait another moment after clearing webhook
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Get latest offset to avoid processing old messages
+      const latestUpdates = await bot!.api.getUpdates({ limit: 1, timeout: 1 });
+      let offset = latestUpdates.length > 0 ? latestUpdates[0].update_id + 1 : 0;
+      logger.info(`Starting polling from offset: ${offset}`);
+      
       let isPolling = true;
       
       const poll = async () => {

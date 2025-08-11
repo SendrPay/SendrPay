@@ -288,10 +288,12 @@ Start sending crypto payments! 🚀`
         });
       } catch (error) {
         console.error("Error creating link code:", error);
-        await i.reply({
-          ephemeral: true,
-          content: "❌ Something went wrong creating your link code."
-        });
+        if (!i.replied && !i.deferred) {
+          await i.reply({
+            ephemeral: true,
+            content: "❌ Something went wrong creating your link code."
+          });
+        }
       }
     }
 

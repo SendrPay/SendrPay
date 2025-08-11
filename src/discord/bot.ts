@@ -107,20 +107,64 @@ client.on(Events.InteractionCreate, async (i) => {
         const setupType = i.customId.split(":")[1];
         
         if (setupType === "new") {
-          // Generate new wallet
-          const user = await getOrCreateUserByDiscordId(i.user.id);
-          const { generateWallet } = await import("../core/wallets");
-          
+          // Generate new wallet for Discord user
           await i.deferReply({ ephemeral: true });
           
-          // Create a mock context for generateWallet
-          const mockCtx = {
-            reply: async (content: any) => {
-              await i.editReply(typeof content === 'string' ? content : content.content || 'Wallet generated!');
-            }
-          };
-          
-          await generateWallet(mockCtx as any);
+          try {
+            const user = await getOrCreateUserByDiscordId(i.user.id);
+            const { Keypair } = await import("@solana/web3.js");
+            const { encryptPrivateKey } = await import("../core/wallets");
+            const { prisma } = await import("../infra/prisma");
+            const { env } = await import("../infra/env");
+            const bs58 = await import("bs58");
+            
+            // Generate new keypair
+            const keypair = Keypair.generate();
+            const privateKeyBytes = keypair.secretKey;
+            const publicKey = keypair.publicKey.toBase58();
+
+            // Encrypt private key
+            const encryptedKey = encryptPrivateKey(privateKeyBytes, env.MASTER_KMS_KEY);
+
+            // Save wallet
+            await prisma.wallet.create({
+              data: {
+                userId: user.id,
+                label: "custodial",
+                address: publicKey,
+                encPrivKey: encryptedKey,
+                isActive: true
+              }
+            });
+
+            // Deactivate other wallets for this user
+            await prisma.wallet.updateMany({
+              where: { 
+                userId: user.id,
+                address: { not: publicKey }
+              },
+              data: { isActive: false }
+            });
+
+            const walletText = `✨ **Wallet Generated!**
+
+**Address:** \`${publicKey.slice(0, 8)}...${publicKey.slice(-4)}\`
+
+🔑 **Private Key** (save this securely):
+\`${bs58.default.encode(privateKeyBytes)}\`
+
+**Important:**
+• Save your private key - shown only once
+• Keep it private and secure
+• Anyone with this key controls your wallet
+
+Ready for payments!`;
+
+            await i.editReply(walletText);
+          } catch (error) {
+            console.error('Error generating Discord wallet:', error);
+            await i.editReply('❌ Error generating wallet. Please try again.');
+          }
           return;
         }
         

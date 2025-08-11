@@ -92,23 +92,20 @@ Cross-platform SendrPay is ready! 🚀`, { parse_mode: "Markdown" });
         data: { isActive: false }
       });
 
-      // Update Discord user to point to Telegram user's wallets
+      // Link Discord user to point to this Telegram user's ID
       await prisma.user.update({
         where: { id: discordUserId },
         data: { telegramId: telegramUserId.toString() }
       });
 
-      // Transfer Discord user's identity to Telegram user
+      // Transfer Telegram user's wallets to Discord user record  
       await prisma.wallet.updateMany({
         where: { userId: telegramUser.id },
         data: { userId: discordUserId }
       });
 
-      // Update Telegram user record
-      await prisma.user.update({
-        where: { id: telegramUser.id },
-        data: { id: discordUserId }
-      });
+      // Delete the separate Telegram user record
+      await prisma.user.delete({ where: { id: telegramUser.id } });
 
       await ctx.reply(`✅ **Accounts Successfully Linked!**
 

@@ -17,6 +17,14 @@ author = "agent"
 task = "workflow.run"
 args = "Bot Server"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Discord Deploy"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Discord Bot"
+
 [[workflows.workflow]]
 name = "Bot Server"
 author = "agent"
@@ -24,6 +32,28 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "npx tsx src/index-polling.ts"
+
+[workflows.workflow.metadata]
+outputType = "console"
+
+[[workflows.workflow]]
+name = "Discord Deploy"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "tsx src/discord/deploy-commands.ts"
+
+[workflows.workflow.metadata]
+outputType = "console"
+
+[[workflows.workflow]]
+name = "Discord Bot"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "tsx src/discord/bot.ts"
 
 [workflows.workflow.metadata]
 outputType = "console"

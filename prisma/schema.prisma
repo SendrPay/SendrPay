@@ -12,7 +12,8 @@ datasource db {
 
 model User {
   id             Int       @id @default(autoincrement())
-  telegramId     String    @unique
+  telegramId     String?   @unique
+  discordId      String?   @unique
   handle         String?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
@@ -23,6 +24,7 @@ model User {
   paymentsFrom    Payment[] @relation("FromUser")
   paymentsTo      Payment[] @relation("ToUser")
   giveawayEntries GiveawayEntry[]
+  linkCodes       LinkCode[]
 
   @@map("users")
 }
@@ -184,6 +186,23 @@ model GiveawayEntry {
   @@index([giveawayId])
   @@index([userId])
   @@map("giveaway_entries")
+}
+
+model LinkCode {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  userId    Int
+  platform  String   // "telegram" | "discord"
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([code])
+  @@index([expiresAt])
+  @@map("link_codes")
 }
 
 model AdminAction {

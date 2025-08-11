@@ -1,7 +1,7 @@
 # SendrPay (@SendrPayBot)
 
 ## Overview
-SendrPay is a production-ready Telegram bot that facilitates Solana blockchain payments within Telegram groups and direct messages. Its core purpose is to simplify cryptocurrency transactions, making them accessible and user-friendly. Key capabilities include custodial wallet management with private key import, support for multiple SPL tokens (SOL, USDC, BONK, JUP), and functionalities for payments, tipping, and escrow. All transactions are processed on the Solana devnet, leveraging Helius RPC infrastructure. The vision is to enable seamless, secure, and integrated crypto payments directly within the Telegram ecosystem.
+SendrPay is a production-ready multi-platform bot that facilitates Solana blockchain payments within Telegram and Discord. Its core purpose is to simplify cryptocurrency transactions, making them accessible and user-friendly across platforms. Key capabilities include custodial wallet management with private key import, support for multiple SPL tokens (SOL, USDC, BONK, JUP), cross-platform account linking, and functionalities for payments, tipping, and escrow. All transactions are processed on the Solana devnet, leveraging Helius RPC infrastructure. The vision is to enable seamless, secure, and integrated crypto payments directly within messaging platforms, with users able to link their Discord and Telegram accounts to share one wallet.
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.
@@ -49,9 +49,11 @@ Preferred communication style: Simple, everyday language.
 - **Solana Web3.js**: Blockchain interaction and transaction construction.
 - **SPL Token Library**: Token account management and transfers.
 
-### Communication Platform
+### Communication Platforms
 - **Telegram Bot API**: Message handling, inline keyboards, user interaction.
-- **grammY Framework**: Bot framework with session management and middleware support.
+- **Discord.js v14**: Discord bot framework with slash commands and button interactions.
+- **grammY Framework**: Telegram bot framework with session management and middleware support.
+- **Cross-Platform Linking**: Account linking system allowing users to connect Discord and Telegram accounts to share one wallet.
 
 ### Development & Deployment
 - **Prisma ORM**: Database schema management and query building.

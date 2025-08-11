@@ -3,9 +3,10 @@ import { bot as telegramBot } from "./bot";
 import { client as discordClient } from "./discord/bot";
 import express from "express";
 import { heliusWebhook } from "./routes/helius";
+import { logger } from "./infra/logger";
 import { env } from "./infra/env";
 
-console.log("🚀 SIMPLE DEPLOYMENT - POLLING ONLY");
+console.log("🚀 FIXED DEPLOYMENT - WEBHOOKS WORKING");
 
 const app = express();
 app.use(express.json({ limit: "1mb" }));
@@ -44,7 +45,20 @@ app.get("/health", (req, res) => {
 
 app.post("/webhooks/helius", heliusWebhook);
 
-// NO TELEGRAM WEBHOOK - USING POLLING ONLY FOR DEPLOYMENT
+// Telegram webhook endpoint - FIXED VERSION
+app.post("/tg", async (req, res) => {
+  if (!telegramBot) {
+    return res.status(404).json({ error: "Telegram bot not configured" });
+  }
+  
+  try {
+    await telegramBot.handleUpdate(req.body);
+    res.status(200).send("OK");
+  } catch (error) {
+    console.error("Telegram webhook error:", error);
+    res.status(500).json({ error: "Webhook failed" });
+  }
+});
 
 async function startDiscordBot() {
   if (!env.DISCORD_TOKEN) {
@@ -128,17 +142,26 @@ async function startTelegramBot() {
     console.warn('Error clearing webhook:', error);
   }
 
-  // FORCE POLLING - NO WEBHOOKS FOR DEPLOYMENT
-  try {
-    // Make sure no webhook interferes
-    await telegramBot.api.deleteWebhook({ drop_pending_updates: true });
-    console.log("Cleared webhook for polling");
-    
-    // Start polling
+  // Use webhooks for deployment (more efficient)
+  const publicUrl = process.env.PUBLIC_URL || process.env.REPL_URL;
+  if (publicUrl) {
+    try {
+      // Clear existing webhook
+      await telegramBot.api.deleteWebhook({ drop_pending_updates: true });
+      
+      // Set new webhook
+      const webhookUrl = `${publicUrl.replace(/\/$/, '')}/tg`;
+      await telegramBot.api.setWebhook(webhookUrl);
+      console.log("✅ Telegram webhook set:", webhookUrl);
+    } catch (error) {
+      console.error("Webhook setup failed, using polling:", error);
+      await telegramBot.start();
+      console.log("✅ Telegram fallback to polling");
+    }
+  } else {
+    // Development mode - use polling
     await telegramBot.start();
-    console.log("✅ Telegram bot started with POLLING");
-  } catch (error) {
-    console.error("Telegram polling error:", error);
+    console.log("✅ Telegram polling mode");
   }
 }
 

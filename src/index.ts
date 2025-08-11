@@ -5,7 +5,7 @@ import express from "express";
 import { heliusWebhook } from "./routes/helius";
 import { env } from "./infra/env";
 
-console.log("🚀 DEPLOYMENT VERSION - Starting both bots...");
+console.log("🚀 SIMPLE DEPLOYMENT - POLLING ONLY");
 
 const app = express();
 app.use(express.json({ limit: "1mb" }));
@@ -44,40 +44,7 @@ app.get("/health", (req, res) => {
 
 app.post("/webhooks/helius", heliusWebhook);
 
-// Telegram webhook endpoint
-app.post(`/tg`, async (req, res) => {
-  logger.info('=== TELEGRAM WEBHOOK RECEIVED ===');
-  logger.info({ headers: req.headers }, 'Webhook headers');
-  logger.info({ body: req.body }, 'Webhook body');
-  logger.info({ botConfigured: !!telegramBot }, 'Bot status');
-  
-  if (telegramBot) {
-    try {
-      if (!req.body || typeof req.body !== 'object') {
-        logger.error({ body: req.body }, 'Invalid webhook body - not an object');
-        return res.status(400).json({ error: 'Invalid webhook body' });
-      }
-      
-      logger.info({ updateId: req.body?.update_id }, 'Processing webhook update...');
-      await telegramBot.handleUpdate(req.body);
-      logger.info('Webhook processed successfully');
-      res.status(200).send('OK');
-    } catch (error) {
-      logger.error({
-        error: error instanceof Error ? {
-          name: error.name,
-          message: error.message,
-          stack: error.stack
-        } : error,
-        body: req.body
-      }, 'Telegram webhook error details');
-      res.status(500).json({ error: 'Webhook processing failed', details: error instanceof Error ? error.message : String(error) });
-    }
-  } else {
-    logger.warn('Telegram webhook called but bot not configured');
-    res.status(404).json({ error: 'Telegram bot not configured' });
-  }
-});
+// NO TELEGRAM WEBHOOK - USING POLLING ONLY FOR DEPLOYMENT
 
 async function startDiscordBot() {
   if (!env.DISCORD_TOKEN) {
@@ -161,32 +128,17 @@ async function startTelegramBot() {
     console.warn('Error clearing webhook:', error);
   }
 
-  // Set up webhook mode for Telegram when deployed
-  const publicUrl = process.env.PUBLIC_URL || process.env.REPL_URL;
-  if (publicUrl) {
-    try {
-      const webhookUrl = `${publicUrl.replace(/\/$/, '')}/tg`;
-      await telegramBot.api.setWebhook(webhookUrl);
-      console.log(`✅ Telegram webhook set to: ${webhookUrl}`);
-    } catch (error) {
-      console.error('Failed to set Telegram webhook:', error);
-      // Fallback to polling
-      console.log("Fallback: Starting Telegram bot polling...");
-      try {
-        await telegramBot.start();
-        console.log("✅ Telegram bot started with polling");
-      } catch (pollError) {
-        console.error("Telegram bot polling error:", pollError);
-      }
-    }
-  } else {
-    try {
-      console.log("Starting Telegram bot polling (no PUBLIC_URL)...");
-      await telegramBot.start();
-      console.log("✅ Telegram bot started successfully");
-    } catch (error) {
-      console.error("Telegram bot start error:", error);
-    }
+  // FORCE POLLING - NO WEBHOOKS FOR DEPLOYMENT
+  try {
+    // Make sure no webhook interferes
+    await telegramBot.api.deleteWebhook({ drop_pending_updates: true });
+    console.log("Cleared webhook for polling");
+    
+    // Start polling
+    await telegramBot.start();
+    console.log("✅ Telegram bot started with POLLING");
+  } catch (error) {
+    console.error("Telegram polling error:", error);
   }
 }
 

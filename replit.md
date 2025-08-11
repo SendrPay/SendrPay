@@ -1,7 +1,13 @@
 # SendrPay (@SendrPayBot)
 
 ## Overview
-SendrPay is a production-ready multi-platform bot that facilitates Solana blockchain payments within Telegram and Discord. Its core purpose is to simplify cryptocurrency transactions, making them accessible and user-friendly across platforms. Key capabilities include custodial wallet management with private key import, support for multiple SPL tokens (SOL, USDC, BONK, JUP), cross-platform account linking, and functionalities for payments, tipping, and escrow. All transactions are processed on the Solana devnet, leveraging Helius RPC infrastructure. The vision is to enable seamless, secure, and integrated crypto payments directly within messaging platforms, with users able to link their Discord and Telegram accounts to share one wallet.
+SendrPay is a production-ready multi-platform bot that facilitates Solana blockchain payments within Telegram and Discord. Its core purpose is to simplify cryptocurrency transactions, making them accessible and user-friendly across platforms. Key capabilities include custodial wallet management with private key import, support for multiple SPL tokens (SOL, USDC, BONK, JUP), fully implemented cross-platform account linking, and functionalities for payments, tipping, and escrow. All transactions are processed on the Solana devnet, leveraging Helius RPC infrastructure. Users can seamlessly link their Discord and Telegram accounts via secure link codes to share one wallet across both platforms, enabling cross-platform payments and unified balance management.
+
+## Recent Changes (August 11, 2025)
+✅ Discord bot fully deployed and operational with all slash commands
+✅ Cross-platform account linking completed with `/linktelegram` (Discord) and `/linkcode` (Telegram)
+✅ Users can now send payments between Discord and Telegram platforms
+✅ Both bots running simultaneously with shared wallet infrastructure
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.
@@ -50,10 +56,10 @@ Preferred communication style: Simple, everyday language.
 - **SPL Token Library**: Token account management and transfers.
 
 ### Communication Platforms
-- **Telegram Bot API**: Message handling, inline keyboards, user interaction.
-- **Discord.js v14**: Discord bot framework with slash commands and button interactions.
+- **Telegram Bot API**: Message handling, inline keyboards, user interaction with DM commands including `/linkcode`.
+- **Discord.js v14**: Discord bot framework with slash commands (/start, /pay, /tip, /balance, /deposit, /withdraw, /linktelegram) and button interactions.
 - **grammY Framework**: Telegram bot framework with session management and middleware support.
-- **Cross-Platform Linking**: Account linking system allowing users to connect Discord and Telegram accounts to share one wallet.
+- **Cross-Platform Linking**: Full account linking system where Discord users generate codes via `/linktelegram`, then use `/linkcode` in Telegram to share one wallet across both platforms.
 
 ### Development & Deployment
 - **Prisma ORM**: Database schema management and query building.

@@ -36,13 +36,13 @@ outputType = "console"
 name = "Combined Bot"
 author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "node src/combined-webhook-only.js"
-waitForPort = 3000
-
 [workflows.workflow.metadata]
 outputType = "console"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "node src/combined-working.js"
+waitForPort = 3000
 
 [[ports]]
 localPort = 3000

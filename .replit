@@ -38,7 +38,7 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "node src/combined-simple.js"
+args = "node src/combined-webhook-only.js"
 waitForPort = 3000
 
 [workflows.workflow.metadata]

@@ -1,6 +1,4 @@
 // Combined Discord + Telegram Bot (Webhook Mode for TG)
-// Install: npm install telegraf discord.js express dotenv
-
 require("dotenv").config();
 const express = require("express");
 const { Bot } = require("grammy");
@@ -10,25 +8,45 @@ const app = express();
 app.use(express.json({ limit: "1mb" }));
 
 /* ---------------- TELEGRAM SETUP ---------------- */
-const tgBot = process.env.BOT_TOKEN ? new Bot(process.env.BOT_TOKEN) : null;
+const tgBot = process.env.TG_BOT_TOKEN ? new Bot(process.env.TG_BOT_TOKEN) : null;
 
 if (tgBot) {
-  // Telegram webhook route
+  // Telegram webhook route - handle updates manually
   app.post("/tg", async (req, res) => {
     try {
-      await tgBot.handleUpdate(req.body);
+      // Handle the update without starting the bot in polling mode
+      const update = req.body;
+      
+      if (update.message) {
+        const message = update.message;
+        const text = message.text || '';
+        const chatId = message.chat.id;
+        
+        let responseText = '';
+        
+        if (text.startsWith('/start')) {
+          responseText = 'Welcome to SendrPay! You\'re on Telegram in webhook mode.';
+        } else if (text.startsWith('/pay')) {
+          responseText = 'Processing payment...';
+        } else if (text.startsWith('/balance')) {
+          responseText = 'Your balance: 0.00 SOL';
+        } else if (text.startsWith('/deposit')) {
+          responseText = 'Deposit address: [YOUR_WALLET_ADDRESS]';
+        }
+        
+        if (responseText) {
+          await tgBot.api.sendMessage(chatId, responseText);
+        }
+      }
+      
       res.status(200).send('OK');
     } catch (error) {
       console.error('Telegram webhook error:', error);
       res.status(200).send('OK'); // Always return 200 to Telegram
     }
   });
-
-  // Example Telegram commands
-  tgBot.command("start", (ctx) => ctx.reply("Welcome to SendrPay! You're on Telegram in webhook mode."));
-  tgBot.command("pay", (ctx) => ctx.reply("Processing payment..."));
-  tgBot.command("balance", (ctx) => ctx.reply("Your balance: 0.00 SOL"));
-  tgBot.command("deposit", (ctx) => ctx.reply("Deposit address: [YOUR_WALLET_ADDRESS]"));
+  
+  console.log('Telegram bot configured for webhook mode');
 }
 
 /* ---------------- DISCORD SETUP ---------------- */
@@ -131,9 +149,9 @@ app.listen(PORT, "0.0.0.0", async () => {
   // Set TG webhook when server starts
   if (tgBot && process.env.PUBLIC_URL) {
     try {
-      // First clear any existing webhook/polling
+      // First clear any existing webhook
       await tgBot.api.deleteWebhook({ drop_pending_updates: true });
-      console.log('Cleared existing webhook/polling');
+      console.log('Cleared existing webhook');
       
       // Wait a moment then set new webhook
       await new Promise(resolve => setTimeout(resolve, 1000));

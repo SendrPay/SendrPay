@@ -1,0 +1,268 @@
+Here’s a single Replit build prompt you can paste. It creates a Discord bot (discord.js v14) with /start, /pay, /tip, /balance, /deposit, /withdraw, and the TG↔Discord link-code flow. It’s wired for your shared core later; runs today with stubs.
+
+⸻
+
+Replit Prompt (paste this):
+
+Create a Node/TypeScript Discord bot for SendrPay. Use discord.js v14 and tsx. Use env vars:
+	•	DISCORD_BOT_TOKEN
+	•	DISCORD_APP_ID
+
+Tasks
+	1.	Add deps & scripts:
+
+// package.json (add or merge)
+{
+  "type": "module",
+  "scripts": {
+    "discord:deploy": "tsx src/discord/deploy-commands.ts",
+    "discord:dev": "tsx src/discord/bot.ts"
+  },
+  "dependencies": {
+    "discord.js": "^14.16.3",
+    "@discordjs/rest": "^2.3.0",
+    "discord-api-types": "^0.37.83"
+  },
+  "devDependencies": { "tsx": "^4.15.7", "typescript": "^5.4.0" }
+}
+
+	2.	File tree:
+
+src/
+  discord/deploy-commands.ts
+  discord/bot.ts
+  core/resolveTarget.ts
+  core/link.ts
+  core/shared.ts
+
+	3.	Implement src/core/shared.ts (stubs now; I’ll replace later):
+
+export async function getOrCreateUserByDiscordId(discordId: string) {
+  // TODO: replace with DB; for now return a fake userId
+  return { userId: 1, discordId };
+}
+export async function lookupByHandle(platform: "telegram"|"discord"|"twitter", handle: string) {
+  // TODO DB lookup; return null for now
+  return null as null | { platformId: string; handle: string };
+}
+export async function lookupAllPlatformsByHandle(handle: string) {
+  // TODO DB lookup across platforms; return []
+  return [] as Array<{ platform: "telegram"|"discord"|"twitter"; platformId?: string; handle: string }>;
+}
+export async function lookupLocalMentionDiscord(raw: string, ctx: any) {
+  // Accept <@123>, <@!123>, or @username in the same guild
+  const m = raw.match(/^<@!?(\d+)>$/);
+  if (m) return { platformId: m[1], handle: raw };
+  return null;
+}
+// === PAYMENTS (stubs) ===
+export async function sendPayment(opts: { fromUserId:number; toUserId?:number; escrow?:{platform:string;handle:string}; amount:string; token:string; note?:string }) {
+  // TODO: call your SOL/SPL transfer + fee split. For now, pretend success and return a dummy tx link.
+  return { tx: "https://solscan.io/tx/TEST_TX" };
+}
+export async function createEscrowTagged(tag:{platform:string;handle:string; amount:string; token:string}) {
+  return { escrowId: "escrow_demo" };
+}
+export async function getBalances(userId:number) {
+  return { SOL:"0.00", USDC:"0.00" };
+}
+export async function getDepositAddress(userId:number, token?:string) {
+  return "DEPOSIT_ADDRESS_PLACEHOLDER";
+}
+export async function withdraw(userId:number, amount:string, token:string, address:string) {
+  return { tx:"https://solscan.io/tx/WITHDRAW_TEST" };
+}
+export async function getUserIdByPlatformId(platform:"discord"|"telegram"|"twitter", platformId:string) {
+  // TODO DB lookup; return demo mapping
+  return 2; // pretend recipient exists
+}
+
+	4.	Implement src/core/link.ts (in-memory link codes for now):
+
+import crypto from "crypto";
+type Row = { userId:number; platform:"discord"|"telegram"; exp:number; used:boolean };
+const STORE = new Map<string, Row>();
+
+export function createLinkCode(userId:number, platform:"discord"|"telegram", ttlMin=10) {
+  const code = crypto.randomBytes(4).toString("hex").toUpperCase();
+  STORE.set(code, { userId, platform, exp: Date.now()+ttlMin*60_000, used:false });
+  return code;
+}
+export function consumeLinkCode(code:string) {
+  const row = STORE.get(code);
+  if (!row || row.used || row.exp < Date.now()) return null;
+  row.used = true; STORE.set(code,row);
+  return row;
+}
+
+	5.	Implement src/core/resolveTarget.ts (current-platform default + cross-platform/escrow):
+
+export type Platform = "telegram"|"discord"|"twitter";
+export type Resolved =
+  | { kind:"user"; platform:Platform; platformId:string; handle?:string }
+  | { kind:"escrow"; platform:Platform; handle:string }
+  | { kind:"choose"; options:Array<{platform:Platform; platformId?:string; handle:string}> };
+
+const PLATFORM_ALIASES: Record<string,Platform> = { tg:"telegram", telegram:"telegram", dc:"discord", discord:"discord", x:"twitter", twitter:"twitter" };
+
+export function parseTarget(raw:string) {
+  const s = raw.trim();
+  if (/^https?:\/\//i.test(s)) {
+    const plat = /twitter\.com|x\.com/i.test(s) ? "twitter" : /discord\.com|discordapp\.com/i.test(s) ? "discord" : /t\.me|telegram\.me/i.test(s) ? "telegram" : null;
+    const m = s.match(/\/@?([A-Za-z0-9_\.]+)(?:\/status|$)/); const handle = m?.[1];
+    return { handle, explicitPlatform: plat as Platform|null };
+  }
+  const ns = s.match(/^(.*?)\s*:\s*@?([A-Za-z0-9_\.]+)$/);
+  if (ns && PLATFORM_ALIASES[ns[1].toLowerCase()]) return { handle: ns[2], explicitPlatform: PLATFORM_ALIASES[ns[1].toLowerCase()] };
+  const h = s.replace(/^@/,""); return { handle:h, explicitPlatform:null as Platform|null };
+}
+
+	6.	Implement src/discord/deploy-commands.ts:
+
+import { REST, Routes, SlashCommandBuilder } from "discord.js";
+const rest = new REST({ version: "10" }).setToken(process.env.DISCORD_BOT_TOKEN!);
+const APP_ID = process.env.DISCORD_APP_ID!;
+
+const commands = [
+  new SlashCommandBuilder().setName("start").setDescription("Start using SendrPay"),
+  new SlashCommandBuilder().setName("pay").setDescription("Send crypto")
+    .addStringOption(o=>o.setName("target").setDescription("@handle / platform:@handle / url").setRequired(true))
+    .addStringOption(o=>o.setName("amount").setDescription("e.g., 0.1").setRequired(true))
+    .addStringOption(o=>o.setName("token").setDescription("e.g., SOL, USDC").setRequired(true))
+    .addStringOption(o=>o.setName("note").setDescription("Optional note")),
+  new SlashCommandBuilder().setName("tip").setDescription("Tip a user")
+    .addStringOption(o=>o.setName("amount").setDescription("e.g., 1").setRequired(true))
+    .addStringOption(o=>o.setName("token").setDescription("e.g., BONK").setRequired(true)),
+  new SlashCommandBuilder().setName("balance").setDescription("View balances"),
+  new SlashCommandBuilder().setName("deposit").setDescription("Get deposit address")
+    .addStringOption(o=>o.setName("token").setDescription("Optional token")),
+  new SlashCommandBuilder().setName("withdraw").setDescription("Withdraw funds")
+    .addStringOption(o=>o.setName("amount").setDescription("Amount").setRequired(true))
+    .addStringOption(o=>o.setName("token").setDescription("Token").setRequired(true))
+    .addStringOption(o=>o.setName("address").setDescription("Recipient address").setRequired(true)),
+  new SlashCommandBuilder().setName("linktelegram").setDescription("Link your Telegram account"),
+].map(c=>c.toJSON());
+
+(async () => {
+  await rest.put(Routes.applicationCommands(APP_ID), { body: commands });
+  console.log("Slash commands registered.");
+})();
+
+	7.	Implement src/discord/bot.ts:
+
+import {
+  Client, GatewayIntentBits, Partials, Events,
+  ButtonBuilder, ButtonStyle, ActionRowBuilder
+} from "discord.js";
+import { parseTarget, Platform } from "../core/resolveTarget.js";
+import {
+  getOrCreateUserByDiscordId, lookupByHandle, lookupAllPlatformsByHandle,
+  lookupLocalMentionDiscord, sendPayment, createEscrowTagged,
+  getBalances, getDepositAddress, withdraw, getUserIdByPlatformId
+} from "../core/shared.js";
+import { consumeLinkCode } from "../core/link.js";
+
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.DirectMessages,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent
+  ],
+  partials: [Partials.Channel]
+});
+
+client.once(Events.ClientReady, () => console.log(`Discord logged in as ${client.user?.tag}`));
+
+// DM "!link CODE"
+client.on(Events.MessageCreate, async (msg) => {
+  if (msg.author.bot || msg.guild) return;
+  const m = msg.content.trim().match(/^!link\s+([A-Z0-9]+)$/i);
+  if (!m) return;
+  const row = consumeLinkCode(m[1]);
+  if (!row) return void msg.reply("❌ Invalid or expired code.");
+  // TODO: attach msg.author.id to row.userId in DB
+  await msg.reply("✅ Linked! Your Discord & Telegram now share one SendrPay wallet.");
+});
+
+client.on(Events.InteractionCreate, async (i) => {
+  if (!i.isChatInputCommand() && !i.isButton()) return;
+
+  if (i.isButton()) {
+    if (i.customId.startsWith("pay:yes:")) {
+      const [, target, amount, token] = i.customId.split(":");
+      const me = await getOrCreateUserByDiscordId(i.user.id);
+      // For demo, assume recipient exists by platformId lookup later
+      const tx = await sendPayment({ fromUserId: me.userId, toUserId: 2, amount, token });
+      return void i.update({ content:`✅ Sent ${amount} ${token} to ${target}\nTx: ${tx.tx}`, components:[] });
+    }
+    if (i.customId === "pay:no") return void i.update({ content:"❌ Cancelled.", components:[] });
+    return;
+  }
+
+  if (i.commandName === "start") {
+    await i.reply({ ephemeral:true, content:
+      "Welcome to **SendrPay** on Discord.\nUse `/pay`, `/tip`, `/balance`, `/deposit`, `/withdraw`.\nLink Telegram with `/linktelegram` if you want cross-platform." });
+  }
+
+  if (i.commandName === "linktelegram") {
+    // In production: create a real code bound to the userId
+    const code = "AB12CD34";
+    await i.reply({ ephemeral:true, content:
+      `Link Telegram:\n1) Open @SendrPayBot\n2) Run \`/linkcode ${code}\`\nThis connects both to ONE wallet.` });
+  }
+
+  if (i.commandName === "balance") {
+    const me = await getOrCreateUserByDiscordId(i.user.id);
+    const b = await getBalances(me.userId);
+    await i.reply({ ephemeral:true, content:`Balances:\n• SOL: ${b.SOL}\n• USDC: ${b.USDC}` });
+  }
+
+  if (i.commandName === "deposit") {
+    const me = await getOrCreateUserByDiscordId(i.user.id);
+    const token = i.options.getString("token") || undefined;
+    const addr = await getDepositAddress(me.userId, token);
+    await i.reply({ ephemeral:true, content:`Deposit address${token?` for ${token}`:""}: \`${addr}\`` });
+  }
+
+  if (i.commandName === "withdraw") {
+    const me = await getOrCreateUserByDiscordId(i.user.id);
+    const amount = i.options.getString("amount", true);
+    const token  = i.options.getString("token", true);
+    const address= i.options.getString("address", true);
+    const tx = await withdraw(me.userId, amount, token, address);
+    await i.reply({ ephemeral:true, content:`✅ Withdrawal submitted.\nTx: ${tx.tx}` });
+  }
+
+  if (i.commandName === "pay") {
+    const me = await getOrCreateUserByDiscordId(i.user.id);
+    const targetStr = i.options.getString("target", true);
+    const amount = i.options.getString("amount", true);
+    const token  = i.options.getString("token",  true);
+    const note   = i.options.getString("note") || "";
+
+    // Resolve target: current platform default (discord)
+    const mentionHit = await lookupLocalMentionDiscord(targetStr, i);
+    if (mentionHit) {
+      const toUserId = await getUserIdByPlatformId("discord", mentionHit.platformId);
+      const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId(`pay:yes:${targetStr}:${amount}:${token}`).setStyle(ButtonStyle.Success).setLabel("Confirm"),
+        new ButtonBuilder().setCustomId("pay:no").setStyle(ButtonStyle.Secondary).setLabel("Cancel")
+      );
+      return void i.reply({ ephemeral:true, content:
+        `Confirm payment?\nTo: ${targetStr}\nAmount: ${amount} ${token}${note?`\nNote: ${note}`:""}`, components:[row] });
+    }
+
+    // Cross-platform/unknown → simple escrow demo
+    await createEscrowTagged({ platform:"discord", handle: targetStr.replace(/^@/,""), amount, token });
+    return void i.reply({ ephemeral:true, content:`⏳ Reserved ${amount} ${token} for ${targetStr}. They can claim after onboarding.` });
+  }
+});
+
+client.login(process.env.DISCORD_BOT_TOKEN!);
+
+Finally
+	•	Run: pnpm run discord:deploy (register commands)
+	•	Run: pnpm run discord:dev (start the bot)
+
+This boots the Discord bot with your flows and leaves clear TODOs where you’ll plug in your existing SendrPay core (DB, transfers, escrow, fee calc).

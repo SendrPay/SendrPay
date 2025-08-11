@@ -12,6 +12,10 @@ SendrPay is a production-ready multi-platform bot that facilitates Solana blockc
    - Create new custodial wallet
    - Import existing private key
    - Link account from other platform (Discord ↔ Telegram)
+✅ Fixed Discord bot deployment issues with proper credential configuration
+✅ Resolved Telegram bot polling crashes and stability issues
+✅ Updated help command with comprehensive account linking instructions
+✅ Both platforms now stable and ready for production use
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.

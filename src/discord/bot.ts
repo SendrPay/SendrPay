@@ -107,8 +107,11 @@ client.on(Events.InteractionCreate, async (i) => {
         const setupType = i.customId.split(":")[1];
         
         if (setupType === "new") {
-          // Generate new wallet for Discord user
-          await i.deferReply({ ephemeral: true });
+          // Immediately acknowledge the interaction to prevent timeout
+          await i.reply({ 
+            ephemeral: true, 
+            content: "🔄 Generating your wallet..." 
+          });
           
           try {
             const user = await getOrCreateUserByDiscordId(i.user.id);

@@ -23,6 +23,7 @@ import {
 } from "../core/shared.js";
 
 import { consumeLinkCode, createLinkCode, linkPlatformAccounts } from "../core/link.js";
+import { prisma } from "../infra/prisma.js";
 
 const client = new Client({
   intents: [
@@ -38,9 +39,41 @@ client.once(Events.ClientReady, () => {
   console.log(`Discord logged in as ${client.user?.tag}`);
 });
 
-// DM "!link CODE"
+// DM commands: "!link CODE" and "!import PRIVATE_KEY"
 client.on(Events.MessageCreate, async (msg) => {
   if (msg.author.bot || msg.guild) return;
+  
+  // Handle !import command
+  const importMatch = msg.content.trim().match(/^!import\s+(.+)$/i);
+  if (importMatch) {
+    try {
+      const user = await getOrCreateUserByDiscordId(msg.author.id);
+      const { importWallet } = await import("../core/wallets");
+      
+      // Create a mock context for importWallet
+      const mockCtx = {
+        reply: async (content: any) => {
+          await msg.reply(typeof content === 'string' ? content : content.content || 'Wallet imported!');
+        },
+        from: { id: msg.author.id }
+      };
+      
+      await importWallet(mockCtx as any, importMatch[1]);
+      
+      // Delete the message containing the private key for security
+      try {
+        await msg.delete();
+      } catch (error) {
+        console.error("Could not delete private key message:", error);
+      }
+      
+      return;
+    } catch (error) {
+      console.error("Error importing wallet:", error);
+      await msg.reply("❌ Failed to import wallet. Please check your private key format.");
+      return;
+    }
+  }
   
   const m = msg.content.trim().match(/^!link\s+([A-Z0-9]+)$/i);
   if (!m) return;
@@ -68,6 +101,65 @@ client.on(Events.InteractionCreate, async (i) => {
 
   try {
     if (i.isButton()) {
+      // Handle setup buttons from /start command
+      if (i.customId.startsWith("setup:")) {
+        const setupType = i.customId.split(":")[1];
+        
+        if (setupType === "new") {
+          // Generate new wallet
+          const user = await getOrCreateUserByDiscordId(i.user.id);
+          const { generateWallet } = await import("../core/wallets");
+          
+          await i.deferReply({ ephemeral: true });
+          
+          // Create a mock context for generateWallet
+          const mockCtx = {
+            reply: async (content: any) => {
+              await i.editReply(typeof content === 'string' ? content : content.content || 'Wallet generated!');
+            }
+          };
+          
+          await generateWallet(mockCtx as any);
+          return;
+        }
+        
+        if (setupType === "import") {
+          await i.reply({
+            ephemeral: true,
+            content: `🔑 **Import Existing Wallet**
+
+To import your wallet:
+1. Send me a DM with your private key
+2. Use the format: \`!import <your-private-key>\`
+
+**Supported formats:**
+• Base58 string
+• JSON array
+
+**Security Note:**
+Only import keys you control. Your private key will be encrypted and stored securely.`
+          });
+          return;
+        }
+        
+        if (setupType === "link") {
+          // Link Telegram account
+          const user = await getOrCreateUserByDiscordId(i.user.id);
+          const code = createLinkCode(user.id, "discord");
+          
+          await i.reply({
+            ephemeral: true,
+            content: `🔗 **Link Telegram Account**
+
+**Step 1:** Open @SendrPayBot on Telegram
+**Step 2:** Use the command: \`/linkcode ${code}\`
+
+This code expires in 10 minutes. After linking, you'll have one shared wallet across both platforms!`
+          });
+          return;
+        }
+      }
+      
       if (i.customId.startsWith("pay:yes:")) {
         const [, , target, amount, token] = i.customId.split(":");
         const me = await getOrCreateUserByDiscordId(i.user.id);
@@ -96,13 +188,90 @@ client.on(Events.InteractionCreate, async (i) => {
     if (i.commandName === "start") {
       console.log("Processing /start command");
       try {
-        await i.reply({ 
-          ephemeral: true, 
-          content: "Welcome to **SendrPay** on Discord.\nUse `/pay`, `/tip`, `/balance`, `/deposit`, `/withdraw`.\nLink Telegram with `/linktelegram` if you want cross-platform." 
+        const user = await getOrCreateUserByDiscordId(i.user.id);
+        
+        // Check if user already has a wallet
+        const existingWallet = await prisma.wallet.findFirst({
+          where: { 
+            userId: user.id,
+            isActive: true 
+          }
         });
+
+        if (existingWallet) {
+          // Show available commands for existing users
+          await i.reply({
+            ephemeral: true,
+            content: `✅ **Welcome back to SendrPay!**
+
+Your wallet is ready to use.
+
+**Available commands:**
+• \`/balance\` - Check your balances
+• \`/pay @user 0.1 SOL\` - Send payments
+• \`/tip 1 BONK\` - Tip users
+• \`/deposit\` - Get deposit address
+• \`/withdraw 0.5 SOL <address>\` - Withdraw funds
+• \`/linktelegram\` - Link with Telegram account
+
+Start sending crypto payments! 🚀`
+          });
+          return;
+        }
+
+        // New user onboarding with three options
+        const embed = {
+          title: "✨ Welcome to SendrPay",
+          description: "Send crypto payments instantly on Discord\n\n**What you can do:**\n• Send payments to any user\n• Tip users in servers\n• Track all transactions\n• Secure wallet management\n• Cross-platform payments with Telegram",
+          color: 0x00ff88,
+          fields: [
+            {
+              name: "🆕 Create New Wallet",
+              value: "Generate a fresh custodial wallet managed by SendrPay",
+              inline: false
+            },
+            {
+              name: "🔑 Import Existing Wallet",
+              value: "Import your own private key for non-custodial management",
+              inline: false
+            },
+            {
+              name: "🔗 Link Telegram Account",
+              value: "Already have SendrPay on Telegram? Share one wallet across both platforms",
+              inline: false
+            }
+          ]
+        };
+
+        const buttons = new ActionRowBuilder<ButtonBuilder>()
+          .addComponents(
+            new ButtonBuilder()
+              .setCustomId('setup:new')
+              .setLabel('✨ Create New Wallet')
+              .setStyle(ButtonStyle.Primary),
+            new ButtonBuilder()
+              .setCustomId('setup:import')
+              .setLabel('🔑 Import Wallet')
+              .setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder()
+              .setCustomId('setup:link')
+              .setLabel('🔗 Link Telegram')
+              .setStyle(ButtonStyle.Success)
+          );
+
+        await i.reply({
+          ephemeral: true,
+          embeds: [embed],
+          components: [buttons]
+        });
+        
         console.log("Successfully replied to /start command");
       } catch (error) {
         console.error("Error replying to /start command:", error);
+        await i.reply({
+          ephemeral: true,
+          content: "❌ Something went wrong. Please try again."
+        });
       }
     }
 

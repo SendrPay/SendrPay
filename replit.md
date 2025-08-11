@@ -8,6 +8,10 @@ SendrPay is a production-ready multi-platform bot that facilitates Solana blockc
 ✅ Cross-platform account linking completed with `/linktelegram` (Discord) and `/linkcode` (Telegram)
 ✅ Users can now send payments between Discord and Telegram platforms
 ✅ Both bots running simultaneously with shared wallet infrastructure
+✅ Enhanced new user onboarding with three clear options on both platforms:
+   - Create new custodial wallet
+   - Import existing private key
+   - Link account from other platform (Discord ↔ Telegram)
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.
@@ -45,8 +49,9 @@ Preferred communication style: Simple, everyday language.
 - **Payment System**: Direct transfers with in-kind fee deduction and escrow. Payments support both group and direct messages, including cross-context payments. Username verification is strict and case-insensitive.
 - **Fee System**: Configurable basis points with per-token minimum fees.
 - **Escrow System**: Temporary fund holding for users without linked wallets.
+- **Onboarding System**: Three-option setup flow for new users: custodial wallet generation, private key import, or cross-platform account linking with secure 10-minute expiring codes.
 - **Notifications**: Standardized message templates for all bot interactions, including payment, tip, deposit, withdrawal, and history, with consistent formatting across group chats and DMs. Includes simplified emoji-only reaction system for payment notifications.
-- **UI/UX**: Modern, clean interface design with concise language and consistent formatting for welcome messages, balance displays, payment confirmations, error messages, and help documentation.
+- **UI/UX**: Modern, clean interface design with concise language and consistent formatting for welcome messages, balance displays, payment confirmations, error messages, and help documentation. Discord features rich embeds with interactive buttons.
 
 ## External Dependencies
 

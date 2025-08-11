@@ -42,7 +42,9 @@ export async function commandStart(ctx: BotContext) {
   const keyboard = new InlineKeyboard()
     .text("✨ Create New Wallet", "generate_wallet")
     .row()
-    .text("🔑 Import Existing Wallet", "import_wallet");
+    .text("🔑 Import Existing Wallet", "import_wallet")
+    .row()
+    .text("🔗 Link Discord Account", "link_discord");
 
   const welcomeText = `✨ **Welcome to SendrPay**
 
@@ -53,6 +55,7 @@ Send crypto payments instantly on Telegram
 • Tip users in group chats
 • Track all transactions
 • Secure wallet management
+• Cross-platform payments with Discord
 
 **Getting started:**
 Choose how to set up your wallet`;

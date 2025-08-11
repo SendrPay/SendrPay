@@ -11,6 +11,55 @@ import { env } from "./infra/env";
 const app = express();
 app.use(express.json({ limit: "1mb" }));
 
+// Root route
+app.get("/", (req, res) => {
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>SendrPay Bot</title>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; margin: 40px; line-height: 1.6; }
+        .status { padding: 10px; border-radius: 5px; margin: 10px 0; }
+        .online { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .offline { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        h1 { color: #333; }
+        .bot-status { display: flex; gap: 20px; flex-wrap: wrap; }
+      </style>
+    </head>
+    <body>
+      <h1>SendrPay Multi-Platform Bot</h1>
+      <p>A Solana blockchain payment bot for Discord and Telegram platforms.</p>
+      
+      <div class="bot-status">
+        <div class="status ${discordClient?.isReady() ? 'online' : 'offline'}">
+          <strong>Discord Bot:</strong> ${discordClient?.isReady() ? 'Online ✅' : 'Offline ❌'}
+        </div>
+        <div class="status ${telegramBot ? 'online' : 'offline'}">
+          <strong>Telegram Bot:</strong> ${telegramBot ? 'Online ✅' : 'Offline ❌'}
+        </div>
+      </div>
+      
+      <h3>Features</h3>
+      <ul>
+        <li>Cross-platform Solana payments</li>
+        <li>Custodial wallet management</li>
+        <li>Account linking between Discord & Telegram</li>
+        <li>Real-time blockchain transactions</li>
+        <li>Multi-token support (SOL, USDC, BONK, JUP)</li>
+      </ul>
+      
+      <p><strong>Environment:</strong> ${env.NODE_ENV}</p>
+      <p><strong>Last Updated:</strong> ${new Date().toISOString()}</p>
+      
+      <p><a href="/health">View Health Check JSON</a></p>
+    </body>
+    </html>
+  `);
+});
+
 // Health check
 app.get("/health", (req, res) => {
   res.json({ 
@@ -18,6 +67,7 @@ app.get("/health", (req, res) => {
     timestamp: new Date().toISOString(),
     telegramBotConfigured: !!telegramBot,
     discordBotConfigured: !!discordClient,
+    discordBotReady: discordClient?.isReady() || false,
     environment: env.NODE_ENV 
   });
 });
@@ -25,16 +75,18 @@ app.get("/health", (req, res) => {
 app.post("/webhooks/helius", heliusWebhook);
 
 // Telegram webhook endpoint
-app.use(`/tg`, async (req, res) => {
+app.post(`/tg`, async (req, res) => {
   if (telegramBot) {
     try {
+      logger.debug('Received Telegram webhook update', { updateId: req.body?.update_id });
       await telegramBot.handleUpdate(req.body);
-      res.ok();
+      res.status(200).send('OK');
     } catch (error) {
-      console.error('Telegram webhook error:', error);
+      logger.error({ error }, 'Telegram webhook error');
       res.status(500).json({ error: 'Webhook processing failed' });
     }
   } else {
+    logger.warn('Telegram webhook called but bot not configured');
     res.status(404).json({ error: 'Telegram bot not configured' });
   }
 });
@@ -104,13 +156,18 @@ async function startTelegramBot() {
     return;
   }
 
+  // Clear any existing webhook first to process pending updates
+  try {
+    await telegramBot.api.deleteWebhook({ drop_pending_updates: true });
+    logger.info('Cleared existing Telegram webhook and dropped pending updates');
+  } catch (error) {
+    logger.warn('Error clearing webhook:', error);
+  }
+
   // Set up webhook mode for Telegram when deployed
   const publicUrl = process.env.PUBLIC_URL || process.env.REPL_URL;
   if (publicUrl) {
     try {
-      await telegramBot.api.deleteWebhook();
-      logger.info('Cleared existing Telegram webhook');
-      
       const webhookUrl = `${publicUrl.replace(/\/$/, '')}/tg`;
       await telegramBot.api.setWebhook(webhookUrl);
       logger.info(`✅ Telegram webhook set to: ${webhookUrl}`);

@@ -20,6 +20,12 @@ export async function commandHelp(ctx: BotContext) {
 /deposit - Get your wallet address to receive funds
 /withdraw - Withdraw funds to an external wallet
 
+**Account Linking**
+Link your Discord and Telegram accounts to share one wallet:
+1. Use \`/linktelegram\` in Discord to get a link code
+2. Use \`/linkcode YOUR_CODE\` here in Telegram DM
+3. Choose which wallet to keep if both accounts have wallets
+
 **Payments**
 /pay @user amount [token] [note] - Send crypto to another user
 /tip @user amount [token] [note] - Tip a user in group chat
@@ -30,6 +36,7 @@ export async function commandHelp(ctx: BotContext) {
 **Examples**
 \`/pay @username 10 USDC lunch money\`
 \`/tip @alice 0.1 SOL great job!\`
+\`/linkcode A28D6531\`
 
 **Supported Tokens**
 • SOL - Solana

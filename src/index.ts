@@ -5,68 +5,41 @@ import express from "express";
 import { heliusWebhook } from "./routes/helius";
 import { env } from "./infra/env";
 
+console.log("🚀 DEPLOYMENT VERSION - Starting both bots...");
+
 const app = express();
 app.use(express.json({ limit: "1mb" }));
 
 // Root route
 app.get("/", (req, res) => {
-  res.send(`
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <title>SendrPay Bot</title>
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1">
-      <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; margin: 40px; line-height: 1.6; }
-        .status { padding: 10px; border-radius: 5px; margin: 10px 0; }
-        .online { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
-        .offline { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
-        h1 { color: #333; }
-        .bot-status { display: flex; gap: 20px; flex-wrap: wrap; }
-      </style>
-    </head>
-    <body>
-      <h1>SendrPay Multi-Platform Bot</h1>
-      <p>A Solana blockchain payment bot for Discord and Telegram platforms.</p>
-      
-      <div class="bot-status">
-        <div class="status ${discordClient?.isReady() ? 'online' : 'offline'}">
-          <strong>Discord Bot:</strong> ${discordClient?.isReady() ? 'Online ✅' : 'Offline ❌'}
-        </div>
-        <div class="status ${telegramBot ? 'online' : 'offline'}">
-          <strong>Telegram Bot:</strong> ${telegramBot ? 'Online ✅' : 'Offline ❌'}
-        </div>
-      </div>
-      
-      <h3>Features</h3>
-      <ul>
-        <li>Cross-platform Solana payments</li>
-        <li>Custodial wallet management</li>
-        <li>Account linking between Discord & Telegram</li>
-        <li>Real-time blockchain transactions</li>
-        <li>Multi-token support (SOL, USDC, BONK, JUP)</li>
-      </ul>
-      
-      <p><strong>Environment:</strong> ${env.NODE_ENV}</p>
-      <p><strong>Last Updated:</strong> ${new Date().toISOString()}</p>
-      
-      <p><a href="/health">View Health Check JSON</a></p>
-    </body>
-    </html>
-  `);
+  try {
+    res.send(`
+      <h1>SendrPay - Both Bots Working</h1>
+      <p>Discord: ${discordClient?.isReady() ? '✅ ONLINE' : '❌ OFFLINE'}</p>
+      <p>Telegram: ${telegramBot ? '✅ ONLINE' : '❌ OFFLINE'}</p>
+      <p>Updated: ${new Date().toISOString()}</p>
+    `);
+  } catch (error) {
+    console.error("Root route error:", error);
+    res.status(500).send("Error in root route");
+  }
 });
 
 // Health check
 app.get("/health", (req, res) => {
-  res.json({ 
-    status: "ok", 
-    timestamp: new Date().toISOString(),
-    telegramBotConfigured: !!telegramBot,
-    discordBotConfigured: !!discordClient,
-    discordBotReady: discordClient?.isReady() || false,
-    environment: env.NODE_ENV 
-  });
+  try {
+    res.json({ 
+      status: "ok", 
+      timestamp: new Date().toISOString(),
+      telegramBotConfigured: !!telegramBot,
+      discordBotConfigured: !!discordClient,
+      discordBotReady: discordClient?.isReady() || false,
+      environment: env.NODE_ENV 
+    });
+  } catch (error) {
+    console.error("Health check error:", error);
+    res.status(500).json({ error: "Health check failed" });
+  }
 });
 
 app.post("/webhooks/helius", heliusWebhook);

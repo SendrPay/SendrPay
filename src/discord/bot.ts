@@ -5,7 +5,8 @@ import {
   Events,
   ButtonBuilder, 
   ButtonStyle, 
-  ActionRowBuilder
+  ActionRowBuilder,
+  MessageFlags
 } from "discord.js";
 
 import { parseTarget, Platform } from "../core/resolveTarget.js";
@@ -303,14 +304,14 @@ Start sending crypto payments! 🚀`
         const b = await getBalances(me.id);
         
         await i.reply({ 
-          ephemeral: true, 
-          content: `Balances:\n• SOL: ${b.SOL}\n• USDC: ${b.USDC}` 
+          content: `Balances:\n• SOL: ${b.SOL}\n• USDC: ${b.USDC}`,
+          ephemeral: true
         });
       } catch (error) {
         console.error("Error getting balance:", error);
         await i.reply({
-          ephemeral: true,
-          content: "❌ Could not retrieve your balance."
+          content: "❌ Could not retrieve your balance.",
+          ephemeral: true
         });
       }
     }
@@ -322,8 +323,8 @@ Start sending crypto payments! 🚀`
         const addr = await getDepositAddress(me.id, token);
         
         await i.reply({ 
-          ephemeral: true, 
-          content: `Deposit address${token ? ` for ${token}` : ""}: \`${addr}\`` 
+          content: `Deposit address${token ? ` for ${token}` : ""}: \`${addr}\``,
+          ephemeral: true
         });
       } catch (error) {
         console.error("Error getting deposit address:", error);

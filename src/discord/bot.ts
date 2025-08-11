@@ -268,10 +268,12 @@ Start sending crypto payments! 🚀`
         console.log("Successfully replied to /start command");
       } catch (error) {
         console.error("Error replying to /start command:", error);
-        await i.reply({
-          ephemeral: true,
-          content: "❌ Something went wrong. Please try again."
-        });
+        if (!i.replied && !i.deferred) {
+          await i.reply({
+            ephemeral: true,
+            content: "❌ Something went wrong. Please try again."
+          });
+        }
       }
     }
 

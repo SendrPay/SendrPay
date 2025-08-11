@@ -62,6 +62,43 @@ export async function commandLinkcode(ctx: BotContext) {
       return ctx.reply("✅ These accounts are already linked!");
     }
 
+    // Handle wallet merging if both users have wallets
+    const discordWallets = await prisma.wallet.findMany({
+      where: { userId: linkRecord.userId, isActive: true }
+    });
+    
+    const telegramWallets = await prisma.wallet.findMany({
+      where: { userId: telegramUser.id, isActive: true }
+    });
+
+    if (discordWallets.length > 0 && telegramWallets.length > 0) {
+      // Both accounts have wallets - ask user which one to keep
+      await ctx.reply(`⚠️ **Both accounts have wallets!**
+
+**Discord Wallet:** ${discordWallets[0].address}
+**Telegram Wallet:** ${telegramWallets[0].address}
+
+Which wallet would you like to keep?
+
+Reply with:
+• \`/keepdiscord\` - Keep Discord wallet (Telegram wallet will be deactivated)
+• \`/keeptelegram\` - Keep Telegram wallet (Discord wallet will be deactivated)
+
+**Note:** The unused wallet will be deactivated but not deleted for security.`, { parse_mode: "Markdown" });
+      
+      // Store the pending merge info for the user to process later
+      await prisma.linkCode.create({
+        data: {
+          code: `MERGE_${telegramUserId}_${linkRecord.userId}`,
+          userId: linkRecord.userId,
+          platform: "merge",
+          expiresAt: new Date(Date.now() + 30 * 60 * 1000) // 30 minutes to decide
+        }
+      });
+      
+      return;
+    }
+
     // Link the accounts by updating the Discord user with Telegram ID
     await prisma.user.update({
       where: { id: linkRecord.userId },

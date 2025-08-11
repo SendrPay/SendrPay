@@ -19,7 +19,11 @@ args = "Discord Deploy"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "Combined Bot"
+args = "Telegram Bot"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Discord Bot"
 
 [[workflows.workflow]]
 name = "Discord Deploy"
@@ -33,16 +37,27 @@ args = "tsx src/discord/deploy-commands.ts"
 outputType = "console"
 
 [[workflows.workflow]]
-name = "Combined Bot"
+name = "Telegram Bot"
 author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npx tsx src/index.ts"
+waitForPort = 5000
 
 [workflows.workflow.metadata]
 outputType = "console"
 
+[[workflows.workflow]]
+name = "Discord Bot"
+author = "agent"
+
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "node src/combined-working.js"
-waitForPort = 3000
+args = "npx tsx src/discord/index.ts"
+
+[workflows.workflow.metadata]
+outputType = "console"
 
 [[ports]]
 localPort = 3000

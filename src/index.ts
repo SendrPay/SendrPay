@@ -20,14 +20,44 @@ app.get("/health", (req, res) => {
 
 app.post("/webhooks/helius", heliusWebhook);
 
+// Telegram webhook endpoint for combined mode
+app.use(`/tg`, async (req, res) => {
+  if (bot) {
+    try {
+      await bot.handleUpdate(req.body);
+      res.ok();
+    } catch (error) {
+      console.error('Telegram webhook error:', error);
+      res.status(500).json({ error: 'Webhook processing failed' });
+    }
+  } else {
+    res.status(404).json({ error: 'Bot not configured' });
+  }
+});
+
 const port = process.env.PORT || 5000;
 app.listen(port, "0.0.0.0", async () => {
   logger.info(`HTTP server listening on port ${port}`);
   
-  // Start bot polling for production deployment
-  if (bot) {
+  // Set up webhook mode for Telegram to avoid conflicts with Discord
+  if (bot && env.PUBLIC_URL) {
     try {
-      logger.info("Starting bot polling...");
+      await bot.api.deleteWebhook();
+      logger.info('Cleared existing webhook');
+      
+      const webhookUrl = `${env.PUBLIC_URL}/tg`;
+      await bot.api.setWebhook(webhookUrl);
+      logger.info(`✅ Telegram webhook set to: ${webhookUrl}`);
+    } catch (error) {
+      logger.error('Failed to set webhook:', error);
+      // Fallback to polling
+      logger.info("Fallback: Starting bot polling...");
+      await bot.start();
+      logger.info("✅ Bot started with polling");
+    }
+  } else if (bot) {
+    try {
+      logger.info("Starting bot polling (no PUBLIC_URL)...");
       await bot.start();
       logger.info("✅ Bot started successfully");
     } catch (error) {

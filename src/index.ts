@@ -3,7 +3,6 @@ import { bot as telegramBot } from "./bot";
 import { client as discordClient } from "./discord/bot";
 import express from "express";
 import { heliusWebhook } from "./routes/helius";
-import { logger } from "./infra/logger";
 import { env } from "./infra/env";
 
 const app = express();
@@ -168,16 +167,25 @@ async function startDiscordBot() {
 
 async function startTelegramBot() {
   if (!telegramBot) {
-    logger.warn("Telegram bot not configured");
+    console.warn("Telegram bot not configured");
+    return;
+  }
+
+  // Initialize bot first (CRITICAL for webhook processing)
+  try {
+    await telegramBot.init();
+    console.log("✅ Telegram bot initialized");
+  } catch (error) {
+    console.error("❌ Telegram bot initialization failed:", error);
     return;
   }
 
   // Clear any existing webhook first to process pending updates
   try {
     await telegramBot.api.deleteWebhook({ drop_pending_updates: true });
-    logger.info('Cleared existing Telegram webhook and dropped pending updates');
+    console.log('Cleared existing Telegram webhook and dropped pending updates');
   } catch (error) {
-    logger.warn('Error clearing webhook:', error);
+    console.warn('Error clearing webhook:', error);
   }
 
   // Set up webhook mode for Telegram when deployed
@@ -186,25 +194,25 @@ async function startTelegramBot() {
     try {
       const webhookUrl = `${publicUrl.replace(/\/$/, '')}/tg`;
       await telegramBot.api.setWebhook(webhookUrl);
-      logger.info(`✅ Telegram webhook set to: ${webhookUrl}`);
+      console.log(`✅ Telegram webhook set to: ${webhookUrl}`);
     } catch (error) {
-      logger.error('Failed to set Telegram webhook:', error);
+      console.error('Failed to set Telegram webhook:', error);
       // Fallback to polling
-      logger.info("Fallback: Starting Telegram bot polling...");
+      console.log("Fallback: Starting Telegram bot polling...");
       try {
         await telegramBot.start();
-        logger.info("✅ Telegram bot started with polling");
+        console.log("✅ Telegram bot started with polling");
       } catch (pollError) {
-        logger.error("Telegram bot polling error:", pollError);
+        console.error("Telegram bot polling error:", pollError);
       }
     }
   } else {
     try {
-      logger.info("Starting Telegram bot polling (no PUBLIC_URL)...");
+      console.log("Starting Telegram bot polling (no PUBLIC_URL)...");
       await telegramBot.start();
-      logger.info("✅ Telegram bot started successfully");
+      console.log("✅ Telegram bot started successfully");
     } catch (error) {
-      logger.error("Telegram bot start error:", error);
+      console.error("Telegram bot start error:", error);
     }
   }
 }

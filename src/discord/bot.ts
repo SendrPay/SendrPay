@@ -64,6 +64,8 @@ client.on(Events.MessageCreate, async (msg) => {
 client.on(Events.InteractionCreate, async (i) => {
   if (!i.isChatInputCommand() && !i.isButton()) return;
 
+  console.log(`Received interaction: ${i.isChatInputCommand() ? i.commandName : i.customId}`);
+
   try {
     if (i.isButton()) {
       if (i.customId.startsWith("pay:yes:")) {
@@ -92,10 +94,16 @@ client.on(Events.InteractionCreate, async (i) => {
     }
 
     if (i.commandName === "start") {
-      await i.reply({ 
-        ephemeral: true, 
-        content: "Welcome to **SendrPay** on Discord.\nUse `/pay`, `/tip`, `/balance`, `/deposit`, `/withdraw`.\nLink Telegram with `/linktelegram` if you want cross-platform." 
-      });
+      console.log("Processing /start command");
+      try {
+        await i.reply({ 
+          ephemeral: true, 
+          content: "Welcome to **SendrPay** on Discord.\nUse `/pay`, `/tip`, `/balance`, `/deposit`, `/withdraw`.\nLink Telegram with `/linktelegram` if you want cross-platform." 
+        });
+        console.log("Successfully replied to /start command");
+      } catch (error) {
+        console.error("Error replying to /start command:", error);
+      }
     }
 
     if (i.commandName === "linktelegram") {

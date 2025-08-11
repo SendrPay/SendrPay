@@ -24,7 +24,14 @@ SendrPay is a production-ready multi-platform bot that facilitates Solana blockc
    - PostgreSQL database connected and operational
    - Webhook mode configured for Telegram to prevent polling conflicts
    - Separate processes: Discord (tsx src/discord/index.ts) + Telegram (tsx src/index.ts)
-✅ Both platforms now stable with complete real blockchain functionality
+✅ **DEPLOYMENT FIX**: Solved Discord bot deployment issue (August 11, 2025)
+   - Created unified deployment entry point (`src/combined.ts`)
+   - Both Discord and Telegram bots now run in single process for Replit deployment
+   - Proper webhook configuration for production deployment
+   - Graceful error handling prevents one bot from crashing the other
+   - Single "Combined Deploy" workflow replaces separate bot workflows
+   - Fixed URL formatting issues in webhook setup
+✅ Both platforms now stable with complete real blockchain functionality and deployment-ready
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.

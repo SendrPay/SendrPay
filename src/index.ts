@@ -40,12 +40,13 @@ app.listen(port, "0.0.0.0", async () => {
   logger.info(`HTTP server listening on port ${port}`);
   
   // Set up webhook mode for Telegram to avoid conflicts with Discord
-  if (bot && env.PUBLIC_URL) {
+  const publicUrl = process.env.PUBLIC_URL || process.env.REPL_URL;
+  if (bot && publicUrl) {
     try {
       await bot.api.deleteWebhook();
       logger.info('Cleared existing webhook');
       
-      const webhookUrl = `${env.PUBLIC_URL}/tg`;
+      const webhookUrl = `${publicUrl.replace(/\/$/, '')}/tg`;
       await bot.api.setWebhook(webhookUrl);
       logger.info(`✅ Telegram webhook set to: ${webhookUrl}`);
     } catch (error) {

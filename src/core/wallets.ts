@@ -57,15 +57,15 @@ export async function generateWallet(ctx: BotContext): Promise<void> {
       return ctx.reply("❌ Could not identify user.");
     }
 
-    // Create or get user - always update handle from Telegram account (normalized to lowercase)
+    // Create or get user - always update handle from Telegram account
     const user = await prisma.user.upsert({
       where: { telegramId: userId },
       update: { 
-        handle: ctx.from?.username?.toLowerCase() || null // Update with current Telegram username (lowercase)
+        handle: ctx.from?.username || null // Update with current Telegram username
       },
       create: {
         telegramId: userId,
-        handle: ctx.from?.username?.toLowerCase() || null // Use Telegram username (lowercase), not custom
+        handle: ctx.from?.username || null // Use Telegram username, preserve original case
       }
     });
 
@@ -161,15 +161,15 @@ export async function importWallet(ctx: BotContext, privateKeyInput: string): Pr
     const keypair = Keypair.fromSecretKey(privateKeyBytes);
     const publicKey = keypair.publicKey.toBase58();
 
-    // Create or get user - always update handle from Telegram account (normalized to lowercase)
+    // Create or get user - always update handle from Telegram account
     const user = await prisma.user.upsert({
       where: { telegramId: userId },
       update: { 
-        handle: ctx.from?.username?.toLowerCase() || null // Update with current Telegram username (lowercase)
+        handle: ctx.from?.username || null // Update with current Telegram username
       },
       create: {
         telegramId: userId,
-        handle: ctx.from?.username?.toLowerCase() || null // Use Telegram username (lowercase), not custom
+        handle: ctx.from?.username || null // Use Telegram username, preserve original case
       }
     });
 

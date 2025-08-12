@@ -38,7 +38,7 @@ export async function parsePayCommand(ctx: BotContext): Promise<PayCommand | nul
   // Check for reply-to-message first
   if (ctx.message?.reply_to_message?.from) {
     payeeId = ctx.message.reply_to_message.from.id.toString();
-    payeeHandle = ctx.message.reply_to_message.from.username?.toLowerCase(); // Normalize to lowercase
+    payeeHandle = ctx.message.reply_to_message.from.username; // Keep original case
   } else {
     // Look for @mention or platform:username in args
     const targetArg = args.find(arg => arg.startsWith('@') || arg.includes(':'));
@@ -50,16 +50,16 @@ export async function parsePayCommand(ctx: BotContext): Promise<PayCommand | nul
         
         if (platformLower === 'discord' || platformLower === 'dc') {
           targetPlatform = 'discord';
-          payeeHandle = handle.replace('@', '').toLowerCase();
+          payeeHandle = handle.replace('@', '');
         } else if (platformLower === 'telegram' || platformLower === 'tg') {
           targetPlatform = 'telegram';
-          payeeHandle = handle.replace('@', '').toLowerCase();
+          payeeHandle = handle.replace('@', '');
         } else {
           return null; // Invalid platform
         }
       } else {
-        // Regular @mention format - keep original case from database
-        payeeHandle = targetArg.slice(1); // Don't force lowercase, let database handle case-insensitive search
+        // Regular @mention format - remove @ prefix, preserve case for database search
+        payeeHandle = targetArg.slice(1);
         targetPlatform = null; // Will default to current platform
       }
       

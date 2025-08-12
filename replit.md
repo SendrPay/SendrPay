@@ -36,12 +36,12 @@ SendrPay is a production-ready multi-platform bot that facilitates Solana blockc
    - Restored webhook functionality with polling fallback
    - **Solution for future**: Check TypeScript compilation errors when deployment fails but dev works
 ✅ Both platforms now stable with complete real blockchain functionality and deployment-ready
-✅ **ACCOUNT LINKING FIXED**: Successfully resolved unique constraint database error (August 12, 2025)
-   - **Root cause**: Existing telegramId constraint prevented linking
-   - **Solution**: Enhanced linkcode logic to handle existing users and prevent duplicates
-   - **Result**: Accounts now properly linked with shared wallet across platforms
-   - **Manual fix applied**: Discord user 66 now has both discordId and telegramId
-   - **Status**: Account linking fully operational
+✅ **ACCOUNT LINKING AUTOMATED**: Fixed automatic linkcode command for all users (August 12, 2025)
+   - **Root cause**: Database unique constraint on telegramId prevented automatic linking
+   - **Solution**: Enhanced transaction logic to temporarily clear telegramId before linking
+   - **Automatic fix**: Linkcode command now handles unique constraints properly
+   - **Process**: Clear existing telegramId → Link accounts → Transfer wallets → Cleanup
+   - **Status**: Account linking fully automated and operational for all users
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.

@@ -163,13 +163,21 @@ Reply with:
 
     // Use database transaction for account linking
     await prisma.$transaction(async (tx) => {
-      // Link the accounts by updating the Discord user with Telegram ID
+      // Step 1: Temporarily clear telegramId from existing user to avoid unique constraint
+      if (finalTelegramUser.id !== linkRecord.userId) {
+        await tx.user.update({
+          where: { id: finalTelegramUser.id },
+          data: { telegramId: null }
+        });
+      }
+
+      // Step 2: Link the accounts by updating the Discord user with Telegram ID
       await tx.user.update({
         where: { id: linkRecord.userId },
         data: { telegramId: telegramUserId.toString() }
       });
 
-      // Transfer any wallets from the Telegram-only user to the linked user
+      // Step 3: Transfer any wallets from the Telegram-only user to the linked user
       if (finalTelegramUser.id !== linkRecord.userId && telegramWallets.length > 0) {
         await tx.wallet.updateMany({
           where: { userId: finalTelegramUser.id },
@@ -177,12 +185,12 @@ Reply with:
         });
       }
 
-      // Delete the separate Telegram user record since accounts are now linked
+      // Step 4: Delete the separate Telegram user record since accounts are now linked
       if (finalTelegramUser.id !== linkRecord.userId) {
         await tx.user.delete({ where: { id: finalTelegramUser.id } });
       }
 
-      // Mark the link code as used
+      // Step 5: Mark the link code as used
       await tx.linkCode.update({
         where: { id: linkRecord.id },
         data: { used: true }

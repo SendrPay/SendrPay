@@ -31,7 +31,7 @@ async function createWallet(userId: number, label: string) {
   return wallet;
 }
 
-export async function getOrCreateUserByDiscordId(discordId: string) {
+export async function getOrCreateUserByDiscordId(discordId: string, discordUsername?: string) {
   let user = await prisma.user.findUnique({
     where: { discordId },
     include: { wallets: { where: { isActive: true } } }
@@ -40,12 +40,22 @@ export async function getOrCreateUserByDiscordId(discordId: string) {
   if (!user) {
     // Create new user with custodial wallet
     user = await prisma.user.create({
-      data: { discordId },
+      data: { 
+        discordId,
+        handle: discordUsername || null
+      },
       include: { wallets: { where: { isActive: true } } }
     });
     
     // Create custodial wallet for new user
     await createWallet(user.id, "custodial");
+  } else if (discordUsername && user.handle !== discordUsername) {
+    // Update username if changed
+    user = await prisma.user.update({
+      where: { discordId },
+      data: { handle: discordUsername },
+      include: { wallets: { where: { isActive: true } } }
+    });
   }
 
   return user;

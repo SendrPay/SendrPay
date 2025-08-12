@@ -270,7 +270,7 @@ This code expires in 10 minutes. After linking, you'll have one shared wallet ac
     if (i.commandName === "start") {
       console.log("Processing /start command");
       try {
-        const user = await getOrCreateUserByDiscordId(i.user.id);
+        const user = await getOrCreateUserByDiscordId(i.user.id, i.user.username);
         
         // Check if user already has a wallet
         const existingWallet = await prisma.wallet.findFirst({
@@ -361,7 +361,7 @@ Start sending crypto payments! 🚀`
 
     if (i.commandName === "linktelegram") {
       try {
-        const user = await getOrCreateUserByDiscordId(i.user.id);
+        const user = await getOrCreateUserByDiscordId(i.user.id, i.user.username);
         const code = createLinkCode(user.id, "discord");
         
         await i.reply({ 
@@ -381,7 +381,7 @@ Start sending crypto payments! 🚀`
 
     if (i.commandName === "balance") {
       try {
-        const me = await getOrCreateUserByDiscordId(i.user.id);
+        const me = await getOrCreateUserByDiscordId(i.user.id, i.user.username);
         const b = await getBalances(me.id);
         
         await i.reply({ 
@@ -401,7 +401,7 @@ Start sending crypto payments! 🚀`
 
     if (i.commandName === "deposit") {
       try {
-        const me = await getOrCreateUserByDiscordId(i.user.id);
+        const me = await getOrCreateUserByDiscordId(i.user.id, i.user.username);
         const token = i.options.getString("token") || undefined;
         const addr = await getDepositAddress(me.id, token);
         
@@ -422,7 +422,7 @@ Start sending crypto payments! 🚀`
 
     if (i.commandName === "withdraw") {
       try {
-        const me = await getOrCreateUserByDiscordId(i.user.id);
+        const me = await getOrCreateUserByDiscordId(i.user.id, i.user.username);
         const amount = i.options.getString("amount", true);
         const token = i.options.getString("token", true);
         const address = i.options.getString("address", true);
@@ -444,47 +444,33 @@ Start sending crypto payments! 🚀`
 
     if (i.commandName === "pay") {
       try {
-        const me = await getOrCreateUserByDiscordId(i.user.id);
+        const me = await getOrCreateUserByDiscordId(i.user.id, i.user.username);
         const targetStr = i.options.getString("target", true);
         const amount = i.options.getString("amount", true);
         const token = i.options.getString("token", true);
         const note = i.options.getString("note") || "";
 
-        // Resolve target: current platform default (discord)
-        const mentionHit = await lookupLocalMentionDiscord(targetStr, i);
-        if (mentionHit) {
-          const toUserId = await getUserIdByPlatformId("discord", mentionHit.platformId);
-          
-          const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-            new ButtonBuilder()
-              .setCustomId(`pay:yes:${targetStr}:${amount}:${token}`)
-              .setStyle(ButtonStyle.Success)
-              .setLabel("Confirm"),
-            new ButtonBuilder()
-              .setCustomId("pay:no")
-              .setStyle(ButtonStyle.Secondary)
-              .setLabel("Cancel")
-          );
-          
-          return void i.reply({ 
-            ephemeral: true, 
-            content: `Confirm payment?\nTo: ${targetStr}\nAmount: ${amount} ${token}${note ? `\nNote: ${note}` : ""}`, 
-            components: [row] 
-          });
-        }
-
-        // Cross-platform/unknown → simple escrow demo
-        await createEscrowTagged({ 
-          platform: "discord", 
-          handle: targetStr.replace(/^@/, ""), 
-          amount, 
-          token 
-        });
+        // Use the modern cross-platform payment system
+        const { commandPay } = await import("../commands/pay.js");
         
-        return void i.reply({ 
-          ephemeral: true, 
-          content: `⏳ Reserved ${amount} ${token} for ${targetStr}. They can claim after onboarding.` 
-        });
+        // Create a mock Telegram context for the payment command
+        const mockCtx = {
+          message: {
+            text: `/pay ${targetStr} ${amount} ${token}${note ? ` ${note}` : ""}`,
+            from: { id: me.id }
+          },
+          from: { id: i.user.id, username: i.user.username },
+          reply: async (content: any) => {
+            if (!i.replied && !i.deferred) {
+              await i.reply({ ephemeral: true, content: typeof content === 'string' ? content : content.content });
+            } else {
+              await i.followUp({ ephemeral: true, content: typeof content === 'string' ? content : content.content });
+            }
+          },
+          chat: { type: "private" }
+        };
+
+        await commandPay(mockCtx as any);
       } catch (error) {
         console.error("Error processing payment:", error);
         await i.reply({

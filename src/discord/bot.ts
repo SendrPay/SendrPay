@@ -463,7 +463,7 @@ Start sending crypto payments! 🚀`
               text: `/pay ${targetStr} ${amount} ${token}${note ? ` ${note}` : ""}`,
               from: { id: me.id }
             },
-            from: { id: me.id, username: me.handle },
+            from: { id: i.user.id, username: "discord_mock" },
             reply: async (content: any) => {
               const text = typeof content === 'string' ? content : content.content;
               await i.editReply({ content: text });

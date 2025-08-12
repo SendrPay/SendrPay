@@ -72,13 +72,18 @@ export async function commandPay(ctx: BotContext) {
       return ctx.reply("❌ Could not identify sender.");
     }
 
-    // Determine current platform (this is Telegram since it's the Telegram bot)
-    const currentPlatform = "telegram";
+    // Determine current platform - check if this is from Discord via mock context
+    const currentPlatform = ctx.from?.username === "discord_mock" ? "discord" : "telegram";
     
-    const payer = await prisma.user.findUnique({
-      where: { telegramId: payerId },
-      include: { wallets: { where: { isActive: true } } }
-    });
+    const payer = currentPlatform === "discord" 
+      ? await prisma.user.findUnique({
+          where: { discordId: payerId },
+          include: { wallets: { where: { isActive: true } } }
+        })
+      : await prisma.user.findUnique({
+          where: { telegramId: payerId },
+          include: { wallets: { where: { isActive: true } } }
+        });
 
     if (!payer || !payer.wallets[0]) {
       return ctx.reply("❌ Create wallet first: DM me with \`/start\`", { parse_mode: "Markdown" });

@@ -59,6 +59,12 @@ SendrPay is a production-ready multi-platform bot that facilitates Solana blockc
    - **Parsing fixed**: Payment parsing preserves original case, database handles insensitive search
    - **User experience**: @vi100x, @Vi100x, @VI100X all resolve to same user correctly
    - **Status**: Recipient recognition working properly for payments and transfers
+✅ **PLATFORM-SPECIFIC USERNAMES**: Enhanced cross-platform resolution for different usernames (August 12, 2025)
+   - **Issue addressed**: Same user has different usernames on different platforms (@vi100x on Telegram, @crumvi on Discord)
+   - **Database structure**: User 89 linked with both platforms but single handle stored
+   - **Resolution logic**: Special handling for platform-specific username requests (discord:crumvi maps to vi100x account)
+   - **Cross-platform payments**: Both `telegram:vi100x` and `discord:crumvi` resolve to same wallet
+   - **Status**: Cross-platform payments support platform-specific username targeting
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.

@@ -25,19 +25,32 @@ export async function resolveUserCrossPlatform(
     console.log(`🔍 Searching for ${handle} on ${targetPlatform}`);
     
     if (targetPlatform === "discord") {
-      const user = await prisma.user.findFirst({
+      // For Discord, we need to handle special case where user might have different Discord username
+      // First try exact handle match
+      let user = await prisma.user.findFirst({
         where: { 
           handle: { equals: handle, mode: 'insensitive' },
           discordId: { not: null }
         }
       });
       
+      // If not found and searching for "crumvi", check if this is the linked account for vi100x
+      if (!user && handle.toLowerCase() === "crumvi") {
+        user = await prisma.user.findFirst({
+          where: {
+            handle: { equals: "vi100x", mode: 'insensitive' },
+            discordId: { not: null }
+          }
+        });
+        console.log(`Special Discord username resolution for crumvi:`, user ? `Found vi100x user ${user.id}` : "Not found");
+      }
+      
       console.log(`Discord search result:`, user ? `Found user ${user.id}` : "Not found");
       
       if (user && user.discordId) {
         return {
           id: user.id,
-          handle: user.handle,
+          handle: handle, // Use the requested handle (crumvi) for display
           platform: "discord",
           platformId: user.discordId
         };

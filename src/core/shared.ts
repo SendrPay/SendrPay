@@ -49,6 +49,12 @@ export async function getOrCreateUserByDiscordId(discordId: string, discordUsern
     
     // Create custodial wallet for new user
     await createWallet(user.id, "custodial");
+    
+    // Re-fetch user with their wallets after creating wallet
+    user = await prisma.user.findUnique({
+      where: { discordId },
+      include: { wallets: { where: { isActive: true } } }
+    });
   } else if (discordUsername && user.handle !== discordUsername) {
     // Update username if changed
     user = await prisma.user.update({
@@ -74,6 +80,12 @@ export async function getOrCreateUserByTelegramId(telegramId: string) {
     });
     
     await createWallet(user.id, "custodial");
+    
+    // Re-fetch user with their wallets after creating wallet
+    user = await prisma.user.findUnique({
+      where: { telegramId },
+      include: { wallets: { where: { isActive: true } } }
+    });
   }
 
   return user;

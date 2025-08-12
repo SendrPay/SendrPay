@@ -65,6 +65,11 @@ SendrPay is a production-ready multi-platform bot that facilitates Solana blockc
    - **Resolution logic**: Special handling for platform-specific username requests (discord:crumvi maps to vi100x account)
    - **Cross-platform payments**: Both `telegram:vi100x` and `discord:crumvi` resolve to same wallet
    - **Status**: Cross-platform payments support platform-specific username targeting
+✅ **DISCORD WALLET DETECTION FIX**: Fixed critical issue where Discord bot wasn't detecting existing wallets (August 12, 2025)
+   - **Root cause**: `getOrCreateUserByDiscordId` function wasn't properly returning wallet data after creating new wallets
+   - **Solution**: Enhanced function to re-fetch user with wallets after wallet creation, plus improved wallet detection logic
+   - **Enhanced checks**: Discord /start command now uses dual wallet detection (user.wallets and direct query)
+   - **Status**: Discord users with existing wallets now properly receive welcome-back message instead of setup prompts
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.

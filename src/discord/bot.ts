@@ -342,17 +342,21 @@ Examples:
     }
 
     if (i.commandName === "start") {
-      console.log("Processing /start command");
       try {
         const user = await getOrCreateUserByDiscordId(i.user.id, i.user.username);
         
-        // Check if user already has a wallet
-        const existingWallet = await prisma.wallet.findFirst({
-          where: { 
-            userId: user.id,
-            isActive: true 
-          }
-        });
+        // Check if user already has a wallet using the wallets from the user query
+        let existingWallet = user.wallets && user.wallets.length > 0 ? user.wallets[0] : null;
+        
+        // Double-check with direct query if not found in user.wallets
+        if (!existingWallet) {
+          existingWallet = await prisma.wallet.findFirst({
+            where: { 
+              userId: user.id,
+              isActive: true 
+            }
+          });
+        }
 
         if (existingWallet) {
           // Show available commands for existing users

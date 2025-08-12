@@ -42,6 +42,11 @@ SendrPay is a production-ready multi-platform bot that facilitates Solana blockc
    - **Automatic fix**: Linkcode command now handles unique constraints properly
    - **Process**: Clear existing telegramId → Link accounts → Transfer wallets → Cleanup
    - **Status**: Account linking fully automated and operational for all users
+✅ **WALLET SELECTION FEATURE**: Added wallet choice system for users with existing wallets (August 12, 2025)
+   - **Commands added**: `/keepdiscord` and `/keeptelegram` for wallet selection
+   - **Feature**: When both accounts have wallets, users choose which to keep
+   - **Process**: User selects preferred wallet → Other wallet deactivated → Accounts linked
+   - **Safety**: Unused wallets deactivated (not deleted) for security
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.

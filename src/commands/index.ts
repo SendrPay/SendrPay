@@ -17,6 +17,8 @@ import { commandHistory } from "./history";
 import { commandDebugReply, commandDebugReset, commandDebugMessage } from "./debug";
 import { commandLinkcode } from "./linkcode";
 import { commandKeepDiscord, commandKeepTelegram } from "./merge-wallet";
+import { handleKeepDiscord } from "./keepdiscord";
+import { handleKeepTelegram } from "./keeptelegram";
 
 export function registerGroupRoutes(bot: Bot<BotContext>) {
   // Group commands
@@ -76,8 +78,8 @@ Send private key now:`, { parse_mode: "Markdown" });
   bot.command("deposit", commandDeposit);
   bot.command("history", commandHistory);
   bot.command("linkcode", commandLinkcode);
-  bot.command("keepdiscord", commandKeepDiscord);
-  bot.command("keeptelegram", commandKeepTelegram);
+  bot.command("keepdiscord", handleKeepDiscord);
+  bot.command("keeptelegram", handleKeepTelegram);
   
   // Debug commands for troubleshooting (admin-only)
   bot.command("debug_reply", commandDebugReply);

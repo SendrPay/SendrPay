@@ -390,10 +390,12 @@ Start sending crypto payments! 🚀`
         });
       } catch (error) {
         console.error("Error getting balance:", error);
-        await i.reply({
-          content: "❌ Could not retrieve your balance.",
-          ephemeral: true
-        });
+        if (!i.replied && !i.deferred) {
+          await i.reply({
+            content: "❌ Could not retrieve your balance.",
+            ephemeral: true
+          });
+        }
       }
     }
 
@@ -409,10 +411,12 @@ Start sending crypto payments! 🚀`
         });
       } catch (error) {
         console.error("Error getting deposit address:", error);
-        await i.reply({
-          ephemeral: true,
-          content: "❌ Could not retrieve your deposit address."
-        });
+        if (!i.replied && !i.deferred) {
+          await i.reply({
+            ephemeral: true,
+            content: "❌ Could not retrieve your deposit address."
+          });
+        }
       }
     }
 

@@ -68,8 +68,8 @@ export async function handleDiscordPay(interaction: ChatInputCommandInteraction)
       return;
     }
 
-    // Mock context for sendPayment function
-    const mockCtx = {
+    // Compatible context for sendPayment function
+    const paymentCtx = {
       from: { id: interaction.user.id },
       chat: { id: interaction.guildId || interaction.user.id },
       reply: async (content: any) => {
@@ -104,8 +104,8 @@ export async function handleDiscordTip(interaction: ChatInputCommandInteraction)
 
     const user = await getOrCreateUserByDiscordId(interaction.user.id);
     
-    // Mock context for tip function
-    const mockCtx = {
+    // Compatible context for tip function
+    const tipCtx = {
       from: { id: interaction.user.id },
       chat: { id: interaction.guildId || interaction.user.id },
       reply: async (content: any) => {
@@ -206,8 +206,8 @@ export async function handleDiscordWithdraw(interaction: ChatInputCommandInterac
 
     const user = await getOrCreateUserByDiscordId(interaction.user.id);
 
-    // Mock context for withdraw function
-    const mockCtx = {
+    // Compatible context for withdraw function
+    const withdrawCtx = {
       from: { id: interaction.user.id },
       reply: async (content: any) => {
         if (interaction.deferred) {

@@ -72,8 +72,8 @@ export async function commandPay(ctx: BotContext) {
       return ctx.reply("❌ Could not identify sender.");
     }
 
-    // Determine current platform - check if this is from Discord via mock context
-    const currentPlatform = ctx.from?.username === "discord_mock" ? "discord" : "telegram";
+    // Determine current platform - check if this is from Discord via context indicator
+    const currentPlatform = ctx.from?.username === "discord_context" ? "discord" : "telegram";
     
     const payer = currentPlatform === "discord" 
       ? await prisma.user.findUnique({

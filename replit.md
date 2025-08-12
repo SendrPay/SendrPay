@@ -68,6 +68,7 @@ SendrPay is a production-ready multi-platform bot that facilitates Solana blockc
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.
+Data handling: All data must be live and accurate - never use mock, placeholder, or fake data.
 
 ## System Architecture
 

@@ -75,15 +75,15 @@ client.on(Events.MessageCreate, async (msg) => {
       const user = await getOrCreateUserByDiscordId(msg.author.id);
       const { importWallet } = await import("../core/wallets");
       
-      // Create a mock context for importWallet
-      const mockCtx = {
+      // Create a compatible context for importWallet
+      const importCtx = {
         reply: async (content: any) => {
           await msg.reply(typeof content === 'string' ? content : content.content || 'Wallet imported!');
         },
         from: { id: msg.author.id }
       };
       
-      await importWallet(mockCtx as any, importMatch[1]);
+      await importWallet(importCtx as any, importMatch[1]);
       
       // Delete the message containing the private key for security
       try {
@@ -457,13 +457,13 @@ Start sending crypto payments! 🚀`
           // Use the modern cross-platform payment system
           const { commandPay } = await import("../commands/pay.js");
           
-          // Create a mock Telegram context for the payment command
-          const mockCtx = {
+          // Create a compatible context for the payment command
+          const paymentCtx = {
             message: {
               text: `/pay ${targetStr} ${amount} ${token}${note ? ` ${note}` : ""}`,
               from: { id: me.id }
             },
-            from: { id: i.user.id, username: "discord_mock" },
+            from: { id: i.user.id, username: "discord_context" },
             reply: async (content: any) => {
               const text = typeof content === 'string' ? content : content.content;
               await i.editReply({ content: text });
@@ -471,7 +471,7 @@ Start sending crypto payments! 🚀`
             chat: { type: "private" }
           };
 
-          await commandPay(mockCtx as any);
+          await commandPay(paymentCtx as any);
         } catch (error) {
           console.error("Error processing payment:", error);
           if (!i.replied && !i.deferred) {

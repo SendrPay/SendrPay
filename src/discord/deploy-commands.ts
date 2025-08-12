@@ -41,6 +41,14 @@ const commands = [
   new SlashCommandBuilder()
     .setName("linktelegram")
     .setDescription("Link your Telegram account"),
+    
+  new SlashCommandBuilder()
+    .setName("help")
+    .setDescription("Show detailed help and command information"),
+    
+  new SlashCommandBuilder()
+    .setName("history")
+    .setDescription("View your recent transaction history"),
 ].map(c => c.toJSON());
 
 (async () => {

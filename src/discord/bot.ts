@@ -267,6 +267,80 @@ This code expires in 10 minutes. After linking, you'll have one shared wallet ac
       return;
     }
 
+    if (i.commandName === "help") {
+      const helpEmbed = {
+        title: "SendrPay - Solana Payments Made Easy",
+        description: `**Getting Started**
+/start - Begin using SendrPay and set up your wallet
+/help - Show this help message
+
+**Wallet Management**  
+/balance - View your wallet balances and transaction history
+/deposit - Get your wallet address to receive funds
+/withdraw - Withdraw funds to an external wallet
+
+**Account Linking**
+Link your Discord and Telegram accounts to share one wallet:
+1. Use \`/linktelegram\` in Discord to get a link code
+2. Use \`/linkcode YOUR_CODE\` in Telegram DM
+3. Choose which wallet to keep if both accounts have wallets
+
+**Payments**
+/pay @user amount [token] [note] - Send crypto to another user
+Examples:
+• \`/pay @username 10 SOL lunch money\`
+• \`/pay telegram:vi100x 5 USDC\` (cross-platform)
+• \`/pay discord:crumvi 0.1 SOL great work!\`
+
+**Transaction History**
+/history - View your recent transactions
+
+**Supported Tokens**
+• SOL - Solana
+• USDC - USD Coin  
+• BONK - Bonk
+• JUP - Jupiter
+
+**Cross-Platform Features**
+• Send payments between Discord and Telegram users
+• Share one wallet across both platforms
+• Automatic username resolution
+
+*SendrPay operates on Solana devnet for testing*`,
+        color: 0x0099ff,
+        footer: { text: "Need help? Contact support" }
+      };
+      
+      await i.reply({ embeds: [helpEmbed], ephemeral: true });
+      return;
+    }
+
+    if (i.commandName === "history") {
+      try {
+        const user = await getOrCreateUserByDiscordId(i.user.id);
+        const { commandHistory } = await import("../commands/history");
+        
+        // Create compatible context for history command
+        const historyCtx = {
+          from: { id: i.user.id, username: "discord_context" },
+          reply: async (content: any) => {
+            const text = typeof content === 'string' ? content : content.content;
+            await i.reply({ content: text, ephemeral: true });
+          },
+          chat: { type: "private" }
+        };
+
+        await commandHistory(historyCtx as any);
+      } catch (error) {
+        console.error("Error processing history:", error);
+        await i.reply({
+          ephemeral: true,
+          content: "❌ Could not retrieve your transaction history."
+        });
+      }
+      return;
+    }
+
     if (i.commandName === "start") {
       console.log("Processing /start command");
       try {
@@ -366,7 +440,17 @@ Start sending crypto payments! 🚀`
         
         await i.reply({ 
           ephemeral: true, 
-          content: `Link Telegram:\n1) Open @SendrPayBot\n2) Run \`/linkcode ${code}\`\nThis connects both to ONE wallet.` 
+          content: `🔗 **Link Telegram Account**
+
+**Step 1:** Open @SendrPayBot on Telegram
+**Step 2:** Use the command: \`/linkcode ${code}\`
+
+This code expires in 10 minutes. After linking, you'll have one shared wallet across both Discord and Telegram platforms!
+
+**Benefits of linking:**
+• Send cross-platform payments (Discord ↔ Telegram)  
+• Unified balance and transaction history
+• One wallet to manage across both platforms` 
         });
       } catch (error) {
         console.error("Error creating link code:", error);
@@ -381,42 +465,61 @@ Start sending crypto payments! 🚀`
 
     if (i.commandName === "balance") {
       try {
-        const me = await getOrCreateUserByDiscordId(i.user.id, i.user.username);
-        const b = await getBalances(me.id);
+        const user = await getOrCreateUserByDiscordId(i.user.id, i.user.username);
+        const { commandBalance } = await import("../commands/balance");
         
-        await i.reply({ 
-          content: `Balances:\n• SOL: ${b.SOL}\n• USDC: ${b.USDC}`,
-          ephemeral: true
-        });
+        // Create compatible context for balance command
+        const balanceCtx = {
+          from: { id: i.user.id, username: "discord_context" },
+          reply: async (content: any, options?: any) => {
+            const text = typeof content === 'string' ? content : content.content;
+            // Convert Telegram markup to Discord format and remove inline keyboards
+            const discordText = text
+              .replace(/\*\*(.*?)\*\*/g, '**$1**')
+              .replace(/`([^`]+)`/g, '`$1`');
+            
+            await i.reply({ content: discordText, ephemeral: true });
+          },
+          chat: { type: "private" }
+        };
+
+        await commandBalance(balanceCtx as any);
       } catch (error) {
         console.error("Error getting balance:", error);
-        if (!i.replied && !i.deferred) {
-          await i.reply({
-            content: "❌ Could not retrieve your balance.",
-            ephemeral: true
-          });
-        }
+        await i.reply({ 
+          content: "❌ Could not retrieve your wallet balance. Use /start to set up your wallet first.", 
+          ephemeral: true 
+        });
       }
     }
 
     if (i.commandName === "deposit") {
       try {
-        const me = await getOrCreateUserByDiscordId(i.user.id, i.user.username);
-        const token = i.options.getString("token") || undefined;
-        const addr = await getDepositAddress(me.id, token);
+        const user = await getOrCreateUserByDiscordId(i.user.id, i.user.username);
+        const { commandDeposit } = await import("../commands/deposit");
         
-        await i.reply({ 
-          content: `Deposit address${token ? ` for ${token}` : ""}: \`${addr}\``,
-          ephemeral: true
-        });
+        // Create compatible context for deposit command
+        const depositCtx = {
+          from: { id: i.user.id, username: "discord_context" },
+          reply: async (content: any, options?: any) => {
+            const text = typeof content === 'string' ? content : content.content;
+            // Convert Telegram markup to Discord format
+            const discordText = text
+              .replace(/\*\*(.*?)\*\*/g, '**$1**')
+              .replace(/`([^`]+)`/g, '`$1`');
+            
+            await i.reply({ content: discordText, ephemeral: true });
+          },
+          chat: { type: "private" }
+        };
+
+        await commandDeposit(depositCtx as any);
       } catch (error) {
         console.error("Error getting deposit address:", error);
-        if (!i.replied && !i.deferred) {
-          await i.reply({
-            ephemeral: true,
-            content: "❌ Could not retrieve your deposit address."
-          });
-        }
+        await i.reply({
+          ephemeral: true,
+          content: "❌ Could not retrieve your deposit address. Use /start to set up your wallet first."
+        });
       }
     }
 

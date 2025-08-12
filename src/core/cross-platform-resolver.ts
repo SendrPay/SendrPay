@@ -1,6 +1,4 @@
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import { prisma } from "../infra/prisma";
 
 export interface ResolvedUser {
   id: number;
@@ -24,6 +22,8 @@ export async function resolveUserCrossPlatform(
   
   // If target platform is specified, search only that platform
   if (targetPlatform) {
+    console.log(`🔍 Searching for ${handle} on ${targetPlatform}`);
+    
     if (targetPlatform === "discord") {
       const user = await prisma.user.findFirst({
         where: { 
@@ -31,6 +31,8 @@ export async function resolveUserCrossPlatform(
           discordId: { not: null }
         }
       });
+      
+      console.log(`Discord search result:`, user ? `Found user ${user.id}` : "Not found");
       
       if (user && user.discordId) {
         return {
@@ -48,6 +50,8 @@ export async function resolveUserCrossPlatform(
         }
       });
       
+      console.log(`Telegram search result:`, user ? `Found user ${user.id}` : "Not found");
+      
       if (user && user.telegramId) {
         return {
           id: user.id,
@@ -61,8 +65,10 @@ export async function resolveUserCrossPlatform(
   }
   
   // No specific platform, default to current platform first
+  console.log(`🔍 Searching for ${handle} from ${currentPlatform} (no platform specified)`);
+  
   if (currentPlatform === "telegram") {
-    // Search Telegram first, then Discord
+    // Search Telegram first
     let user = await prisma.user.findFirst({
       where: { 
         handle: { equals: handle, mode: 'insensitive' },
@@ -70,6 +76,8 @@ export async function resolveUserCrossPlatform(
       }
     });
     
+    console.log(`Telegram-first search result:`, user ? `Found user ${user.id}` : "Not found");
+    
     if (user && user.telegramId) {
       return {
         id: user.id,
@@ -79,28 +87,40 @@ export async function resolveUserCrossPlatform(
       };
     }
     
-    // Fallback to Discord if linked account
+    // Fallback to ANY user with that handle (including Discord-only users if they're linked)
     user = await prisma.user.findFirst({
       where: { 
         handle: { equals: handle, mode: 'insensitive' },
-        AND: [
+        OR: [
           { discordId: { not: null } },
-          { telegramId: { not: null } } // Only linked accounts
+          { telegramId: { not: null } }
         ]
       }
     });
     
-    if (user && user.discordId) {
-      return {
-        id: user.id,
-        handle: user.handle,
-        platform: "discord",
-        platformId: user.discordId
-      };
+    console.log(`Fallback search result:`, user ? `Found user ${user.id} (Discord: ${!!user.discordId}, Telegram: ${!!user.telegramId})` : "Not found");
+    
+    if (user) {
+      // Return the user with their primary platform
+      if (user.telegramId) {
+        return {
+          id: user.id,
+          handle: user.handle,
+          platform: "telegram",
+          platformId: user.telegramId
+        };
+      } else if (user.discordId) {
+        return {
+          id: user.id,
+          handle: user.handle,
+          platform: "discord",
+          platformId: user.discordId
+        };
+      }
     }
     
   } else if (currentPlatform === "discord") {
-    // Search Discord first, then Telegram
+    // Search Discord first
     let user = await prisma.user.findFirst({
       where: { 
         handle: { equals: handle, mode: 'insensitive' },
@@ -108,6 +128,8 @@ export async function resolveUserCrossPlatform(
       }
     });
     
+    console.log(`Discord-first search result:`, user ? `Found user ${user.id}` : "Not found");
+    
     if (user && user.discordId) {
       return {
         id: user.id,
@@ -117,24 +139,36 @@ export async function resolveUserCrossPlatform(
       };
     }
     
-    // Fallback to Telegram if linked account
+    // Fallback to ANY user with that handle
     user = await prisma.user.findFirst({
       where: { 
         handle: { equals: handle, mode: 'insensitive' },
-        AND: [
-          { telegramId: { not: null } },
-          { discordId: { not: null } } // Only linked accounts
+        OR: [
+          { discordId: { not: null } },
+          { telegramId: { not: null } }
         ]
       }
     });
     
-    if (user && user.telegramId) {
-      return {
-        id: user.id,
-        handle: user.handle,
-        platform: "telegram",
-        platformId: user.telegramId
-      };
+    console.log(`Fallback search result:`, user ? `Found user ${user.id} (Discord: ${!!user.discordId}, Telegram: ${!!user.telegramId})` : "Not found");
+    
+    if (user) {
+      // Return the user with their primary platform
+      if (user.discordId) {
+        return {
+          id: user.id,
+          handle: user.handle,
+          platform: "discord",
+          platformId: user.discordId
+        };
+      } else if (user.telegramId) {
+        return {
+          id: user.id,
+          handle: user.handle,
+          platform: "telegram",
+          platformId: user.telegramId
+        };
+      }
     }
   }
   

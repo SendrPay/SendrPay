@@ -58,8 +58,8 @@ export async function parsePayCommand(ctx: BotContext): Promise<PayCommand | nul
           return null; // Invalid platform
         }
       } else {
-        // Regular @mention format
-        payeeHandle = targetArg.slice(1).toLowerCase(); // Normalize to lowercase like Telegram
+        // Regular @mention format - keep original case from database
+        payeeHandle = targetArg.slice(1); // Don't force lowercase, let database handle case-insensitive search
         targetPlatform = null; // Will default to current platform
       }
       

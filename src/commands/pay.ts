@@ -106,16 +106,31 @@ export async function commandPay(ctx: BotContext) {
       return ctx.reply("❌ Duplicate payment detected.");
     }
 
+    // Debug: Log the search parameters
+    logger.info("Payment recipient search", { 
+      payeeHandle, 
+      targetPlatform, 
+      currentPlatform,
+      senderId: payerId 
+    });
+    
     // Cross-platform user resolution
     const resolvedPayee = await resolveUserCrossPlatform(payeeHandle, targetPlatform || null, currentPlatform);
     
     if (!resolvedPayee) {
+      logger.warn("Recipient not found", { payeeHandle, targetPlatform, currentPlatform });
       if (targetPlatform) {
         return ctx.reply(`❌ User @${payeeHandle} not found on ${targetPlatform}. They need to start the bot to register.`);
       } else {
         return ctx.reply(`❌ User @${payeeHandle} not found. They need to start the bot to register their username.`);
       }
     }
+    
+    logger.info("Recipient resolved", { 
+      payeeHandle, 
+      resolvedId: resolvedPayee.id, 
+      resolvedPlatform: resolvedPayee.platform 
+    });
 
     // Get full user details with wallets
     const payee = await prisma.user.findUnique({

@@ -450,33 +450,44 @@ Start sending crypto payments! 🚀`
         const token = i.options.getString("token", true);
         const note = i.options.getString("note") || "";
 
-        // Use the modern cross-platform payment system
-        const { commandPay } = await import("../commands/pay.js");
-        
-        // Create a mock Telegram context for the payment command
-        const mockCtx = {
-          message: {
-            text: `/pay ${targetStr} ${amount} ${token}${note ? ` ${note}` : ""}`,
-            from: { id: me.id }
-          },
-          from: { id: i.user.id, username: i.user.username },
-          reply: async (content: any) => {
-            if (!i.replied && !i.deferred) {
-              await i.reply({ ephemeral: true, content: typeof content === 'string' ? content : content.content });
-            } else {
-              await i.followUp({ ephemeral: true, content: typeof content === 'string' ? content : content.content });
-            }
-          },
-          chat: { type: "private" }
-        };
+        // Defer the interaction to prevent timeout
+        await i.deferReply({ ephemeral: true });
 
-        await commandPay(mockCtx as any);
+        try {
+          // Use the modern cross-platform payment system
+          const { commandPay } = await import("../commands/pay.js");
+          
+          // Create a mock Telegram context for the payment command
+          const mockCtx = {
+            message: {
+              text: `/pay ${targetStr} ${amount} ${token}${note ? ` ${note}` : ""}`,
+              from: { id: me.id }
+            },
+            from: { id: me.id, username: me.handle },
+            reply: async (content: any) => {
+              const text = typeof content === 'string' ? content : content.content;
+              await i.editReply({ content: text });
+            },
+            chat: { type: "private" }
+          };
+
+          await commandPay(mockCtx as any);
+        } catch (error) {
+          console.error("Error processing payment:", error);
+          if (!i.replied && !i.deferred) {
+            await i.reply({ ephemeral: true, content: "❌ Payment failed. Please try again." });
+          } else {
+            await i.editReply({ content: "❌ Payment failed. Please try again." });
+          }
+        }
       } catch (error) {
         console.error("Error processing payment:", error);
-        await i.reply({
-          ephemeral: true,
-          content: "❌ Could not process your payment."
-        });
+        if (!i.replied && !i.deferred) {
+          await i.reply({
+            ephemeral: true,
+            content: "❌ Could not process your payment."
+          });
+        }
       }
     }
   } catch (error) {

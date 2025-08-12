@@ -2,13 +2,15 @@ import type { BotContext } from "../bot";
 import { Bot, InlineKeyboard } from "grammy";
 import { logger } from "../infra/logger";
 import { PrismaClient } from "@prisma/client";
+import { client as discordClient } from "../discord/bot";
 
 const prisma = new PrismaClient();
 
 export interface PaymentNotificationData {
   senderHandle: string;
   senderName: string;
-  recipientTelegramId: string;
+  recipientTelegramId?: string;
+  recipientDiscordId?: string;
   amount: number;
   tokenTicker: string;
   signature: string;
@@ -29,7 +31,7 @@ function getSolanaExplorerLink(signature: string): string {
   return `https://explorer.solana.com/tx/${signature}?cluster=devnet`;
 }
 
-// Send payment notification to recipient
+// Send payment notification to recipient (supports both Telegram and Discord)
 export async function sendPaymentNotification(
   botApi: any, // Use any instead of Bot type to avoid import issues
   data: PaymentNotificationData
@@ -39,6 +41,7 @@ export async function sendPaymentNotification(
       senderHandle,
       senderName,
       recipientTelegramId,
+      recipientDiscordId,
       amount,
       tokenTicker,
       signature,
@@ -61,18 +64,60 @@ export async function sendPaymentNotification(
     
     message += `\n**Transaction:** [View on Solana Explorer](${getSolanaExplorerLink(signature)})`;
 
-    // Create inline keyboard with reaction options
-    const keyboard = new InlineKeyboard()
-      .text("❤️ Heart", `react_heart_${signature}`)
-      .text("🔥 Fire", `react_fire_${signature}`)
-      .row()
-      .text("💬 Thank You Message", `thank_message_${signature}`)
-      .text("🎁 Send GIF", `thank_gif_${signature}`);
+    // Send to Telegram if recipient has Telegram ID
+    if (recipientTelegramId) {
+      // Create inline keyboard with reaction options
+      const keyboard = new InlineKeyboard()
+        .text("❤️ Heart", `react_heart_${signature}`)
+        .text("🔥 Fire", `react_fire_${signature}`)
+        .row()
+        .text("💬 Thank You Message", `thank_message_${signature}`)
+        .text("🎁 Send GIF", `thank_gif_${signature}`);
 
-    // Send notification
-    await botApi.sendMessage(recipientTelegramId, message, {
-      parse_mode: "Markdown",
-      reply_markup: keyboard,
+      // Send notification
+      await botApi.sendMessage(recipientTelegramId, message, {
+        parse_mode: "Markdown",
+        reply_markup: keyboard,
+        disable_web_page_preview: true
+      });
+
+      logger.info("Telegram payment notification sent", {
+        sender: senderHandle,
+        recipient: recipientTelegramId,
+        amount,
+        token: tokenTicker,
+        signature
+      });
+    }
+
+    // Send to Discord if recipient has Discord ID
+    if (recipientDiscordId) {
+      try {
+        const discordUser = await discordClient.users.fetch(recipientDiscordId);
+        
+        // Convert markdown to Discord format
+        const discordMessage = message
+          .replace(/\*\*(.*?)\*\*/g, '**$1**') // Keep bold
+          .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1: $2'); // Convert links
+        
+        await discordUser.send(discordMessage);
+        
+        logger.info("Discord payment notification sent", {
+          sender: senderHandle,
+          recipient: recipientDiscordId,
+          amount,
+          token: tokenTicker,
+          signature
+        });
+      } catch (discordError) {
+        logger.error("Failed to send Discord notification", discordError);
+      }
+    }
+
+  } catch (error) {
+    logger.error("Failed to send payment notification", error);
+  }
+}
       disable_web_page_preview: false
     });
 

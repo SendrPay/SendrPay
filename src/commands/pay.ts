@@ -337,14 +337,15 @@ export async function handlePaymentConfirmation(ctx: BotContext, confirmed: bool
       // Send payment notification to recipient
       logger.info("Checking notification requirements");
 
-      if (payment.to?.telegramId && payment.from?.handle && result.signature) {
+      if ((payment.to?.telegramId || payment.to?.discordId) && payment.from?.handle && result.signature) {
         try {
           logger.info("Sending payment notification");
 
           await sendPaymentNotification(ctx.api, {
             senderHandle: payment.from.handle,
             senderName: payment.from.handle,
-            recipientTelegramId: payment.to.telegramId,
+            recipientTelegramId: payment.to.telegramId || undefined,
+            recipientDiscordId: payment.to.discordId || undefined,
             amount: recipientAmount,
             tokenTicker: token.ticker,
             signature: result.signature,

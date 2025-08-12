@@ -5,7 +5,8 @@ import { messages, formatTimestamp, formatExplorerLink, MessageData } from "./me
 export interface PaymentNotificationData {
   senderHandle: string;
   senderName: string;
-  recipientTelegramId: string;
+  recipientTelegramId?: string;
+  recipientDiscordId?: string;
   amount: number;
   tokenTicker: string;
   signature: string;
@@ -28,6 +29,7 @@ export async function sendPaymentNotification(
     const {
       senderHandle,
       recipientTelegramId,
+      recipientDiscordId,
       amount,
       tokenTicker,
       signature,
@@ -43,7 +45,7 @@ export async function sendPaymentNotification(
     let balanceText = "Calculating...";
     try {
       const user = await prisma.user.findUnique({
-        where: { telegramId: recipientTelegramId },
+        where: recipientTelegramId ? { telegramId: recipientTelegramId } : { discordId: recipientDiscordId },
         include: { wallet: true }
       });
       
@@ -93,13 +95,33 @@ export async function sendPaymentNotification(
       .text("🙏", `react_pray_${shortSig}`)
       .text("👍", `react_thumbs_${shortSig}`);
 
-    await botApi.sendMessage(recipientTelegramId, message, {
-      parse_mode: "Markdown",
-      reply_markup: keyboard,
-      disable_web_page_preview: false
-    });
+    // Send to Telegram if recipient has Telegram ID
+    if (recipientTelegramId) {
+      await botApi.sendMessage(recipientTelegramId, message, {
+        parse_mode: "Markdown",
+        reply_markup: keyboard,
+        disable_web_page_preview: false
+      });
+      logger.info(`Telegram ${type} notification sent successfully`);
+    }
 
-    logger.info(`${type} notification sent successfully`);
+    // Send to Discord if recipient has Discord ID
+    if (recipientDiscordId) {
+      try {
+        const { client: discordClient } = await import("../discord/bot");
+        const discordUser = await discordClient.users.fetch(recipientDiscordId);
+        
+        // Convert message to Discord format (remove markdown links)
+        const discordMessage = message
+          .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+          .replace(/\*\*(.*?)\*\*/g, '**$1**');
+        
+        await discordUser.send(discordMessage);
+        logger.info(`Discord ${type} notification sent successfully`);
+      } catch (discordError) {
+        logger.error("Failed to send Discord notification", discordError);
+      }
+    }
 
   } catch (error) {
     logger.error(`Failed to send ${data.type || 'payment'} notification`);

@@ -47,6 +47,12 @@ SendrPay is a production-ready multi-platform bot that facilitates Solana blockc
    - **Feature**: When both accounts have wallets, users choose which to keep
    - **Process**: User selects preferred wallet → Other wallet deactivated → Accounts linked
    - **Safety**: Unused wallets deactivated (not deleted) for security
+✅ **CROSS-PLATFORM PAYMENTS**: Implemented full cross-platform payment functionality (August 12, 2025)
+   - **Platform targeting**: `/pay discord:username amount TOKEN` or `/pay telegram:username amount TOKEN`
+   - **Default behavior**: `/pay @username` defaults to current platform, then searches linked accounts
+   - **Smart resolution**: Finds users across platforms automatically for linked accounts
+   - **Examples**: Discord user can pay Telegram user and vice versa
+   - **Status**: Cross-platform payments fully operational between Discord and Telegram
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.

@@ -1,6 +1,7 @@
 import type { BotContext } from "../bot";
 import { prisma } from "../infra/prisma";
 import { parsePayCommand } from "../core/parse";
+import { resolveUserCrossPlatform } from "../core/cross-platform-resolver";
 import { resolveToken } from "../core/tokens";
 import { calculateFee, generateFeeConfirmationMessage } from "../core/fees";
 import { executeTransfer } from "../core/transfer";
@@ -43,10 +44,10 @@ export async function commandPay(ctx: BotContext) {
     // Parse command
     const parsed = await parsePayCommand(ctx);
     if (!parsed) {
-      return ctx.reply("❌ Usage: \`/pay @username amount TOKEN [note]\`", { parse_mode: "Markdown" });
+      return ctx.reply("❌ Usage: \`/pay @username amount TOKEN [note]\`\nCross-platform: \`/pay discord:username amount TOKEN\` or \`/pay telegram:username amount TOKEN\`", { parse_mode: "Markdown" });
     }
 
-    const { payeeId, payeeHandle, amount, tokenTicker, note } = parsed;
+    const { payeeId, payeeHandle, targetPlatform, amount, tokenTicker, note } = parsed;
 
     // Username verification: payments only succeed when directed to verified usernames
     if (!payeeHandle) {
@@ -71,6 +72,9 @@ export async function commandPay(ctx: BotContext) {
       return ctx.reply("❌ Could not identify sender.");
     }
 
+    // Determine current platform (this is Telegram since it's the Telegram bot)
+    const currentPlatform = "telegram";
+    
     const payer = await prisma.user.findUnique({
       where: { telegramId: payerId },
       include: { wallets: { where: { isActive: true } } }
@@ -102,30 +106,36 @@ export async function commandPay(ctx: BotContext) {
       return ctx.reply("❌ Duplicate payment detected.");
     }
 
-    // Username verification: Find user by their actual Telegram handle only
-    // Look up user by their verified Telegram handle (case-insensitive like Telegram)
-    const payee = await prisma.user.findFirst({
-      where: { 
-        handle: {
-          equals: payeeHandle,
-          mode: 'insensitive' // Case-insensitive matching like Telegram
-        }
-      },
+    // Cross-platform user resolution
+    const resolvedPayee = await resolveUserCrossPlatform(payeeHandle, targetPlatform || null, currentPlatform);
+    
+    if (!resolvedPayee) {
+      if (targetPlatform) {
+        return ctx.reply(`❌ User @${payeeHandle} not found on ${targetPlatform}. They need to start the bot to register.`);
+      } else {
+        return ctx.reply(`❌ User @${payeeHandle} not found. They need to start the bot to register their username.`);
+      }
+    }
+
+    // Get full user details with wallets
+    const payee = await prisma.user.findUnique({
+      where: { id: resolvedPayee.id },
       include: { wallets: { where: { isActive: true } } }
     });
 
     if (!payee) {
-      return ctx.reply(`❌ User @${payeeHandle} not found. They need to start the bot to register their Telegram username.`);
-    }
-
-    // Strict verification: the handle must exactly match their registered Telegram username
-    if (payee.handle?.toLowerCase() !== payeeHandle.toLowerCase()) {
-      return ctx.reply(`❌ Username verification failed. This user's verified handle is @${payee.handle}.`);
+      return ctx.reply(`❌ User @${payeeHandle} not found.`);
     }
 
     const payeeWallet = payee.wallets[0];
     if (!payeeWallet) {
       return ctx.reply(`❌ User @${payeeHandle} needs to create a wallet first.`);
+    }
+
+    // Show cross-platform payment info if applicable
+    let platformInfo = "";
+    if (targetPlatform && targetPlatform !== currentPlatform) {
+      platformInfo = ` (${targetPlatform} user)`;
     }
 
     // Show payment confirmation using message templates
@@ -139,7 +149,7 @@ export async function commandPay(ctx: BotContext) {
     
     // Use standardized payment confirmation template
     const messageData: MessageData = {
-      recipient: `@${payeeHandle}`,
+      recipient: `@${payeeHandle}${platformInfo}`,
       amount: recipientReceives.toString(),
       token: token.ticker,
       network_fee: `${transactionFee} ${token.ticker}`,

@@ -4,6 +4,7 @@ import { resolveToken } from "./tokens";
 export interface PayCommand {
   payeeId?: string;
   payeeHandle?: string;
+  targetPlatform?: "telegram" | "discord" | null;
   amount: number;
   tokenTicker: string;
   note?: string;
@@ -32,27 +33,38 @@ export async function parsePayCommand(ctx: BotContext): Promise<PayCommand | nul
 
   let payeeId: string | undefined;
   let payeeHandle: string | undefined;
+  let targetPlatform: "telegram" | "discord" | null = null;
 
   // Check for reply-to-message first
   if (ctx.message?.reply_to_message?.from) {
     payeeId = ctx.message.reply_to_message.from.id.toString();
     payeeHandle = ctx.message.reply_to_message.from.username?.toLowerCase(); // Normalize to lowercase
   } else {
-    // Look for @mention in args
-    const mentionArg = args.find(arg => arg.startsWith('@'));
-    if (mentionArg) {
-      payeeHandle = mentionArg.slice(1).toLowerCase(); // Normalize to lowercase like Telegram
-      // Extract user ID from entities if available
-      const entities = ctx.message?.entities || [];
-      const mentionEntity = entities.find(e => e.type === 'mention');
-      if (mentionEntity && ctx.message?.text) {
-        const mentionText = ctx.message.text.slice(mentionEntity.offset, mentionEntity.offset + mentionEntity.length);
-        if (mentionText === mentionArg) {
-          // Look up user ID by username (would need database lookup)
+    // Look for @mention or platform:username in args
+    const targetArg = args.find(arg => arg.startsWith('@') || arg.includes(':'));
+    if (targetArg) {
+      // Handle platform:username format (e.g., discord:vi100x, telegram:vi100x)
+      if (targetArg.includes(':')) {
+        const [platform, handle] = targetArg.split(':');
+        const platformLower = platform.toLowerCase();
+        
+        if (platformLower === 'discord' || platformLower === 'dc') {
+          targetPlatform = 'discord';
+          payeeHandle = handle.replace('@', '').toLowerCase();
+        } else if (platformLower === 'telegram' || platformLower === 'tg') {
+          targetPlatform = 'telegram';
+          payeeHandle = handle.replace('@', '').toLowerCase();
+        } else {
+          return null; // Invalid platform
         }
+      } else {
+        // Regular @mention format
+        payeeHandle = targetArg.slice(1).toLowerCase(); // Normalize to lowercase like Telegram
+        targetPlatform = null; // Will default to current platform
       }
-      // Remove mention from args for further parsing
-      args.splice(args.indexOf(mentionArg), 1);
+      
+      // Remove target from args for further parsing
+      args.splice(args.indexOf(targetArg), 1);
     }
   }
 
@@ -76,6 +88,7 @@ export async function parsePayCommand(ctx: BotContext): Promise<PayCommand | nul
   return {
     payeeId,
     payeeHandle,
+    targetPlatform,
     amount,
     tokenTicker,
     note

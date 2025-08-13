@@ -112,18 +112,13 @@ export async function commandPay(ctx: BotContext) {
     }
 
     // Debug: Log the search parameters
-    logger.info("Payment recipient search", { 
-      payeeHandle, 
-      targetPlatform, 
-      currentPlatform,
-      senderId: payerId 
-    });
+    logger.info("Payment recipient search");
     
     // Cross-platform user resolution
     const resolvedPayee = await resolveUserCrossPlatform(payeeHandle, targetPlatform || null, currentPlatform);
     
     if (!resolvedPayee) {
-      logger.warn("Recipient not found", { payeeHandle, targetPlatform, currentPlatform });
+      logger.warn("Recipient not found");
       if (targetPlatform) {
         return ctx.reply(`❌ User @${payeeHandle} not found on ${targetPlatform}. They need to start the bot to register.`);
       } else {
@@ -131,11 +126,7 @@ export async function commandPay(ctx: BotContext) {
       }
     }
     
-    logger.info("Recipient resolved", { 
-      payeeHandle, 
-      resolvedId: resolvedPayee.id, 
-      resolvedPlatform: resolvedPayee.platform 
-    });
+    logger.info("Recipient resolved");
 
     // Get full user details with wallets
     const payee = await prisma.user.findUnique({

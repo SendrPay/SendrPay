@@ -497,7 +497,7 @@ This code expires in 10 minutes. After linking, you'll have one shared wallet ac
         console.log(`[BALANCE DEBUG] Wallet found - proceeding with balance check`);
 
         // Get balances directly using the Discord-compatible method
-        const { getBalances } = await import("../core/balances");
+        const { getBalances } = await import("../core/shared");
         const balances = await getBalances(user.id);
         
         let balanceText = "💰 **Your Wallet Balance**\n\n";

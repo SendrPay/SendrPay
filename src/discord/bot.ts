@@ -618,41 +618,48 @@ https://faucet.solana.com
         // Defer the interaction to prevent timeout
         await i.deferReply({ ephemeral: true });
 
-        try {
-          // Use the modern cross-platform payment system
-          const { commandPay } = await import("../commands/pay.js");
-          
-          // Create a compatible context for the payment command
-          const paymentCtx = {
-            message: {
-              text: `/pay ${targetStr} ${amount} ${token}${note ? ` ${note}` : ""}`,
-              from: { id: me.id }
-            },
-            from: { id: i.user.id, username: "discord_context" },
-            reply: async (content: any) => {
-              const text = typeof content === 'string' ? content : content.content;
-              await i.editReply({ content: text });
-            },
-            chat: { type: "private" }
-          };
-
-          await commandPay(paymentCtx as any);
-        } catch (error) {
-          console.error("Error processing payment:", error);
-          if (!i.replied && !i.deferred) {
-            await i.reply({ ephemeral: true, content: "❌ Payment failed. Please try again." });
-          } else {
-            await i.editReply({ content: "❌ Payment failed. Please try again." });
+        // Use simple payment system from shared module
+        const { sendPayment, getUserIdByPlatformId } = await import("../core/shared");
+        
+        // Parse target - handle @username or platform:username
+        let targetUserId: number | null = null;
+        let targetUsername = targetStr.replace('@', '');
+        
+        console.log(`🔍 Searching for ${targetUsername} on telegram`);
+        
+        // First try telegram (most common cross-platform scenario)
+        targetUserId = await getUserIdByPlatformId("telegram", targetUsername);
+        if (targetUserId) {
+          console.log(`Telegram search result: Found user ${targetUserId}`);
+        } else {
+          // Try discord
+          targetUserId = await getUserIdByPlatformId("discord", targetUsername);
+          if (targetUserId) {
+            console.log(`Discord search result: Found user ${targetUserId}`);
           }
         }
+        
+        if (!targetUserId) {
+          await i.editReply({ content: `❌ User @${targetUsername} not found on any linked platform.` });
+          return;
+        }
+
+        // Send payment
+        const result = await sendPayment({
+          fromUserId: me.id,
+          toUserId: targetUserId,
+          amount,
+          token,
+          note
+        });
+
+        await i.editReply({ 
+          content: `✅ Payment sent!\n**Amount:** ${amount} ${token}\n**To:** @${targetUsername}\n**Transaction:** ${result.tx}${note ? `\n**Note:** ${note}` : ''}` 
+        });
+
       } catch (error) {
         console.error("Error processing payment:", error);
-        if (!i.replied && !i.deferred) {
-          await i.reply({
-            ephemeral: true,
-            content: "❌ Could not process your payment."
-          });
-        }
+        await i.editReply({ content: `❌ Payment failed: ${error.message}` });
       }
     }
   } catch (error) {

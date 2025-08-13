@@ -342,30 +342,20 @@ Examples:
     }
 
     if (i.commandName === "start") {
-      console.log(`[DEBUG] Discord /start command for user: ${i.user.id} (${i.user.username})`);
       try {
         const user = await getOrCreateUserByDiscordId(i.user.id, i.user.username);
-        console.log(`[DEBUG] User data:`, { 
-          id: user.id, 
-          discordId: user.discordId, 
-          walletsArray: user.wallets,
-          walletsLength: user.wallets?.length || 0 
-        });
         
         // Check if user already has a wallet using the wallets from the user query
         let existingWallet = user.wallets && user.wallets.length > 0 ? user.wallets[0] : null;
-        console.log(`[DEBUG] Wallet from user.wallets:`, existingWallet);
         
         // Double-check with direct query if not found in user.wallets
         if (!existingWallet) {
-          console.log(`[DEBUG] No wallet in user.wallets, checking direct query...`);
           existingWallet = await prisma.wallet.findFirst({
             where: { 
               userId: user.id,
               isActive: true 
             }
           });
-          console.log(`[DEBUG] Wallet from direct query:`, existingWallet);
         }
 
         if (existingWallet) {
@@ -480,28 +470,46 @@ This code expires in 10 minutes. After linking, you'll have one shared wallet ac
     if (i.commandName === "balance") {
       try {
         const user = await getOrCreateUserByDiscordId(i.user.id, i.user.username);
-        const { commandBalance } = await import("../commands/balance");
         
-        // Create compatible context for balance command
-        const balanceCtx = {
-          from: { id: i.user.id, username: "discord_context" },
-          reply: async (content: any, options?: any) => {
-            const text = typeof content === 'string' ? content : content.content;
-            // Convert Telegram markup to Discord format and remove inline keyboards
-            const discordText = text
-              .replace(/\*\*(.*?)\*\*/g, '**$1**')
-              .replace(/`([^`]+)`/g, '`$1`');
-            
-            await i.reply({ content: discordText, ephemeral: true });
-          },
-          chat: { type: "private" }
-        };
+        // Check if user has a wallet using the same logic as /start
+        let existingWallet = user.wallets && user.wallets.length > 0 ? user.wallets[0] : null;
+        if (!existingWallet) {
+          existingWallet = await prisma.wallet.findFirst({
+            where: { 
+              userId: user.id,
+              isActive: true 
+            }
+          });
+        }
 
-        await commandBalance(balanceCtx as any);
+        if (!existingWallet) {
+          return i.reply({
+            content: "❌ You need to create a wallet first. Use /start to set up your wallet.",
+            ephemeral: true
+          });
+        }
+
+        // Get balances directly using the Discord-compatible method
+        const { getBalances } = await import("../core/balances");
+        const balances = await getBalances(user.id);
+        
+        let balanceText = "💰 **Your Wallet Balance**\n\n";
+        
+        if (!balances || Object.keys(balances).length === 0) {
+          balanceText += "No tokens found. Use `/deposit` to add funds.\n\n";
+        } else {
+          for (const [symbol, balance] of Object.entries(balances)) {
+            balanceText += `• **${symbol}**: ${balance}\n`;
+          }
+        }
+        
+        balanceText += `\nWallet: \`${existingWallet.address}\``;
+        
+        await i.reply({ content: balanceText, ephemeral: true });
       } catch (error) {
         console.error("Error getting balance:", error);
         await i.reply({ 
-          content: "❌ Could not retrieve your wallet balance. Use /start to set up your wallet first.", 
+          content: "❌ Could not retrieve your wallet balance. Please try again.", 
           ephemeral: true 
         });
       }
@@ -510,29 +518,62 @@ This code expires in 10 minutes. After linking, you'll have one shared wallet ac
     if (i.commandName === "deposit") {
       try {
         const user = await getOrCreateUserByDiscordId(i.user.id, i.user.username);
-        const { commandDeposit } = await import("../commands/deposit");
         
-        // Create compatible context for deposit command
-        const depositCtx = {
-          from: { id: i.user.id, username: "discord_context" },
-          reply: async (content: any, options?: any) => {
-            const text = typeof content === 'string' ? content : content.content;
-            // Convert Telegram markup to Discord format
-            const discordText = text
-              .replace(/\*\*(.*?)\*\*/g, '**$1**')
-              .replace(/`([^`]+)`/g, '`$1`');
-            
-            await i.reply({ content: discordText, ephemeral: true });
-          },
-          chat: { type: "private" }
-        };
+        // Check if user has a wallet using the same logic as /start
+        let existingWallet = user.wallets && user.wallets.length > 0 ? user.wallets[0] : null;
+        if (!existingWallet) {
+          existingWallet = await prisma.wallet.findFirst({
+            where: { 
+              userId: user.id,
+              isActive: true 
+            }
+          });
+        }
 
-        await commandDeposit(depositCtx as any);
+        if (!existingWallet) {
+          return i.reply({
+            content: "❌ You need to create a wallet first. Use /start to set up your wallet.",
+            ephemeral: true
+          });
+        }
+
+        const walletAddress = existingWallet.address;
+        const shortAddress = `${walletAddress.slice(0, 6)}...${walletAddress.slice(-6)}`;
+        
+        const depositMessage = `📥 **Deposit Address**
+
+**Send any supported token to this address:**
+\`${walletAddress}\`
+
+**Supported Tokens:**
+• SOL (Solana)
+• USDC (USD Coin)  
+• BONK (Bonk)
+• JUP (Jupiter)
+
+**Important Notes:**
+⚠️ Only send tokens on Solana devnet
+⚠️ Do not send mainnet tokens - they will be lost
+⚠️ Ensure you're using the correct network
+
+**How to Send:**
+1. Copy the address above
+2. Use any Solana wallet (Phantom, Solflare, etc.)
+3. Send tokens to this address
+4. Check \`/balance\` to see your funds
+
+**Need Test Tokens?**
+Visit Solana Faucet for free devnet SOL:
+https://faucet.solana.com
+
+*Your wallet: ${shortAddress}*`;
+
+        await i.reply({ content: depositMessage, ephemeral: true });
       } catch (error) {
         console.error("Error getting deposit address:", error);
         await i.reply({
           ephemeral: true,
-          content: "❌ Could not retrieve your deposit address. Use /start to set up your wallet first."
+          content: "❌ Could not retrieve your deposit address. Please try again."
         });
       }
     }

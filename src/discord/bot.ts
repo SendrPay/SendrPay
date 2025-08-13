@@ -639,7 +639,15 @@ https://faucet.solana.com
 
       } catch (error) {
         console.error("Error processing payment:", error);
-        await i.editReply({ content: `❌ Payment failed: ${error.message}` });
+        try {
+          if (i.deferred && !i.replied) {
+            await i.editReply({ content: `❌ Payment failed: ${error.message}` });
+          } else if (!i.replied && !i.deferred) {
+            await i.reply({ ephemeral: true, content: `❌ Payment failed: ${error.message}` });
+          }
+        } catch (replyError) {
+          console.error("Failed to send error reply:", replyError);
+        }
       }
     }
   } catch (error) {

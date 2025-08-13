@@ -75,21 +75,34 @@ export async function commandPay(ctx: BotContext) {
     // Determine current platform - check if this is from Discord via context indicator
     const currentPlatform = ctx.from?.username === "discord_context" ? "discord" : "telegram";
     
-    const payer = currentPlatform === "discord" 
-      ? await prisma.user.findUnique({
-          where: { discordId: payerId },
-          include: { wallets: { where: { isActive: true } } }
-        })
-      : await prisma.user.findUnique({
-          where: { telegramId: payerId },
-          include: { wallets: { where: { isActive: true } } }
-        });
+    let payer;
+    if (currentPlatform === "discord") {
+      // Use the same robust user detection as balance command
+      const { getOrCreateUserByDiscordId } = await import("../core/shared");
+      payer = await getOrCreateUserByDiscordId(payerId);
+    } else {
+      payer = await prisma.user.findUnique({
+        where: { telegramId: payerId },
+        include: { wallets: { where: { isActive: true } } }
+      });
+    }
 
-    if (!payer || !payer.wallets[0]) {
+    // Enhanced wallet detection for Discord users (same as balance command)
+    let payerWallet = payer?.wallets && payer.wallets.length > 0 ? payer.wallets[0] : null;
+    if (!payerWallet && currentPlatform === "discord") {
+      payerWallet = await prisma.wallet.findFirst({
+        where: { 
+          userId: payer?.id,
+          isActive: true 
+        }
+      });
+    }
+
+    if (!payer || !payerWallet) {
       return ctx.reply("❌ Create wallet first: DM me with \`/start\`", { parse_mode: "Markdown" });
     }
 
-    const payerWallet = payer.wallets[0];
+    // payerWallet is already defined above with enhanced detection
 
     // Calculate fees with flexible service fee system
     const feeCalc = await calculateFee(amountRaw, token.mint);

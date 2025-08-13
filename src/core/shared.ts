@@ -32,9 +32,16 @@ async function createWallet(userId: number, label: string) {
 }
 
 export async function getOrCreateUserByDiscordId(discordId: string, discordUsername?: string) {
+  console.log(`[DEBUG] getOrCreateUserByDiscordId called for: ${discordId} (${discordUsername})`);
   let user = await prisma.user.findUnique({
     where: { discordId },
     include: { wallets: { where: { isActive: true } } }
+  });
+  console.log(`[DEBUG] Initial user query result:`, { 
+    found: !!user, 
+    userId: user?.id, 
+    walletsCount: user?.wallets?.length || 0,
+    wallets: user?.wallets 
   });
 
   if (!user) {

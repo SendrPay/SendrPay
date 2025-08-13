@@ -468,26 +468,33 @@ This code expires in 10 minutes. After linking, you'll have one shared wallet ac
     }
 
     if (i.commandName === "balance") {
+      console.log(`[BALANCE DEBUG] Command triggered for user: ${i.user.id}`);
       try {
         const user = await getOrCreateUserByDiscordId(i.user.id, i.user.username);
+        console.log(`[BALANCE DEBUG] User retrieved:`, { id: user.id, walletsLength: user.wallets?.length });
         
         // Check if user has a wallet using the same logic as /start
         let existingWallet = user.wallets && user.wallets.length > 0 ? user.wallets[0] : null;
+        console.log(`[BALANCE DEBUG] Initial wallet check:`, !!existingWallet);
         if (!existingWallet) {
+          console.log(`[BALANCE DEBUG] No wallet in user.wallets, checking direct query...`);
           existingWallet = await prisma.wallet.findFirst({
             where: { 
               userId: user.id,
               isActive: true 
             }
           });
+          console.log(`[BALANCE DEBUG] Direct query result:`, !!existingWallet);
         }
 
         if (!existingWallet) {
+          console.log(`[BALANCE DEBUG] No wallet found - sending error message`);
           return i.reply({
             content: "❌ You need to create a wallet first. Use /start to set up your wallet.",
             ephemeral: true
           });
         }
+        console.log(`[BALANCE DEBUG] Wallet found - proceeding with balance check`);
 
         // Get balances directly using the Discord-compatible method
         const { getBalances } = await import("../core/balances");

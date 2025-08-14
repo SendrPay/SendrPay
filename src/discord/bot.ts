@@ -242,6 +242,145 @@ This code expires in 10 minutes. After linking, you'll have one shared wallet ac
         }
       }
       
+      // Handle confirm_pay_ buttons from /pay command
+      if (i.customId.startsWith("confirm_pay_")) {
+        try {
+          await i.deferUpdate();
+          
+          const paymentId = i.customId.replace("confirm_pay_", "");
+          const { getPendingPayment, removePendingPayment } = await import("./payment-storage");
+          const pendingPayment = getPendingPayment(paymentId);
+          
+          if (!pendingPayment) {
+            await i.editReply({
+              content: "❌ Payment session expired. Please use /pay command again.",
+              embeds: [],
+              components: []
+            });
+            return;
+          }
+          
+          // Get sender and recipient details
+          const payer = await prisma.user.findUnique({
+            where: { discordId: pendingPayment.userId },
+            include: { wallets: { where: { isActive: true } } }
+          });
+          
+          const payee = await prisma.user.findUnique({
+            where: { id: pendingPayment.resolvedPayeeId },
+            include: { wallets: { where: { isActive: true } } }
+          });
+          
+          if (!payer || !payer.wallets[0] || !payee || !payee.wallets[0]) {
+            await i.editReply({
+              content: "❌ Wallet error. Please ensure both users have active wallets.",
+              embeds: [],
+              components: []
+            });
+            removePendingPayment(paymentId);
+            return;
+          }
+          
+          // Resolve token and calculate amounts
+          const { resolveToken } = await import("../core/tokens");
+          const token = await resolveToken(pendingPayment.token);
+          if (!token) {
+            await i.editReply({
+              content: `❌ Unknown token: ${pendingPayment.token}`,
+              embeds: [],
+              components: []
+            });
+            removePendingPayment(paymentId);
+            return;
+          }
+          
+          const amountRaw = BigInt(Math.floor(pendingPayment.amount * (10 ** token.decimals)));
+          const { calculateFee } = await import("../core/fees");
+          const feeCalc = await calculateFee(amountRaw, token.mint);
+          
+          // Execute the actual transfer
+          const { executeTransfer } = await import("../core/transfer");
+          const transferResult = await executeTransfer({
+            fromWallet: payer.wallets[0],
+            toAddress: payee.wallets[0].address,
+            mint: token.mint,
+            amountRaw,
+            feeRaw: feeCalc.feeRaw,
+            serviceFeeRaw: feeCalc.serviceFeeRaw,
+            serviceFeeToken: feeCalc.serviceFeeToken,
+            token,
+            note: pendingPayment.note,
+            type: "payment"
+          });
+          
+          if (transferResult.success) {
+            // Create payment record
+            await prisma.payment.create({
+              data: {
+                id: require("uuid").v4(),
+                clientIntentId: require("uuid").v4(),
+                fromUserId: payer.id,
+                toUserId: payee.id,
+                fromWallet: payer.wallets[0].address,
+                toWallet: payee.wallets[0].address,
+                mint: token.mint,
+                amountRaw: amountRaw.toString(),
+                feeRaw: feeCalc.feeRaw.toString(),
+                note: pendingPayment.note,
+                status: "sent",
+                txSig: transferResult.signature
+              }
+            });
+            
+            // Show platform info if cross-platform payment
+            let platformInfo = "";
+            if (pendingPayment.targetPlatform && pendingPayment.targetPlatform !== "discord") {
+              platformInfo = ` (${pendingPayment.targetPlatform} user)`;
+            }
+            
+            const explorerLink = `https://solscan.io/tx/${transferResult.signature}?cluster=devnet`;
+            
+            await i.editReply({
+              content: `✅ **Payment Sent Successfully!**
+              
+**Recipient:** @${pendingPayment.targetHandle}${platformInfo}
+**Amount:** ${pendingPayment.amount} ${token.ticker}
+**Transaction:** [View on Explorer](${explorerLink})
+
+Payment completed!`,
+              embeds: [],
+              components: []
+            });
+            
+          } else {
+            await i.editReply({
+              content: `❌ **Payment Failed**
+              
+${transferResult.error || "Unknown error occurred"}
+
+Please check your balance and try again.`,
+              embeds: [],
+              components: []
+            });
+          }
+          
+          removePendingPayment(paymentId);
+          
+        } catch (error) {
+          console.error("Error handling payment confirmation:", error);
+          try {
+            await i.editReply({
+              content: "❌ Payment failed. Please try again.",
+              embeds: [],
+              components: []
+            });
+          } catch (editError) {
+            console.error("Failed to edit reply:", editError);
+          }
+        }
+        return;
+      }
+
       if (i.customId.startsWith("pay:yes:")) {
         const [, , target, amount, token] = i.customId.split(":");
         const me = await getOrCreateUserByDiscordId(i.user.id);
@@ -258,6 +397,10 @@ This code expires in 10 minutes. After linking, you'll have one shared wallet ac
           content: `✅ Sent ${amount} ${token} to ${target}\nTx: ${tx.tx}`, 
           components: [] 
         });
+      }
+
+      if (i.customId === "cancel_pay") {
+        return void i.update({ content: "❌ Payment cancelled.", components: [] });
       }
       
       if (i.customId === "pay:no") {

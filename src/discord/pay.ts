@@ -107,6 +107,21 @@ export async function handleDiscordPay(interaction: ChatInputCommandInteraction)
       platformInfo = ` (${targetPlatform} user)`;
     }
 
+    // Store payment data for confirmation
+    const { storePendingPayment } = await import("./payment-storage");
+    const paymentId = `${interaction.user.id}_${Date.now()}`;
+    
+    storePendingPayment(paymentId, {
+      userId: interaction.user.id,
+      targetHandle,
+      targetPlatform,
+      amount,
+      token: token.ticker,
+      note: note || undefined,
+      resolvedPayeeId: resolvedPayee.id,
+      timestamp: Date.now()
+    });
+
     // Create confirmation embed
     const embed = new EmbedBuilder()
       .setTitle("💸 Payment Confirmation")
@@ -134,7 +149,7 @@ export async function handleDiscordPay(interaction: ChatInputCommandInteraction)
               type: 2,
               style: 3,
               label: "Confirm Payment",
-              custom_id: `confirm_pay_${interaction.user.id}_${Date.now()}`
+              custom_id: `confirm_pay_${paymentId}`
             },
             {
               type: 2,
@@ -146,10 +161,6 @@ export async function handleDiscordPay(interaction: ChatInputCommandInteraction)
         }
       ]
     });
-
-    // Store payment data for confirmation
-    // In a real implementation, you'd store this temporarily in Redis or database
-    // For now, we'll use the custom_id to encode basic info
 
   } catch (error) {
     logger.error("Discord pay error", { error: error.message } as any);

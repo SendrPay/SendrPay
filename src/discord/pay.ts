@@ -200,15 +200,20 @@ export async function handleDiscordPay(interaction: ChatInputCommandInteraction)
   } catch (error) {
     console.error("💥 DISCORD PAY ERROR:", error);
     logger.error("Discord pay error", { error: error.message } as any);
-    if (interaction.deferred) {
-      await interaction.editReply({
-        content: "❌ Payment failed. Please try again."
-      });
-    } else {
-      await interaction.reply({
-        content: "❌ Payment failed. Please try again.",
-        ephemeral: true
-      });
+    
+    try {
+      if (interaction.deferred && !interaction.replied) {
+        await interaction.editReply({
+          content: `❌ Payment failed: ${error.message}`
+        });
+      } else if (!interaction.replied && !interaction.deferred) {
+        await interaction.reply({
+          content: `❌ Payment failed: ${error.message}`,
+          ephemeral: true
+        });
+      }
+    } catch (replyError) {
+      console.error("❌ Failed to send error reply:", replyError.message);
     }
   }
 }

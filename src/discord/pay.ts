@@ -18,8 +18,8 @@ export async function handleDiscordPay(interaction: ChatInputCommandInteraction)
     
     await interaction.deferReply({ ephemeral: true });
 
-    const targetUser = interaction.options.getString("user", true);
-    const amount = interaction.options.getNumber("amount", true);
+    const targetUser = interaction.options.getString("target", true);
+    const amount = parseFloat(interaction.options.getString("amount", true));
     const tokenTicker = interaction.options.getString("token") || "USDC";
     const note = interaction.options.getString("note");
     

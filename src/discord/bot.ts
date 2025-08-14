@@ -244,14 +244,23 @@ This code expires in 10 minutes. After linking, you'll have one shared wallet ac
       
       // Handle confirm_pay_ buttons from /pay command
       if (i.customId.startsWith("confirm_pay_")) {
+        console.log("🔥 PAYMENT CONFIRMATION BUTTON CLICKED");
+        console.log("Custom ID:", i.customId);
+        console.log("User:", i.user.username);
+        
         try {
           await i.deferUpdate();
+          console.log("✅ Interaction deferred");
           
           const paymentId = i.customId.replace("confirm_pay_", "");
+          console.log("Payment ID extracted:", paymentId);
+          
           const { getPendingPayment, removePendingPayment } = await import("./payment-storage");
           const pendingPayment = getPendingPayment(paymentId);
+          console.log("Pending payment found:", !!pendingPayment);
           
           if (!pendingPayment) {
+            console.log("❌ No pending payment found for ID:", paymentId);
             await i.editReply({
               content: "❌ Payment session expired. Please use /pay command again.",
               embeds: [],
@@ -259,17 +268,22 @@ This code expires in 10 minutes. After linking, you'll have one shared wallet ac
             });
             return;
           }
+          console.log("✅ Pending payment retrieved:", JSON.stringify(pendingPayment, null, 2));
           
           // Get sender and recipient details
+          console.log("👤 Fetching payer details for Discord ID:", pendingPayment.userId);
           const payer = await prisma.user.findUnique({
             where: { discordId: pendingPayment.userId },
             include: { wallets: { where: { isActive: true } } }
           });
+          console.log("Payer found:", !!payer, "Has wallet:", !!payer?.wallets[0]);
           
+          console.log("👥 Fetching payee details for ID:", pendingPayment.resolvedPayeeId);
           const payee = await prisma.user.findUnique({
             where: { id: pendingPayment.resolvedPayeeId },
             include: { wallets: { where: { isActive: true } } }
           });
+          console.log("Payee found:", !!payee, "Has wallet:", !!payee?.wallets[0]);
           
           if (!payer || !payer.wallets[0] || !payee || !payee.wallets[0]) {
             await i.editReply({
@@ -299,6 +313,16 @@ This code expires in 10 minutes. After linking, you'll have one shared wallet ac
           const feeCalc = await calculateFee(amountRaw, token.mint);
           
           // Execute the actual transfer
+          console.log("🚀 EXECUTING BLOCKCHAIN TRANSFER");
+          console.log("Transfer params:", {
+            fromWallet: payer.wallets[0].address.slice(0, 8) + "...",
+            toWallet: payee.wallets[0].address.slice(0, 8) + "...",
+            mint: token.mint,
+            amountRaw: amountRaw.toString(),
+            feeRaw: feeCalc.feeRaw.toString(),
+            serviceFeeRaw: feeCalc.serviceFeeRaw.toString()
+          });
+          
           const { executeTransfer } = await import("../core/transfer");
           const transferResult = await executeTransfer({
             fromWallet: payer.wallets[0],
@@ -311,6 +335,12 @@ This code expires in 10 minutes. After linking, you'll have one shared wallet ac
             token,
             note: pendingPayment.note,
             type: "payment"
+          });
+          
+          console.log("🎯 Transfer result:", {
+            success: transferResult.success,
+            signature: transferResult.signature,
+            error: transferResult.error
           });
           
           if (transferResult.success) {
@@ -367,7 +397,8 @@ Please check your balance and try again.`,
           removePendingPayment(paymentId);
           
         } catch (error) {
-          console.error("Error handling payment confirmation:", error);
+          console.error("💥 PAYMENT CONFIRMATION ERROR:", error);
+          console.error("Error stack:", error instanceof Error ? error.stack : error);
           try {
             await i.editReply({
               content: "❌ Payment failed. Please try again.",

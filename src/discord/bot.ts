@@ -782,47 +782,10 @@ https://faucet.solana.com
     }
 
     if (i.commandName === "pay") {
-      try {
-        const me = await getOrCreateUserByDiscordId(i.user.id, i.user.username);
-        const targetStr = i.options.getString("target", true);
-        const amount = i.options.getString("amount", true);
-        const token = i.options.getString("token", true);
-        const note = i.options.getString("note") || "";
-
-        // Defer the interaction to prevent timeout
-        await i.deferReply({ ephemeral: true });
-
-        // Use the original cross-platform payment system
-        const { commandPay } = await import("../commands/pay.js");
-        
-        // Create a compatible context for the payment command
-        const paymentCtx = {
-          message: {
-            text: `/pay ${targetStr} ${amount} ${token}${note ? ` ${note}` : ""}`,
-            from: { id: parseInt(i.user.id) }
-          },
-          from: { id: parseInt(i.user.id), username: "discord_context" },
-          reply: async (content: any) => {
-            const text = typeof content === 'string' ? content : content.content;
-            await i.editReply({ content: text });
-          },
-          chat: { type: "private" }
-        };
-
-        await commandPay(paymentCtx as any);
-
-      } catch (error) {
-        console.error("Error processing payment:", error);
-        try {
-          if (i.deferred && !i.replied) {
-            await i.editReply({ content: `❌ Payment failed: ${error.message}` });
-          } else if (!i.replied && !i.deferred) {
-            await i.reply({ ephemeral: true, content: `❌ Payment failed: ${error.message}` });
-          }
-        } catch (replyError) {
-          console.error("Failed to send error reply:", replyError);
-        }
-      }
+      console.log("🎯 DISCORD PAY COMMAND - Using new Discord handler");
+      const { handleDiscordPay } = await import("./pay");
+      await handleDiscordPay(i);
+      return;
     }
   } catch (error) {
     console.error("Error handling interaction:", error);

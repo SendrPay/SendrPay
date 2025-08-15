@@ -11,12 +11,13 @@ import { generateClientIntentId } from "../core/idempotency";
 const prisma = new PrismaClient();
 
 export async function handleDiscordPay(interaction: ChatInputCommandInteraction) {
+  // Immediately defer the reply to prevent Discord timeout
+  await interaction.deferReply({ ephemeral: true });
+  
   try {
     console.log("🚀 Discord Pay Command Started");
     console.log("User:", interaction.user.username);
     console.log("Guild:", interaction.guild?.name || "DM");
-    
-    await interaction.deferReply({ ephemeral: true });
 
     const targetUser = interaction.options.getString("target", true);
     const amount = parseFloat(interaction.options.getString("amount", true));
@@ -202,16 +203,9 @@ export async function handleDiscordPay(interaction: ChatInputCommandInteraction)
     logger.error("Discord pay error", { error: error.message } as any);
     
     try {
-      if (interaction.deferred && !interaction.replied) {
-        await interaction.editReply({
-          content: `❌ Payment failed: ${error.message}`
-        });
-      } else if (!interaction.replied && !interaction.deferred) {
-        await interaction.reply({
-          content: `❌ Payment failed: ${error.message}`,
-          ephemeral: true
-        });
-      }
+      await interaction.editReply({
+        content: `❌ Payment failed: ${error.message}`
+      });
     } catch (replyError) {
       console.error("❌ Failed to send error reply:", replyError.message);
     }

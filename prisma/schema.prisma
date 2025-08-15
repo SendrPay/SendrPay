@@ -15,6 +15,7 @@ model User {
   telegramId     String?   @unique
   discordId      String?   @unique
   handle         String?
+  email          String?   @unique
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   activeWalletId Int?
@@ -25,6 +26,9 @@ model User {
   paymentsTo      Payment[] @relation("ToUser")
   giveawayEntries GiveawayEntry[]
   linkCodes       LinkCode[]
+  socialLinks     SocialLink[]
+  sessions        Session[]
+  oauthAccounts   OAuthAccount[]
 
   @@map("users")
 }
@@ -273,6 +277,63 @@ model PendingThankYou {
   @@index([recipientTelegramId])
   @@index([signature])
   @@map("pending_thank_yous")
+}
+
+model SocialLink {
+  id         Int     @id @default(autoincrement())
+  platform   String  // "telegram" | "discord" | "twitter"
+  platformId String  // tg user id / discord snowflake / twitter user id
+  handle     String?
+  userId     Int
+  user       User    @relation(fields: [userId], references: [id])
+  createdAt  DateTime @default(now())
+  
+  @@unique([platform, platformId])
+  @@index([userId])
+  @@map("social_links")
+}
+
+model OAuthAccount {
+  id           Int      @id @default(autoincrement())
+  provider     String   // "discord" | "twitter"
+  providerId   String   // discord user id / twitter id
+  accessToken  String?
+  refreshToken String?
+  expiresAt    DateTime?
+  userId       Int
+  user         User     @relation(fields: [userId], references: [id])
+  createdAt    DateTime @default(now())
+  
+  @@unique([provider, providerId])
+  @@index([userId])
+  @@map("oauth_accounts")
+}
+
+model MagicCode {
+  id        String   @id @default(cuid())
+  userId    Int?
+  email     String?
+  code      String
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  
+  @@index([code])
+  @@index([email])
+  @@index([expiresAt])
+  @@map("magic_codes")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
 }
 
 

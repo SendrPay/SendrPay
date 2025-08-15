@@ -254,7 +254,18 @@ export async function handlePaymentConfirmation(ctx: BotContext, confirmed: bool
 
     // ANTI-GRIEFING: Only the payment sender can confirm/cancel transactions
     const currentUserId = ctx.from?.id.toString();
-    if (!currentUserId || payment.from?.telegramId !== currentUserId) {
+    const currentPlatform = ctx.from?.username === "discord_context" ? "discord" : "telegram";
+    
+    // Check authorization based on current platform
+    let isAuthorized = false;
+    if (currentPlatform === "telegram" && payment.from?.telegramId === currentUserId) {
+      isAuthorized = true;
+    } else if (currentPlatform === "discord" && payment.from?.discordId === currentUserId) {
+      isAuthorized = true;
+    }
+    
+    if (!currentUserId || !isAuthorized) {
+      console.log(`Payment authorization failed: currentUserId=${currentUserId}, currentPlatform=${currentPlatform}, payment.from.telegramId=${payment.from?.telegramId}, payment.from.discordId=${payment.from?.discordId}`);
       return ctx.answerCallbackQuery({
         text: "❌ Only the payment sender can confirm this transaction.",
         show_alert: true

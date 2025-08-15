@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import { app } from './server';
 
-const PORT = parseInt(process.env.PORT || '5001', 10); // Use 5001 to avoid conflict with existing bot
+const PORT = parseInt(process.env.PORT || '5000', 10); // Use port 5000 for main deployment
 
 async function startWebServer() {
   try {

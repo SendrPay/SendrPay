@@ -203,12 +203,12 @@ app.get('/webapp', (req, res) => {
             
             if (user) {
               document.getElementById('userInfo').style.display = 'block';
-              document.getElementById('userDetails').innerHTML = \`
-                <p><strong>Name:</strong> \${user.first_name} \${user.last_name || ''}</p>
-                <p><strong>Username:</strong> @\${user.username || 'Not set'}</p>
-                <p><strong>ID:</strong> \${user.id}</p>
-                <p><strong>Language:</strong> \${user.language_code || 'Not set'}</p>
-              \`;
+              document.getElementById('userDetails').innerHTML = `
+                <p><strong>Name:</strong> ${user.first_name} ${user.last_name || ''}</p>
+                <p><strong>Username:</strong> @${user.username || 'Not set'}</p>
+                <p><strong>ID:</strong> ${user.id}</p>
+                <p><strong>Language:</strong> ${user.language_code || 'Not set'}</p>
+              `;
               document.getElementById('status').innerHTML = '📱 User info displayed!';
             } else {
               document.getElementById('status').innerHTML = '❌ No user data available';
@@ -235,7 +235,7 @@ app.get('/webapp', (req, res) => {
           const platform = tg.platform;
           const version = tg.version;
           document.getElementById('status').innerHTML = 
-            \`✅ Running on \${platform} (WebApp v\${version})\`;
+            `✅ Running on ${platform} (WebApp v${version})`;
         }, 1000);
       </script>
     </body>
@@ -243,58 +243,37 @@ app.get('/webapp', (req, res) => {
   `);
 });
 
-// Mini App main interface (for users opening from Telegram)
+// Root route - redirect to full web app on port 5001
 app.get("/", (req, res) => {
+  // Get the current domain but use port 5001 for the full web app
+  const host = req.get('host');
+  const domain = host ? host.split(':')[0] : 'localhost';
+  const webAppUrl = host?.includes('replit.app') ? 
+    `https://${domain}:5001` : 
+    `http://${domain}:5001`;
+  
+  res.redirect(webAppUrl);
+});
+
+// Admin status dashboard
+app.get("/admin", (req, res) => {
   res.send(`
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <title>SendrPay Wallet</title>
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <script src="https://telegram.org/js/telegram-web-app.js"></script>
-      <style>
-        body { 
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-          margin: 0; padding: 20px; background: var(--tg-theme-bg-color, #f8f9fa);
-          color: var(--tg-theme-text-color, #000);
-        }
-        .container { max-width: 400px; margin: 0 auto; }
-        .btn { 
-          display: block; width: 100%; padding: 15px; margin: 10px 0;
-          border: none; border-radius: 12px; font-size: 16px; font-weight: 600;
-          background: var(--tg-theme-button-color, #0088cc); 
-          color: var(--tg-theme-button-text-color, #fff);
-          cursor: pointer; transition: all 0.2s;
-        }
-        .btn:hover { opacity: 0.9; }
-        .status { 
-          padding: 15px; background: #e3f2fd; border-radius: 8px; 
-          margin: 15px 0; border-left: 4px solid #2196f3;
-        }
-        .user-card {
-          background: #fff; padding: 20px; border-radius: 12px;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin: 15px 0;
-        }
-        h2 { color: var(--tg-theme-text-color, #333); text-align: center; }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <h2>💳 SendrPay Wallet</h2>
-        <div id="status" class="status">🚀 Initializing Telegram Mini App...</div>
-        
-        <button class="btn" onclick="showUserInfo()">👤 Show User Info</button>
-        <button class="btn" onclick="connectWallet()">🔗 Connect to Bot</button>
-        <button class="btn" onclick="openBot()">🤖 Open SendrPay Bot</button>
-        
-        <div id="userInfo" class="user-card" style="display: none;">
-          <h3>📱 Telegram User Info</h3>
-          <div id="userDetails"></div>
-        </div>
-      </div>
-      
-      <script>
-        let tg = window.Telegram.WebApp;
+    <h1>SendrPay - Both Bots Online</h1>
+    <p>Discord: ${discordClient?.isReady() ? '✅ ONLINE' : '❌ OFFLINE'}</p>
+    <p>Telegram: ${telegramBot ? '✅ ONLINE' : '❌ OFFLINE'}</p>
+    <p>Updated: ${new Date().toISOString()}</p>
+    <p><a href="/webapp">🌐 Web App</a></p>
+  `);
+});
+
+app.get("/health", (req, res) => {
+  res.json({ 
+    status: "ok",
+    discord: discordClient?.isReady() || false,
+    telegram: !!telegramBot,
+    timestamp: new Date().toISOString()
+  });
+});
         
         // Initialize Telegram WebApp
         tg.ready();
@@ -331,14 +310,14 @@ app.get("/", (req, res) => {
             
             if (result.success) {
               const user = result.user;
-              document.getElementById('userDetails').innerHTML = \`
-                <p><strong>Welcome:</strong> \${user.firstName} \${user.lastName || ''}</p>
-                <p><strong>Username:</strong> @\${user.username || 'Not set'}</p>
-                \${result.hasWallet ? 
-                  \`<p><strong>Wallet:</strong> \${result.wallet.substring(0, 8)}...\${result.wallet.substring(-8)}</p>\` :
+              document.getElementById('userDetails').innerHTML = `
+                <p><strong>Welcome:</strong> ${user.firstName} ${user.lastName || ''}</p>
+                <p><strong>Username:</strong> @${user.username || 'Not set'}</p>
+                ${result.hasWallet ? 
+                  `<p><strong>Wallet:</strong> ${result.wallet.substring(0, 8)}...${result.wallet.substring(-8)}</p>` :
                   '<p><strong>Status:</strong> No wallet yet - use /start in bot</p>'
                 }
-              \`;
+              `;
               document.getElementById('userInfo').style.display = 'block';
               
               if (result.hasWallet) {

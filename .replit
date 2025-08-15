@@ -19,11 +19,7 @@ args = "Discord Deploy"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "Final Working"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "Web Server"
+args = "Main Server"
 
 [[workflows.workflow]]
 name = "Discord Deploy"
@@ -37,27 +33,16 @@ args = "tsx src/discord/deploy-commands.ts"
 outputType = "console"
 
 [[workflows.workflow]]
-name = "Final Working"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "tsx src/final-working.ts"
-waitForPort = 5000
-
-[workflows.workflow.metadata]
-outputType = "console"
-
-[[workflows.workflow]]
-name = "Web Server"
+name = "Main Server"
 author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "tsx src/web/index.ts"
+waitForPort = 5000
 
 [workflows.workflow.metadata]
-outputType = "console"
+outputType = "webview"
 
 [[ports]]
 localPort = 3000

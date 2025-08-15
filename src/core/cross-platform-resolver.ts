@@ -34,15 +34,16 @@ export async function resolveUserCrossPlatform(
         }
       });
       
-      // If not found and searching for "crumvi", check if this is the linked account for vi100x
-      if (!user && handle.toLowerCase() === "crumvi") {
+      // Handle bidirectional mapping between crumvi and vi100x
+      if (!user && (handle.toLowerCase() === "crumvi" || handle.toLowerCase() === "vi100x")) {
+        // Search for the user with handle "crumvi" (the actual database handle)
         user = await prisma.user.findFirst({
           where: {
-            handle: { equals: "vi100x", mode: 'insensitive' },
+            handle: { equals: "crumvi", mode: 'insensitive' },
             discordId: { not: null }
           }
         });
-        console.log(`Special Discord username resolution for crumvi:`, user ? `Found vi100x user ${user.id}` : "Not found");
+        console.log(`Special Discord username resolution for ${handle}:`, user ? `Found crumvi user ${user.id}` : "Not found");
       }
       
       console.log(`Discord search result:`, user ? `Found user ${user.id}` : "Not found");
@@ -50,7 +51,7 @@ export async function resolveUserCrossPlatform(
       if (user && user.discordId) {
         return {
           id: user.id,
-          handle: handle, // Use the requested handle (crumvi) for display
+          handle: (handle.toLowerCase() === "crumvi" || handle.toLowerCase() === "vi100x") ? handle : user.handle, // Use requested handle for display
           platform: "discord",
           platformId: user.discordId
         };
@@ -141,15 +142,16 @@ export async function resolveUserCrossPlatform(
       }
     });
     
-    // If not found and searching for "crumvi", check if this is the linked account for vi100x
-    if (!user && handle.toLowerCase() === "crumvi") {
+    // Handle bidirectional mapping between crumvi and vi100x
+    if (!user && (handle.toLowerCase() === "crumvi" || handle.toLowerCase() === "vi100x")) {
+      // Search for the user with handle "crumvi" (the actual database handle)
       user = await prisma.user.findFirst({
         where: {
-          handle: { equals: "vi100x", mode: 'insensitive' },
+          handle: { equals: "crumvi", mode: 'insensitive' },
           discordId: { not: null }
         }
       });
-      console.log(`Special Discord username resolution for crumvi in Discord-first search:`, user ? `Found vi100x user ${user.id}` : "Not found");
+      console.log(`Special Discord username resolution for ${handle} in Discord-first search:`, user ? `Found crumvi user ${user.id}` : "Not found");
     }
     
     console.log(`Discord-first search result:`, user ? `Found user ${user.id}` : "Not found");
@@ -157,7 +159,7 @@ export async function resolveUserCrossPlatform(
     if (user && user.discordId) {
       return {
         id: user.id,
-        handle: handle.toLowerCase() === "crumvi" ? "crumvi" : user.handle, // Use requested handle for display
+        handle: (handle.toLowerCase() === "crumvi" || handle.toLowerCase() === "vi100x") ? handle : user.handle, // Use requested handle for display
         platform: "discord",
         platformId: user.discordId
       };

@@ -166,37 +166,6 @@ export async function resolveUserCrossPlatform(
       };
     }
     
-    // Fallback to ANY user with that handle (including Discord-only users if they're linked)
-    user = await prisma.user.findFirst({
-      where: { 
-        handle: { equals: handle, mode: 'insensitive' },
-        OR: [
-          { discordId: { not: null } },
-          { telegramId: { not: null } }
-        ]
-      }
-    });
-    
-    console.log(`Fallback search result:`, user ? `Found user ${user.id} (Discord: ${!!user.discordId}, Telegram: ${!!user.telegramId})` : "Not found");
-    
-    if (user) {
-      // Return the user with their primary platform
-      if (user.telegramId) {
-        return {
-          id: user.id,
-          handle: user.handle,
-          platform: "telegram",
-          platformId: user.telegramId
-        };
-      } else if (user.discordId) {
-        return {
-          id: user.id,
-          handle: user.handle,
-          platform: "discord",
-          platformId: user.discordId
-        };
-      }
-    }
     
   } else if (currentPlatform === "discord") {
     // Search Discord first
@@ -230,37 +199,6 @@ export async function resolveUserCrossPlatform(
       };
     }
     
-    // Fallback to ANY user with that handle
-    user = await prisma.user.findFirst({
-      where: { 
-        handle: { equals: handle, mode: 'insensitive' },
-        OR: [
-          { discordId: { not: null } },
-          { telegramId: { not: null } }
-        ]
-      }
-    });
-    
-    console.log(`Fallback search result:`, user ? `Found user ${user.id} (Discord: ${!!user.discordId}, Telegram: ${!!user.telegramId})` : "Not found");
-    
-    if (user) {
-      // Return the user with their primary platform
-      if (user.discordId) {
-        return {
-          id: user.id,
-          handle: user.handle,
-          platform: "discord",
-          platformId: user.discordId
-        };
-      } else if (user.telegramId) {
-        return {
-          id: user.id,
-          handle: user.handle,
-          platform: "telegram",
-          platformId: user.telegramId
-        };
-      }
-    }
   }
   
   return null;

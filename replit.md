@@ -92,6 +92,13 @@ SendrPay is a production-ready multi-platform bot that facilitates Solana blockc
    - **Solution**: Added fallback logic to search for handle on ANY platform, then verify target platform account exists
    - **Enhancement**: Both `telegram:sendrpay` and `discord:yurty_` now resolve to same linked user
    - **Status**: Cross-platform payments work correctly for users with different platform-specific usernames
+✅ **PLATFORM-SPECIFIC PAYMENT DEFAULTS**: Removed automatic cross-platform fallback (August 15, 2025)
+   - **Issue addressed**: Default payments (`/pay @username`) automatically searched other platforms if user not found
+   - **Privacy concern**: Users could accidentally send payments to other platforms without explicit intent
+   - **Root cause**: Cross-platform resolver had fallback logic for non-prefixed payments
+   - **Solution**: Removed automatic fallback - default payments now stay platform-specific
+   - **New behavior**: `/pay @username` only searches current platform, explicit `discord:` or `telegram:` required for cross-platform
+   - **Status**: Payment targeting is now explicit and platform-specific by default
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.

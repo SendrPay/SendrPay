@@ -1,0 +1,208 @@
+Perfect—let’s lay OAuth groundwork from day 1 (Discord now, Twitter ready when you add keys), while still supporting TG Mini App (initData) and email as backup.
+
+Copy-paste this Replit build prompt into your project:
+
+⸻
+
+Add a unified Web App (same Repl) with OAuth-ready auth.
+Stack: Node + TypeScript + Express + Prisma (Postgres) + Vite.
+Auth methods:
+	•	Telegram Mini App (verify initData)
+	•	Discord OAuth2 (works now, free)
+	•	Twitter OAuth2 (routes scaffolded; enable when keys added)
+	•	Email magic code (fallback)
+
+1) ENV (Secrets)
+
+DATABASE_URL=postgres://...
+SESSION_SECRET=superlongrandomstring
+PUBLIC_URL=https://<your-repl>.repl.co
+
+# Telegram
+TG_BOT_TOKEN=...
+
+# Discord OAuth (works now)
+DISCORD_CLIENT_ID=...
+DISCORD_CLIENT_SECRET=...
+DISCORD_REDIRECT_URI=${PUBLIC_URL}/auth/discord/callback
+
+# Twitter OAuth (groundwork; enable later)
+TW_CLIENT_ID=...
+TW_CLIENT_SECRET=...
+TW_REDIRECT_URI=${PUBLIC_URL}/auth/twitter/callback
+
+# Feature flags
+OAUTH_DISCORD_ENABLED=1
+OAUTH_TWITTER_ENABLED=0
+EMAIL_LOGIN_ENABLED=1
+
+2) Dependencies
+
+pnpm add express express-session cors zod uuid node-fetch dotenv
+pnpm add @prisma/client
+pnpm add -D prisma typescript tsx vite
+
+3) Prisma schema (append)
+
+model User {
+  id             Int         @id @default(autoincrement())
+  email          String?     @unique
+  createdAt      DateTime    @default(now())
+  activeWalletId Int?
+  wallet         Wallet?     @relation(fields: [activeWalletId], references: [id])
+  links          SocialLink[]
+  sessions       Session[]
+  oauth          OAuthAccount[]
+}
+
+model Wallet {
+  id      Int     @id @default(autoincrement())
+  address String  @unique
+  encPriv String
+  user    User?
+}
+
+model SocialLink {
+  id         Int     @id @default(autoincrement())
+  platform   String  // "telegram" | "discord" | "twitter"
+  platformId String  // tg user id / discord snowflake / twitter user id
+  handle     String?
+  userId     Int
+  user       User    @relation(fields: [userId], references: [id])
+  @@unique([platform, platformId])
+}
+
+model OAuthAccount {
+  id           Int      @id @default(autoincrement())
+  provider     String   // "discord" | "twitter"
+  providerId   String   // discord user id / twitter id
+  accessToken  String?
+  refreshToken String?
+  expiresAt    DateTime?
+  userId       Int
+  user         User     @relation(fields: [userId], references: [id])
+  @@unique([provider, providerId])
+}
+
+model MagicCode {
+  id        String   @id
+  userId    Int?
+  email     String?
+  code      String
+  expiresAt DateTime
+  used      Boolean  @default(false)
+}
+
+model Session {
+  id        String   @id
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model Escrow {
+  id          String   @id
+  createdAt   DateTime @default(now())
+  platform    String
+  handle      String
+  token       String
+  amount      String
+  payerUserId Int?
+  payeeUserId Int?
+  status      String   @default("held")
+}
+
+Run:
+
+npx prisma migrate dev
+npx prisma generate
+
+4) File tree
+
+src/web/server.ts            # Express app (sessions, routes)
+src/web/auth.ts              # TG initData verify, email codes, session helpers
+src/web/oauth.ts             # Discord + Twitter OAuth flows (Twitter behind flag)
+src/web/twitterProof.ts      # (optional) proof-tweet fallback (oEmbed)
+src/web/crypto.ts            # AES-GCM encrypt/decrypt for private keys
+src/web/frontend/            # Vite client (Mini App + web)
+
+5) Implement server (high level)
+	•	Sessions: express-session (cookie: httpOnly, sameSite=lax)
+	•	CORS: allow PUBLIC_URL
+	•	Routes:
+	•	GET / → landing (buttons: “Open in Telegram”, “Continue with Discord”, “Continue with Email”, “Continue with Twitter” if enabled)
+	•	POST /auth/tg → verify initData (server-side HMAC using TG_BOT_TOKEN), upsert SocialLink("telegram"), issue session
+	•	Discord OAuth:
+	•	GET /auth/discord/start → redirect to Discord OAuth2 (identify scope)
+	•	GET /auth/discord/callback → exchange code, get user (/users/@me), upsert:
+	•	OAuthAccount(provider="discord", providerId, tokens)
+	•	SocialLink(platform="discord", platformId=discordId, handle=username#discriminator?)
+	•	attach to a User (create if needed), then session
+	•	Twitter OAuth (groundwork; gated by OAUTH_TWITTER_ENABLED):
+	•	GET /auth/twitter/start → redirect to OAuth2
+	•	GET /auth/twitter/callback → exchange code, upsert OAuthAccount + SocialLink(platform="twitter"), set session
+	•	Email fallback:
+	•	POST /auth/email/start → create MagicCode (TTL 10 min) (MVP: return code JSON)
+	•	POST /auth/email/verify → consume code, create/find User, set session
+	•	Wallet:
+	•	GET /dashboard (auth) → address, balances (stub), buttons: Generate Wallet / Import Key / Link Twitter / Copy Tip Link
+	•	POST /wallet/generate → create custodial keypair, encrypt, save
+	•	POST /wallet/import → accept private key, encrypt, save
+	•	Twitter linking page (choose one, both scaffolded):
+	•	OAuth (preferred when enabled): /auth/twitter/start
+	•	Proof-tweet fallback: GET /link/twitter → { nonce, phrase, walletShort }; POST /link/twitter/verify (oEmbed check)
+	•	Claims:
+	•	GET /claim/:id (auth) → release escrow (call your core)
+	•	GET /health → ok
+
+6) OAuth details (copy)
+	•	Discord endpoints
+	•	Auth URL: https://discord.com/api/oauth2/authorize?client_id=<ID>&redirect_uri=<ENCODED_REDIRECT>&response_type=code&scope=identify
+	•	Token URL: https://discord.com/api/oauth2/token
+	•	Me URL: https://discord.com/api/users/@me
+	•	Twitter (OAuth 2.0) placeholders
+	•	Auth URL: https://twitter.com/i/oauth2/authorize
+	•	Token URL: https://api.twitter.com/2/oauth2/token
+	•	Scopes: tweet.read users.read offline.access (adjust as needed)
+	•	Enable only when OAUTH_TWITTER_ENABLED=1
+
+7) Frontend (Vite)
+	•	On load:
+	•	If window.Telegram?.WebApp → Telegram.WebApp.ready(); POST /auth/tg with initData; then show dashboard.
+	•	Else show auth options: Continue with Discord (link to /auth/discord/start), Continue with Email, and Continue with Twitter (if enabled).
+	•	Dashboard components:
+	•	Wallet card (address, copy)
+	•	Balances (stub)
+	•	Buttons: Generate Wallet / Import Key
+	•	Link buttons: “Link Twitter” → if OAuth enabled use /auth/twitter/start, else show proof-tweet flow
+	•	Tip link display: ${PUBLIC_URL}/tip/@{bestHandle} (or /tip/u/{userId})
+
+8) Crypto helpers
+	•	encryptPriv(plain) -> base64(cipher, iv, salt) using AES-GCM
+	•	Key derivation from SESSION_SECRET + per-key salt (PBKDF2 or argon2)
+
+9) Wire to your core
+	•	Import your existing core (sendPayment, getBalances, releaseEscrow, etc.) so the web app never touches chain logic directly—only calls your core.
+
+10) Flags & fallbacks
+	•	OAUTH_DISCORD_ENABLED=1 (true now)
+	•	OAUTH_TWITTER_ENABLED=0 (keep off until you add keys)
+	•	If Twitter OAuth disabled → show proof-tweet verifier (oEmbed) as a temporary linker
+	•	Keep Email login on so non-TG users can still get in
+
+11) Acceptance checklist
+	•	Open via TG → auto session via initData; see dashboard
+	•	Click “Continue with Discord” → OAuth → lands in dashboard with Discord linked
+	•	Email flow works as fallback
+	•	Generate/Import wallet works (encPriv saved)
+	•	(If you toggle Twitter later) OAuth path completes and links SocialLink(“twitter”)
+	•	Claim link releases escrow via your core
+
+⸻
+
+If you want, say “drop the code” and I’ll provide ready-to-paste modules for:
+	•	Discord OAuth (/auth/discord/start|callback)
+	•	Telegram initData verification
+	•	AES-GCM encrypt/decrypt helpers
+	•	(Optional) proof-tweet verifier via oEmbed (as a fallback until Twitter OAuth is live)

@@ -85,6 +85,13 @@ SendrPay is a production-ready multi-platform bot that facilitates Solana blockc
    - **Security**: AES-256-CBC encryption, session management, CORS protection
    - **API endpoints**: Complete auth flows, wallet generation/import, dashboard
    - **Status**: Web server running on port 5001, all basic functionality tested and operational
+✅ **CROSS-PLATFORM USERNAME RESOLUTION**: Fixed platform-specific username targeting (August 15, 2025)
+   - **Issue addressed**: Users with different usernames on different platforms couldn't be targeted correctly
+   - **Example problem**: User has Discord username "yurty_" and Telegram handle "sendrpay" - `discord:sendrpay` failed
+   - **Root cause**: Cross-platform resolver only searched for users with specified handle on target platform
+   - **Solution**: Added fallback logic to search for handle on ANY platform, then verify target platform account exists
+   - **Enhancement**: Both `telegram:sendrpay` and `discord:yurty_` now resolve to same linked user
+   - **Status**: Cross-platform payments work correctly for users with different platform-specific usernames
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.

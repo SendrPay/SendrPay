@@ -56,6 +56,27 @@ export async function resolveUserCrossPlatform(
           platformId: user.discordId
         };
       }
+      
+      // Fallback: Search for user with this handle on ANY platform, then check if they have Discord
+      if (!user) {
+        console.log(`Discord fallback: searching for ${handle} on any platform`);
+        user = await prisma.user.findFirst({
+          where: { 
+            handle: { equals: handle, mode: 'insensitive' }
+          }
+        });
+        
+        if (user && user.discordId) {
+          console.log(`Discord fallback found user ${user.id} with Discord account`);
+          return {
+            id: user.id,
+            handle: handle, // Use the requested handle for display
+            platform: "discord",
+            platformId: user.discordId
+          };
+        }
+        console.log(`Discord fallback: user ${user ? user.id : 'not found'} ${user?.discordId ? 'has' : 'missing'} Discord account`);
+      }
     } else if (targetPlatform === "telegram") {
       let user = await prisma.user.findFirst({
         where: { 
@@ -84,6 +105,27 @@ export async function resolveUserCrossPlatform(
           platform: "telegram",
           platformId: user.telegramId
         };
+      }
+      
+      // Fallback: Search for user with this handle on ANY platform, then check if they have Telegram
+      if (!user) {
+        console.log(`Telegram fallback: searching for ${handle} on any platform`);
+        user = await prisma.user.findFirst({
+          where: { 
+            handle: { equals: handle, mode: 'insensitive' }
+          }
+        });
+        
+        if (user && user.telegramId) {
+          console.log(`Telegram fallback found user ${user.id} with Telegram account`);
+          return {
+            id: user.id,
+            handle: handle, // Use the requested handle for display
+            platform: "telegram",
+            platformId: user.telegramId
+          };
+        }
+        console.log(`Telegram fallback: user ${user ? user.id : 'not found'} ${user?.telegramId ? 'has' : 'missing'} Telegram account`);
       }
     }
     return null;

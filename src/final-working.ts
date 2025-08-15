@@ -4,12 +4,102 @@ import { client as discordClient } from "./discord/bot";
 import express from "express";
 import { heliusWebhook } from "./routes/helius";
 import { env } from "./infra/env";
+import crypto from "crypto";
+import { getOrCreateUserByTelegramId } from "./core/shared";
 
 console.log("🚀 FINAL WORKING VERSION - Starting both bots...");
 
 const app = express();
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true }));
+
+// Telegram initData verification
+function verifyTelegramWebAppData(initData: string, botToken: string): any {
+  try {
+    const urlParams = new URLSearchParams(initData);
+    const hash = urlParams.get('hash');
+    urlParams.delete('hash');
+    
+    // Sort parameters and create data check string
+    const dataCheckString = Array.from(urlParams.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, value]) => `${key}=${value}`)
+      .join('\n');
+    
+    // Create secret key using bot token
+    const secretKey = crypto.createHmac('sha256', 'WebAppData').update(botToken).digest();
+    
+    // Calculate expected hash
+    const expectedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
+    
+    if (hash !== expectedHash) {
+      return null;
+    }
+    
+    // Parse user data
+    const userParam = urlParams.get('user');
+    if (userParam) {
+      return JSON.parse(userParam);
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Telegram auth verification error:', error);
+    return null;
+  }
+}
+
+// Telegram Mini App authentication endpoint
+app.post('/auth/telegram', async (req, res) => {
+  try {
+    const { initData } = req.body;
+    
+    if (!initData) {
+      return res.status(400).json({ success: false, error: 'Missing initData' });
+    }
+    
+    // Verify initData using bot token
+    const user = verifyTelegramWebAppData(initData, env.TELEGRAM_TOKEN);
+    
+    if (!user) {
+      return res.status(401).json({ success: false, error: 'Invalid Telegram data' });
+    }
+    
+    // Get or create user in database
+    const dbUser = await getOrCreateUserByTelegramId(user.id.toString());
+    
+    if (dbUser) {
+      // User exists, return wallet info
+      res.json({
+        success: true,
+        user: {
+          id: user.id,
+          firstName: user.first_name,
+          lastName: user.last_name,
+          username: user.username
+        },
+        wallet: dbUser.wallets?.[0]?.address,
+        hasWallet: !!dbUser.wallets?.[0]
+      });
+    } else {
+      // New user, needs wallet setup
+      res.json({
+        success: true,
+        user: {
+          id: user.id,
+          firstName: user.first_name,
+          lastName: user.last_name,
+          username: user.username
+        },
+        hasWallet: false,
+        needsSetup: true
+      });
+    }
+  } catch (error) {
+    console.error('Telegram auth error:', error);
+    res.status(500).json({ success: false, error: 'Authentication failed' });
+  }
+});
 
 // Telegram Mini App proxy route
 app.get('/miniapp', (req, res) => {
@@ -269,27 +359,62 @@ app.get("/", (req, res) => {
         tg.MainButton.show();
         tg.MainButton.onClick(() => openBot());
         
-        document.getElementById('status').innerHTML = '✅ Telegram Mini App Ready!';
+        // Auto-authenticate user on load
+        authenticateUser();
         
-        function showUserInfo() {
+        async function authenticateUser() {
           try {
             const initData = tg.initData;
-            const user = tg.initDataUnsafe?.user;
             
-            if (user) {
-              document.getElementById('userInfo').style.display = 'block';
+            if (!initData) {
+              document.getElementById('status').innerHTML = '❌ No Telegram authentication data';
+              return;
+            }
+            
+            document.getElementById('status').innerHTML = '🔄 Authenticating...';
+            
+            const response = await fetch('/auth/telegram', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({ initData })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+              const user = result.user;
               document.getElementById('userDetails').innerHTML = \`
-                <p><strong>Name:</strong> \${user.first_name} \${user.last_name || ''}</p>
+                <p><strong>Welcome:</strong> \${user.firstName} \${user.lastName || ''}</p>
                 <p><strong>Username:</strong> @\${user.username || 'Not set'}</p>
-                <p><strong>ID:</strong> \${user.id}</p>
-                <p><strong>Language:</strong> \${user.language_code || 'Not set'}</p>
+                \${result.hasWallet ? 
+                  \`<p><strong>Wallet:</strong> \${result.wallet.substring(0, 8)}...\${result.wallet.substring(-8)}</p>\` :
+                  '<p><strong>Status:</strong> No wallet yet - use /start in bot</p>'
+                }
               \`;
-              document.getElementById('status').innerHTML = '📱 User info displayed!';
+              document.getElementById('userInfo').style.display = 'block';
+              
+              if (result.hasWallet) {
+                document.getElementById('status').innerHTML = '✅ Authenticated! Wallet connected';
+              } else {
+                document.getElementById('status').innerHTML = '✅ Authenticated! Set up wallet with /start';
+              }
             } else {
-              document.getElementById('status').innerHTML = '❌ No user data available';
+              document.getElementById('status').innerHTML = '❌ Authentication failed: ' + result.error;
             }
           } catch (error) {
             document.getElementById('status').innerHTML = '🚨 Error: ' + error.message;
+          }
+        }
+        
+        function showUserInfo() {
+          // Toggle user info display
+          const userInfo = document.getElementById('userInfo');
+          if (userInfo.style.display === 'none') {
+            userInfo.style.display = 'block';
+          } else {
+            userInfo.style.display = 'none';
           }
         }
         
@@ -304,14 +429,6 @@ app.get("/", (req, res) => {
         function openBot() {
           tg.openTelegramLink('https://t.me/SendrPayBot');
         }
-        
-        // Show some basic Telegram data on load
-        setTimeout(() => {
-          const platform = tg.platform;
-          const version = tg.version;
-          document.getElementById('status').innerHTML = 
-            \`✅ Running on \${platform} (WebApp v\${version})\`;
-        }, 1000);
       </script>
     </body>
     </html>

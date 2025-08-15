@@ -74,7 +74,7 @@ async function requireAuth(req: express.Request, res: express.Response, next: ex
 // Routes
 
 /**
- * Landing page
+ * Telegram Mini App optimized landing page
  */
 app.get('/', (req, res) => {
   res.send(`
@@ -111,8 +111,8 @@ app.get('/', (req, res) => {
       </style>
     </head>
     <body>
-      <h1>SendrPay Web</h1>
-      <p>Choose how to sign in:</p>
+      <h1>💳 SendrPay Wallet</h1>
+      <p>Your Solana wallet in Telegram</p>
       
       ${getOAuthConfig('discord').enabled ? 
         `<a href="/auth/discord/start" class="auth-btn discord">Continue with Discord</a>` :

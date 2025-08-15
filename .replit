@@ -67,6 +67,10 @@ externalPort = 3000
 localPort = 5000
 externalPort = 80
 
+[[ports]]
+localPort = 5001
+externalPort = 3001
+
 [deployment]
 deploymentTarget = "gce"
 run = ["sh", "-c", "npx prisma generate && npx prisma db push --skip-generate && npx tsx src/index.ts"]

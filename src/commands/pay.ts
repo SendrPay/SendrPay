@@ -252,6 +252,15 @@ export async function handlePaymentConfirmation(ctx: BotContext, confirmed: bool
       return ctx.reply("❌ Payment already processed.");
     }
 
+    // ANTI-GRIEFING: Only the payment sender can confirm/cancel transactions
+    const currentUserId = ctx.from?.id.toString();
+    if (!currentUserId || payment.from?.telegramId !== currentUserId) {
+      return ctx.answerCallbackQuery({
+        text: "❌ Only the payment sender can confirm this transaction.",
+        show_alert: true
+      });
+    }
+
     if (!confirmed) {
       // Cancel payment
       await prisma.payment.update({

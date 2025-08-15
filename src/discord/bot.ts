@@ -269,6 +269,15 @@ This code expires in 10 minutes. After linking, you'll have one shared wallet ac
             return;
           }
           console.log("✅ Pending payment retrieved:", JSON.stringify(pendingPayment, null, 2));
+
+          // ANTI-GRIEFING: Only the payment sender can confirm/cancel transactions
+          if (pendingPayment.userId !== i.user.id) {
+            await i.reply({
+              content: "❌ Only the payment sender can confirm this transaction.",
+              ephemeral: true
+            });
+            return;
+          }
           
           // Get sender and recipient details
           console.log("👤 Fetching payer details for Discord ID:", pendingPayment.userId);
@@ -430,8 +439,53 @@ Please check your balance and try again.`,
         });
       }
 
-      if (i.customId === "cancel_pay") {
-        return void i.update({ content: "❌ Payment cancelled.", components: [] });
+      if (i.customId.startsWith("cancel_pay_")) {
+        console.log("🔄 PAYMENT CANCEL BUTTON CLICKED");
+        
+        try {
+          await i.deferUpdate();
+          
+          const paymentId = i.customId.replace("cancel_pay_", "");
+          const { getPendingPayment, removePendingPayment } = await import("./payment-storage");
+          const pendingPayment = getPendingPayment(paymentId);
+          
+          if (!pendingPayment) {
+            await i.editReply({
+              content: "❌ Payment session expired.",
+              embeds: [],
+              components: []
+            });
+            return;
+          }
+
+          // ANTI-GRIEFING: Only the payment sender can cancel transactions
+          if (pendingPayment.userId !== i.user.id) {
+            await i.reply({
+              content: "❌ Only the payment sender can cancel this transaction.",
+              ephemeral: true
+            });
+            return;
+          }
+
+          removePendingPayment(paymentId);
+          await i.editReply({
+            content: "❌ Payment cancelled.",
+            embeds: [],
+            components: []
+          });
+        } catch (error) {
+          console.error("Cancel payment error:", error);
+          try {
+            await i.editReply({
+              content: "❌ Error cancelling payment.",
+              embeds: [],
+              components: []
+            });
+          } catch (editError) {
+            console.error("Failed to edit reply:", editError);
+          }
+        }
+        return;
       }
       
       if (i.customId === "pay:no") {

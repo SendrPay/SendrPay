@@ -190,7 +190,7 @@ export async function handleDiscordPay(interaction: ChatInputCommandInteraction)
               type: 2,
               style: 4,
               label: "Cancel",
-              custom_id: "cancel_pay"
+              custom_id: `cancel_pay_${paymentId}`
             }
           ]
         }

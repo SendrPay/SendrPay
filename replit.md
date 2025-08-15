@@ -70,6 +70,13 @@ SendrPay is a production-ready multi-platform bot that facilitates Solana blockc
    - **Solution**: Enhanced function to re-fetch user with wallets after wallet creation, plus improved wallet detection logic
    - **Enhanced checks**: Discord /start command now uses dual wallet detection (user.wallets and direct query)
    - **Status**: Discord users with existing wallets now properly receive welcome-back message instead of setup prompts
+✅ **ANTI-GRIEFING PROTECTION**: Implemented sender-only payment confirmation controls (August 15, 2025)
+   - **Issue addressed**: Other users could confirm/cancel payments in group chats, enabling griefing attacks
+   - **Solution**: Added authorization checks requiring only payment sender can confirm/cancel transactions
+   - **Platforms affected**: Both Discord and Telegram payment/tip confirmation buttons
+   - **Security enhancement**: Prevents unauthorized users from interfering with others' transactions
+   - **User experience**: Clear error messages when unauthorized users attempt to interact with payment buttons
+   - **Status**: Group chat payments now fully protected against griefing while maintaining functionality
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.

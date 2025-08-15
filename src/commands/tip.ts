@@ -310,6 +310,15 @@ export async function handleTipConfirmation(ctx: BotContext, confirmed: boolean)
       return ctx.reply("❌ Tip already processed.");
     }
 
+    // ANTI-GRIEFING: Only the tip sender can confirm/cancel transactions
+    const currentUserId = ctx.from?.id.toString();
+    if (!currentUserId || payment.from?.telegramId !== currentUserId) {
+      return ctx.answerCallbackQuery({
+        text: "❌ Only the tip sender can confirm this transaction.",
+        show_alert: true
+      });
+    }
+
     if (!confirmed) {
       // Cancel tip
       await prisma.payment.update({

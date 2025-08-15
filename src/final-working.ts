@@ -16,9 +16,19 @@ app.use(express.urlencoded({ extended: true }));
 // Telegram initData verification
 function verifyTelegramWebAppData(initData: string, botToken: string): any {
   try {
+    if (!botToken) {
+      console.error('Bot token is missing for Telegram auth verification');
+      return null;
+    }
+    
     const urlParams = new URLSearchParams(initData);
     const hash = urlParams.get('hash');
     urlParams.delete('hash');
+    
+    if (!hash) {
+      console.error('No hash found in initData');
+      return null;
+    }
     
     // Sort parameters and create data check string
     const dataCheckString = Array.from(urlParams.entries())
@@ -33,6 +43,7 @@ function verifyTelegramWebAppData(initData: string, botToken: string): any {
     const expectedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
     
     if (hash !== expectedHash) {
+      console.log('Hash mismatch in Telegram auth verification');
       return null;
     }
     
@@ -58,18 +69,26 @@ app.post('/auth/telegram', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Missing initData' });
     }
     
+    if (!env.BOT_TOKEN) {
+      console.error('BOT_TOKEN is not configured');
+      return res.status(500).json({ success: false, error: 'Server configuration error' });
+    }
+    
     // Verify initData using bot token
-    const user = verifyTelegramWebAppData(initData, env.TELEGRAM_TOKEN);
+    const user = verifyTelegramWebAppData(initData, env.BOT_TOKEN);
     
     if (!user) {
+      console.log('Telegram auth failed - invalid data or verification failed');
       return res.status(401).json({ success: false, error: 'Invalid Telegram data' });
     }
+    
+    console.log(`Telegram auth successful for user: ${user.id} (${user.first_name})`);
     
     // Get or create user in database
     const dbUser = await getOrCreateUserByTelegramId(user.id.toString());
     
-    if (dbUser) {
-      // User exists, return wallet info
+    if (dbUser && dbUser.wallets && dbUser.wallets.length > 0) {
+      // User exists with wallet
       res.json({
         success: true,
         user: {
@@ -78,11 +97,11 @@ app.post('/auth/telegram', async (req, res) => {
           lastName: user.last_name,
           username: user.username
         },
-        wallet: dbUser.wallets?.[0]?.address,
-        hasWallet: !!dbUser.wallets?.[0]
+        wallet: dbUser.wallets[0].address,
+        hasWallet: true
       });
     } else {
-      // New user, needs wallet setup
+      // User exists but no wallet, or new user
       res.json({
         success: true,
         user: {

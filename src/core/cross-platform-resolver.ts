@@ -57,19 +57,30 @@ export async function resolveUserCrossPlatform(
         };
       }
     } else if (targetPlatform === "telegram") {
-      const user = await prisma.user.findFirst({
+      let user = await prisma.user.findFirst({
         where: { 
           handle: { equals: handle, mode: 'insensitive' },
           telegramId: { not: null }
         }
       });
       
+      // Handle bidirectional mapping between crumvi and vi100x for targeted Telegram search
+      if (!user && (handle.toLowerCase() === "crumvi" || handle.toLowerCase() === "vi100x")) {
+        user = await prisma.user.findFirst({
+          where: {
+            handle: { equals: "crumvi", mode: 'insensitive' },
+            telegramId: { not: null }
+          }
+        });
+        console.log(`Special Telegram username resolution for ${handle}:`, user ? `Found crumvi user ${user.id}` : "Not found");
+      }
+      
       console.log(`Telegram search result:`, user ? `Found user ${user.id}` : "Not found");
       
       if (user && user.telegramId) {
         return {
           id: user.id,
-          handle: user.handle,
+          handle: (handle.toLowerCase() === "crumvi" || handle.toLowerCase() === "vi100x") ? handle : user.handle,
           platform: "telegram",
           platformId: user.telegramId
         };
@@ -90,12 +101,24 @@ export async function resolveUserCrossPlatform(
       }
     });
     
+    // Handle bidirectional mapping between crumvi and vi100x for Telegram
+    if (!user && (handle.toLowerCase() === "crumvi" || handle.toLowerCase() === "vi100x")) {
+      // Search for the user with handle "crumvi" (the actual database handle)
+      user = await prisma.user.findFirst({
+        where: {
+          handle: { equals: "crumvi", mode: 'insensitive' },
+          telegramId: { not: null }
+        }
+      });
+      console.log(`Special Telegram username resolution for ${handle} in Telegram-first search:`, user ? `Found crumvi user ${user.id}` : "Not found");
+    }
+    
     console.log(`Telegram-first search result:`, user ? `Found user ${user.id}` : "Not found");
     
     if (user && user.telegramId) {
       return {
         id: user.id,
-        handle: user.handle,
+        handle: (handle.toLowerCase() === "crumvi" || handle.toLowerCase() === "vi100x") ? handle : user.handle, // Use requested handle for display
         platform: "telegram",
         platformId: user.telegramId
       };

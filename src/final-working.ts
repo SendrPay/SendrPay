@@ -120,89 +120,16 @@ app.post('/auth/telegram', async (req, res) => {
   }
 });
 
-// Telegram Mini App proxy route
+// Telegram Mini App - redirect to full web app on port 5001
 app.get('/miniapp', (req, res) => {
-  res.send(`
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <title>SendrPay Wallet</title>
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <script src="https://telegram.org/js/telegram-web-app.js"></script>
-      <style>
-        body { 
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-          margin: 0; padding: 20px; background: var(--tg-theme-bg-color, #f8f9fa);
-          color: var(--tg-theme-text-color, #000); text-align: center;
-        }
-        .container { max-width: 400px; margin: 0 auto; }
-        .btn { 
-          display: inline-block; padding: 15px 30px; margin: 10px;
-          border: none; border-radius: 12px; font-size: 16px; font-weight: 600;
-          background: var(--tg-theme-button-color, #0088cc); 
-          color: var(--tg-theme-button-text-color, #fff);
-          cursor: pointer; text-decoration: none;
-        }
-        .status { 
-          padding: 15px; background: #e3f2fd; border-radius: 8px; 
-          margin: 15px 0; border-left: 4px solid #2196f3;
-        }
-        h1 { color: var(--tg-theme-text-color, #333); }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <h1>💳 SendrPay Wallet</h1>
-        <div id="status" class="status">🚀 Telegram Mini App Ready!</div>
-        
-        <a href="https://t.me/SendrPayBot" class="btn">🤖 Open SendrPay Bot</a>
-        <button class="btn" onclick="showInfo()">📱 Show Telegram Info</button>
-        
-        <div id="userInfo" style="display: none; margin-top: 20px; padding: 15px; background: #fff; border-radius: 8px;">
-          <h3>📱 Your Telegram Info</h3>
-          <div id="userDetails"></div>
-        </div>
-      </div>
-      
-      <script>
-        let tg = window.Telegram.WebApp;
-        
-        // Initialize Telegram WebApp
-        tg.ready();
-        tg.expand();
-        
-        // Set main button
-        tg.MainButton.text = 'Open SendrPay Bot';
-        tg.MainButton.show();
-        tg.MainButton.onClick(() => {
-          tg.openTelegramLink('https://t.me/SendrPayBot');
-        });
-        
-        function showInfo() {
-          try {
-            const user = tg.initDataUnsafe?.user;
-            
-            if (user) {
-              document.getElementById('userInfo').style.display = 'block';
-              document.getElementById('userDetails').innerHTML = \`
-                <p><strong>Name:</strong> \${user.first_name} \${user.last_name || ''}</p>
-                <p><strong>Username:</strong> @\${user.username || 'Not set'}</p>
-                <p><strong>ID:</strong> \${user.id}</p>
-                <p><strong>Language:</strong> \${user.language_code || 'Not set'}</p>
-                <p><strong>Platform:</strong> \${tg.platform}</p>
-              \`;
-              document.getElementById('status').innerHTML = '✅ Connected to Telegram!';
-            } else {
-              document.getElementById('status').innerHTML = '❌ No user data available';
-            }
-          } catch (error) {
-            document.getElementById('status').innerHTML = '🚨 Error: ' + error.message;
-          }
-        }
-      </script>
-    </body>
-    </html>
-  `);
+  // Get the current domain but use port 5001 for the full web app
+  const host = req.get('host');
+  const domain = host ? host.split(':')[0] : 'localhost';
+  const webAppUrl = host?.includes('replit.app') ? 
+    `https://${domain}:5001` : 
+    `http://${domain}:5001`;
+  
+  res.redirect(webAppUrl);
 });
 
 // Telegram Mini App route

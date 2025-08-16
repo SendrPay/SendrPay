@@ -1,0 +1,202 @@
+Sweet—let’s level up the mini-app. Here’s a machine-ready prompt you can drop into Replit/GitHub Copilot to implement UX upgrades + brand-matched UI (Telegram Mini App / React). It avoids breaking your wallet logic.
+
+⸻
+
+SendrPay Mini-App Upgrade (UX + Branding)
+
+Stack & context
+	•	React + Vite (or Next.js), TypeScript.
+	•	Telegram Mini Apps SDK (@twa-dev/sdk), SOL backend already in place.
+	•	Keep existing wallet/send/history logic; we’re refactoring UI/UX and adding small utilities.
+
+Branding system
+
+Create a design token file src/theme/tokens.ts:
+	•	Colors
+	•	brand.primary = #2F7BF6 (SendrPay blue)
+	•	brand.primaryHover = #2468D4
+	•	ink = #0E1116 (text)
+	•	bg = #0B0F14 (app background, dark)
+	•	card = #121722
+	•	muted = #8592A3
+	•	success = #25D366
+	•	error = #FF5A5F
+	•	warning = #FFB020
+	•	Radii: lg: 16px, md: 12px, sm: 8px
+	•	Shadow: subtle, 24dp blur for cards
+	•	Font: system default + Inter if available, weight 500/700 for headings
+	•	Spacing scale: 4,8,12,16,20,24
+
+Add a global style in src/theme/global.css using these tokens; support dark-only first, but structure for light later.
+
+UI cleanup (screens)
+
+1) Home / Wallet
+	•	Replace header with compact topbar:
+	•	Left “Close” uses MiniApp.close()
+	•	Center: logo (chat-bubble with arrow) + SendrPay
+	•	Address pill: one-line, ellipsized, tap to copy → toast “Copied”
+	•	Balance card: large number, token badge; add token switcher (SOL / USDC) chip
+	•	Primary actions: two big buttons side-by-side with icons
+	•	Send (primary)
+	•	Receive (secondary, outline)
+	•	Quick utils row (tiny buttons): QR, History, Buy SOL (deep link), Settings
+	•	Transactions list:
+	•	Card rows with icon (in/out), label, note (if provided), amount aligned right, subtle divider
+	•	Tap → detail sheet (tx hash, fee, note, copy links, open explorer)
+
+2) Send flow polish
+	•	Stepper modal with 3 steps: Recipient → Amount → Review
+	•	Recent & Favorites chips in Recipient step
+	•	Amount step:
+	•	Live fee estimate + net to recipient preview
+	•	Currency toggle (SOL / USD)
+	•	Review step:
+	•	Summary card (recipient, token, amount, fee, total)
+	•	Add note field (optional, stored in your DB and shown in history)
+	•	Confirm (primary) + Back
+	•	Loading state with non-blocking mini spinner; disable double-tap by idempotency key
+
+3) Receive
+	•	Big QR of wallet address + copy/share buttons
+	•	Tiny hint: “You need a little SOL for network fees.”
+
+4) History
+	•	Filters: All | Sent | Received | Tips (segmented control)
+	•	Date group headers; infinite scroll
+	•	Export CSV button (client-gen, include note/txid/amount/token/ts)
+
+5) Settings
+	•	Username + linked TG handle
+	•	Reactions toggle (send auto “❤️/🔥/👍” on payments)
+	•	Default token (SOL/USDC)
+	•	Default tip presets: editable chips (1, 5, 10)
+	•	Security: “Require confirm on amounts > X”
+	•	App version, support link
+
+KOL utilities in mini-app
+
+Add a “Creator tools” card (visible if user is KOL flag):
+	•	Tip button generator:
+	•	Pick tokens accepted (SOL/USDC/both) + presets
+	•	Generates inline keyboard payload and copyable snippet for Telegram messages
+	•	Paid group:
+	•	Set price + token, shows “Join button” preview
+	•	“Copy button” to insert into TG posts
+	•	Analytics mini tiles: Tips today, Members, Revenue (net)
+
+Micro-features (high impact)
+	•	Haptics on success/error (impactLight, notificationSuccess)
+	•	Toasts unified (useToast() hook)
+	•	Pull-to-refresh on Home to re-fetch balance
+	•	Error recovery: friendly messages + Retry CTA
+	•	Empty states with iconography
+
+Code tasks
+	1.	Create src/theme/ (tokens, global.css, ThemeProvider.tsx)
+	2.	Build UI atoms in src/ui/:
+	•	Button, IconButton, Card, Input, Segmented, Sheet, Toast
+	3.	Refactor screens into src/screens/:
+	•	Home.tsx, Send.tsx, Receive.tsx, History.tsx, Settings.tsx
+	4.	Add hooks:
+	•	useClipboard(), useHaptics(), useToast(), useBalance(token), useTxFeed(filter)
+	5.	Implement router (tiny state or wouter) to switch screens without losing MiniApp context.
+	6.	Add Favorites:
+	•	favorites table (id, label, tgUsername/address)
+	•	Chip list + “Add favorite” from last recipients
+	7.	Tip presets + group price stored per user in settings (already in your DB or localStorage fallback)
+
+Acceptance criteria
+	•	UI matches tokens/colors; spacing consistent; all buttons 48px min height; radii applied.
+	•	Copy address works with toast. QR renders and shares.
+	•	Send flow shows fee & net; confirm guard for large amounts.
+	•	History displays notes & opens a detail sheet; CSV export works.
+	•	Creator tools produce usable inline button payloads (strings you paste into TG handlers).
+	•	No blocking spinners; all actions idempotent; errors recoverable.
+	•	Works inside Telegram Mini App (viewport safe areas respected).
+
+Example snippets
+
+Theme tokens
+
+// src/theme/tokens.ts
+export const tokens = {
+  color: {
+    primary: "#2F7BF6",
+    primaryHover: "#2468D4",
+    ink: "#0E1116",
+    bg: "#0B0F14",
+    card: "#121722",
+    muted: "#8592A3",
+    success: "#25D366",
+    error: "#FF5A5F",
+    warning: "#FFB020",
+  },
+  radius: { lg: "16px", md: "12px", sm: "8px" },
+  shadow: { card: "0 10px 30px rgba(0,0,0,0.25)" },
+  space: (n: number) => `${n * 4}px`,
+};
+
+Home header + balance
+
+// src/screens/Home.tsx (excerpt)
+return (
+  <div className="page">
+    <Header title="SendrPay" />
+    <AddressPill value={address} onCopy={() => toast("Copied")} />
+    <Card className="balance">
+      <div className="row">
+        <Balance amount={balance} token={token} />
+        <TokenSwitcher value={token} onChange={setToken} />
+      </div>
+      <div className="actions">
+        <Button onClick={() => nav("/send")} primary>Send</Button>
+        <Button onClick={() => nav("/receive")} variant="outline">Receive</Button>
+      </div>
+    </Card>
+    <QuickRow />
+    <TxList filter="all" />
+  </div>
+);
+
+Send review with fee & net
+
+const feePct = token === "SOL" ? sendFeePct.sol : sendFeePct.usdc;
+const fee = amount * feePct;
+const total = amount;            // sender-pays or receiver-pays depending on flow you already set
+const net = amount - fee;
+
+<ReviewCard
+  rows={[
+    ["To", short(recipient)],
+    ["Amount", fmt(amount, token)],
+    ["Platform fee", fmt(fee, token)],
+    ["Net to recipient", fmt(net, token)],
+  ]}
+/>
+
+Creator tool output (inline button payloads)
+
+// Example: Tip buttons config returned to KOL for TG
+// Your bot reads callback_data like "tip:USDC:5" or "join:USDC:1"
+{
+  inline_keyboard: [
+    [{ text: "💖 Tip 1 USDC", callback_data: "tip:USDC:1" },
+     { text: "💖 Tip 5 USDC", callback_data: "tip:USDC:5" },
+     { text: "💖 Tip 10 USDC", callback_data: "tip:USDC:10" }],
+    [{ text: "🔐 Join Private Group (1 USDC)", callback_data: "join:USDC:1" }]
+  ]
+}
+
+QA checklist
+	•	Visual: matches brand colors, rounded cards, consistent spacing
+	•	Copy address → toast
+	•	QR shows + share works
+	•	Send flow: recent/favorites appear; fee & net correct; confirm guard triggers
+	•	History loads fast; detail sheet opens; CSV exports
+	•	Creator tool generates tip/join JSON that your bot accepts
+	•	No UI jank inside Mini App; safe-area padding for iOS
+
+⸻
+
+If you want, I can also generate the styles (CSS) and a ready-to-paste Home.tsx with the balance card + actions exactly in your screenshots, using the tokens above.

@@ -36,7 +36,7 @@ app.get("/", (req, res) => {
       <h1>🔄 UPDATED: SendrPay Telegram Bot</h1>
       <p>Telegram Bot: ${telegramBot ? '✅ ONLINE' : '❌ OFFLINE'}</p>
       <p>Updated: ${new Date().toISOString()}</p>
-      <p><a href="/miniapp.html">Open Miniapp</a></p>
+      <p><a href="/miniapp-enhanced.html">Open Miniapp</a></p>
       <p><a href="/status">Status Page</a></p>
     </body>
     </html>

@@ -2,16 +2,44 @@ import "./infra/env";
 import { bot as telegramBot } from "./bot";
 import express from "express";
 import { heliusWebhook } from "./routes/helius";
+import miniappRoutes from "./routes/miniapp";
 import { logger } from "./infra/logger";
 import { env } from "./infra/env";
+import path from "path";
 
 console.log("🚀 SENDPAY TELEGRAM BOT - SIMPLIFIED");
 
 const app = express();
 app.use(express.json({ limit: "1mb" }));
 
-// Root route
+// Serve static files for miniapp FIRST
+app.use(express.static('public'));
+
+// Miniapp API routes
+app.use('/api', miniappRoutes);
+
+// Root route - redirect to miniapp.html
 app.get("/", (req, res) => {
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>SendrPay Miniapp - UPDATED</title>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body>
+      <h1>🔄 UPDATED: SendrPay Telegram Bot</h1>
+      <p>Telegram Bot: ${telegramBot ? '✅ ONLINE' : '❌ OFFLINE'}</p>
+      <p>Updated: ${new Date().toISOString()}</p>
+      <p><a href="/miniapp.html">Open Miniapp</a></p>
+      <p><a href="/status">Status Page</a></p>
+    </body>
+    </html>
+  `);
+});
+
+// Status route for debugging
+app.get("/status", (req, res) => {
   try {
     res.send(`
       <h1>SendrPay - Telegram Bot</h1>
@@ -19,8 +47,8 @@ app.get("/", (req, res) => {
       <p>Updated: ${new Date().toISOString()}</p>
     `);
   } catch (error) {
-    console.error("Root route error:", error);
-    res.status(500).send("Error in root route");
+    console.error("Status route error:", error);
+    res.status(500).send("Error in status route");
   }
 });
 

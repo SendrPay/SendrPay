@@ -315,15 +315,29 @@ router.post('/send', authenticateWebApp, async (req: any, res) => {
     const { resolveUserByHandle } = await import("../core/user-resolver");
     const recipientUser = await resolveUserByHandle(recipient);
     
+    console.log(`Looking up recipient: ${recipient} -> Found:`, recipientUser);
+    
     if (!recipientUser) {
-      return res.status(404).json({ error: 'Recipient not found' });
+      console.error(`Recipient '${recipient}' not found in database`);
+      return res.status(404).json({ error: 'Recipient not found. Make sure they have used the bot.' });
+    }
+    
+    // Verify recipient has a wallet
+    const recipientWithWallet = await prisma.user.findUnique({
+      where: { id: recipientUser.id },
+      include: { wallets: { where: { isActive: true } } }
+    });
+    
+    if (!recipientWithWallet || !recipientWithWallet.wallets[0]) {
+      console.error(`Recipient '${recipient}' has no active wallet`);
+      return res.status(404).json({ error: 'Recipient has no wallet. They need to set up their wallet first.' });
     }
     
     // Execute payment
     const { sendPayment } = await import("../core/shared");
     const result = await sendPayment({
       fromUserId: user.dbUser.id,
-      toUserId: recipientUser.id,
+      toUserId: recipientWithWallet.id,
       amount: amount.toString(),
       token,
       note
@@ -410,6 +424,49 @@ router.post('/export-key', authenticateWebApp, async (req: any, res) => {
   } catch (error) {
     logger.error('Export key API error:', error);
     res.status(500).json({ error: 'Failed to export private key' });
+  }
+});
+
+// User profile endpoint (for quickpay functionality)
+router.get('/user-profile', authenticateWebApp, async (req: any, res) => {
+  try {
+    const { userId } = req.query;
+    
+    if (!userId) {
+      return res.status(400).json({ error: 'User ID required' });
+    }
+    
+    const userProfile = await prisma.user.findUnique({
+      where: { id: parseInt(userId) },
+      select: {
+        id: true,
+        handle: true,
+        telegramId: true,
+        discordId: true,
+        wallets: {
+          where: { isActive: true },
+          select: {
+            address: true
+          }
+        }
+      }
+    });
+    
+    if (!userProfile) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    res.json({
+      id: userProfile.id,
+      handle: userProfile.handle,
+      telegramId: userProfile.telegramId,
+      discordId: userProfile.discordId,
+      hasWallet: userProfile.wallets.length > 0,
+      walletAddress: userProfile.wallets[0]?.address
+    });
+  } catch (error) {
+    logger.error('User profile API error:', error);
+    res.status(500).json({ error: 'Failed to get user profile' });
   }
 });
 

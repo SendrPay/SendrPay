@@ -980,7 +980,7 @@
                     
                     // Refresh all relevant data
                     await Promise.all([
-                        loadWalletData(),
+                        updateBalance(),
                         loadTransactionHistory(),
                         loadRecentRecipients()
                     ]);
@@ -1661,15 +1661,28 @@
         let currentRecipientData = null;
         
         async function openProfileModal(userId, displayName, telegramId) {
-            currentRecipientData = { userId, displayName, telegramId };
+            // First load full user data with handle
+            try {
+                const userData = await apiCall(`/user-profile?userId=${userId}`);
+                currentRecipientData = { 
+                    userId, 
+                    displayName, 
+                    telegramId,
+                    handle: userData.handle || displayName // Use actual handle from database
+                };
+            } catch (error) {
+                console.warn('Could not load user profile, using fallback data');
+                currentRecipientData = { userId, displayName, telegramId, handle: displayName };
+            }
             
             // Set profile information
             document.getElementById('profileName').textContent = displayName;
             
-            // Load user's wallet address
+            // Load user's wallet address (use wallet address from profile data if available)
             try {
-                const userWallet = await getUserWalletAddress(userId);
-                document.getElementById('profileWallet').textContent = userWallet || 'Wallet not found';
+                const walletAddress = currentRecipientData?.handle ? 
+                    (await apiCall(`/user-profile?userId=${userId}`))?.walletAddress : null;
+                document.getElementById('profileWallet').textContent = walletAddress || 'Wallet not found';
             } catch (error) {
                 document.getElementById('profileWallet').textContent = 'Wallet not found';
             }
@@ -1728,8 +1741,9 @@
         async function quickSend(amount, token) {
             if (!currentRecipientData) return;
             
-            // Fill send form and switch to send tab
-            document.getElementById('sendRecipient').value = `@${currentRecipientData.displayName}`;
+            // Fill send form and switch to send tab - use handle instead of displayName
+            const username = currentRecipientData.handle || currentRecipientData.displayName;
+            document.getElementById('sendRecipient').value = username.startsWith('@') ? username : `@${username}`;
             document.getElementById('sendAmount').value = amount;
             document.getElementById('sendToken').value = token;
             

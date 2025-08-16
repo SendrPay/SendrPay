@@ -1,0 +1,128 @@
+Upgrading the SendrPay Telegram Bot
+
+This upgrade introduces inline payment buttons, a configurable KOL payment setup, platform fee deductions, and improved payment flows for tipping and paid group access. The solution is designed to be modular and easily deployable (e.g. on Replit), with extensible token support for future additions. Below we detail each feature and how to implement it.
+
+1. Inline Button Support
+
+We will use Telegram Inline Keyboards to provide one-tap buttons for “Tip Me” and “Join Private Group” actions. Instead of relying on text commands, KOLs (Key Opinion Leaders) can display custom inline buttons in their messages or bot prompts. When a user clicks a button, the bot will receive a callback query and initiate the appropriate payment flow.
+	•	Dynamic Buttons per KOL: The bot should generate button labels and actions based on each KOL’s settings. For example, if a KOL accepts tips in USDC and SOL, their profile or content can include two tip buttons: “💸 Tip Me in USDC” and “💸 Tip Me in SOL”. If they offer a private group for 1 USDC, a button “🔐 Join My Group for 1 USDC” is shown. These labels and amounts are populated from the KOL’s configuration.
+	•	Inline Keyboard Implementation: Using the Telegram Bot API, we attach an InlineKeyboardMarkup with InlineKeyboardButton objects to messages ￼. Each button’s callback_data will encode the action (tip or join) and the token type (e.g., "TIP_USDC" or "JOIN_USDC"). For example, in Python with python-telegram-bot library:
+
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+
+# Example for a KOL who enabled USDC tips and a private group priced in USDC:
+buttons = [
+    [InlineKeyboardButton("💸 Tip Me in USDC", callback_data="TIP_USDC")],
+    [InlineKeyboardButton("🔐 Join My Group for 1 USDC", callback_data="JOIN_USDC")]
+]
+reply_markup = InlineKeyboardMarkup(buttons)
+bot.send_message(chat_id=kol_chat_id, text="Support the creator:", reply_markup=reply_markup)
+
+The bot’s callback query handler will parse callback_data to determine which flow to execute. This approach allows users to simply tap a button, and the bot knows which token and action to process (tip or join) ￼.
+
+	•	Callback Handling: In the bot’s code, implement a CallbackQueryHandler that listens for our defined callback data patterns. For instance, if query.data starts with "TIP_", handle it in the tip flow; if it starts with "JOIN_", handle group access ￼. The handler should acknowledge the callback (using answerCallbackQuery to avoid Telegram UI hang) and then proceed to prompt for amount (for tips) or confirm group join payment.
+
+2. KOL Payment Setup
+
+We need a setup interface for KOLs to configure which tokens they accept and their private group pricing. A /setup command (only usable by KOLs) will guide them through the configuration:
+	•	Token Acceptance Configuration: Upon /setup, the bot asks the KOL which tokens they want to accept:
+	•	Provide options like “Accept Tips in USDC”, “Accept Tips in SOL”, and the ability to choose one or both. This can be done with an inline keyboard of toggle buttons or sequential prompts. For example, the bot can send: “Which tokens would you like to accept for tips?” with buttons: [USDC] [SOL] [Both]. The chosen option is saved to the KOL’s profile in the database (e.g. kol_settings[tg_user_id]['tip_tokens'] = ['USDC', 'SOL']).
+	•	Group Access Pricing: If the KOL wants to charge for a private group, the bot asks whether to enable paid group access and in which token:
+	•	The KOL can select a token for group payments (USDC or SOL) and specify a price. For example: “Set the price for group access (e.g., 1 USDC):” The KOL’s response (a number) is saved as the access price for that token. If the KOL wants to allow both USDC and SOL for group access, we can support two prices, but it’s simpler to choose one token for the group fee to avoid confusion. (The system can be designed to handle multiple, but usually one primary group currency is sufficient.)
+	•	Group Linking: Prompt the KOL to link their private Telegram group if not already done. The bot can instruct the KOL to add the bot as an administrator in the private group (this is required so the bot can generate invite links and add users). The KOL might use a command in the group (e.g. /linkgroup) or provide the group ID/invite for the bot to join. Once linked, store the group chat ID in kol_settings for that KOL.
+	•	Confirmation: After setup, summarize the configuration: e.g. “Tips accepted in: USDC, SOL. Private group fee: 1 USDC. Bot is connected to group: MyVIPGroup.” This ensures the KOL knows their settings. They can revisit /setup to change tokens or pricing anytime.
+
+All these setup parameters (accepted tokens, group price, group chat ID) will drive what inline buttons and flows are presented to users for that KOL.
+
+3. Platform Fee Logic
+
+We introduce a platform fee on transactions to generate revenue for the SendrPay platform. The fee is 2% on all tip transactions and 5% on group access payments. These fees are deducted from the amount the KOL receives, rather than added on top for the sender.
+	•	Fee Calculation: When a user initiates a payment (tip or group), calculate the fee portion and net amount:
+	•	For tips: fee_amount = 0.02 * tip_amount (2%), and net_amount = tip_amount - fee_amount.
+	•	For group access: fee_amount = 0.05 * price (5%), and net_amount = price - fee_amount.
+	•	Use constants or config for these percentages (e.g. PLATFORM_FEE_TIP=0.02, PLATFORM_FEE_GROUP=0.05) so they are easy to adjust if needed.
+	•	Transaction Splitting: The user’s custodial wallet (managed by the bot) will execute two transfers on-chain: one sending net_amount to the KOL’s wallet, and one sending the fee_amount to the platform’s central wallet. This ensures the KOL gets the amount minus fees, and the platform fee is collected separately. If possible, combine these into a single atomic transaction (e.g. in Solana, one transaction can contain two instructions: transfer to KOL and transfer to platform). Otherwise, perform two back-to-back transfers. The gas fees for these transfers are handled as per existing logic (which likely deducts gas from the user’s balance or uses a fee account).
+
+# Pseudocode for processing a payment with fee
+PLATFORM_FEE = 0.02  # or 0.05 for group
+fee_amount = amount * PLATFORM_FEE
+net_amount = amount - fee_amount
+
+send_token(from_wallet=user_wallet, to=kol_wallet, token=token, amount=net_amount)
+send_token(from_wallet=user_wallet, to=platform_wallet, token=token, amount=fee_amount)
+
+The platform fee is not charged extra to the sender – if they intend to send 1 USDC, 1 USDC leaves their wallet. The KOL simply receives 0.98 USDC and 0.02 goes to the platform. We will need to handle rounding for non-integer amounts (especially if dealing with SOL which might be a fraction). Generally, we can round down the KOL’s portion to ensure fees are never negative. For example, use integer math in smallest units (cents or lamports) to avoid floating-point issues.
+
+	•	Accounting: It’s important to record each transaction’s details in our database: amount sent, fee taken, and net delivered. This can be used for generating receipts and for auditing platform earnings.
+
+4. Payment Flow Implementation
+
+With inline buttons and fees in place, we can define the end-to-end user flows for tipping and joining a private group. Both flows will use the users’ and KOLs’ custodial wallets (already managed by the bot backend) to execute on-chain payments. Below are the detailed steps:
+
+4.1 Tip Workflow
+	1.	Button Click – Select Token: The user clicks the “💸 Tip Me in [Token]” inline button on the KOL’s profile or message. The bot receives a callback query with data like "TIP_USDC" or "TIP_SOL". It responds by asking the user for an amount to tip. For example: “How much USDC would you like to tip?” We can provide quick-reply buttons for common amounts (e.g. $1, $5, $10) or allow free text input for a custom amount.
+	2.	User Enters Amount: The user selects a suggested amount or types an amount (the bot should validate the input is a number and within their balance). The bot might also need to ensure the amount is above a minimum (to cover fees and dust limits).
+	3.	Confirm Payment: Once an amount is chosen, the bot sends a confirmation prompt showing the details: token type, amount, and the net amount the KOL will receive after fees. For example: “You are about to tip 10 USDC to @KOLuser. The creator will receive 9.8 USDC after a 2% platform fee. Confirm?” Provide a “Confirm” button (and maybe a “Cancel” option).
+	4.	Execute On-Chain Transfer: On confirmation, the bot performs the on-chain transfer from the user’s custodial wallet to the KOL’s wallet, minus fees as described in Section 3. The fee portion is sent to the platform wallet. This may involve constructing and signing a transaction via a Solana SDK or API call. Ensure to handle any exceptions (e.g. insufficient balance or transaction failure) gracefully – if an error occurs, notify the user and abort.
+	5.	Send Receipt to User: After a successful transfer, the bot sends the user a receipt message. For example: “✅ Tip sent! You tipped 10.00 USDC to @KOLuser. Transaction ID: XYZ123…” including the blockchain transaction signature or a short confirmation code. The receipt should also state the fee taken if desired (e.g. “Platform fee: 0.20 USDC (2%)”).
+	6.	Notify the KOL: The bot should also inform the KOL that they received a tip. In the KOL’s private chat with the bot, send a message: “🎉 You received a 10 USDC tip from @User123! You got 9.80 USDC after fees.” This real-time notification helps the KOL know about the support they received. (If the KOL has not started the bot, this message might fail; in such cases, consider storing a notification to deliver when they initiate the bot, or send an email if available.)
+
+4.2 Join Private Group Workflow
+	1.	Button Click – Initiate Join: The user clicks the “🔐 Join My Group for X [Token]” button. The bot receives callback data like "JOIN_USDC" (or "JOIN_SOL" if that were configured). It then asks for confirmation since this is usually a fixed price: “By clicking confirm, you will pay 1 USDC to join @KOLuser’s private group. Continue?” Provide a “Confirm Purchase” button.
+	2.	Execute Payment: Upon confirmation, the bot carries out the payment similar to the tip flow. It charges the fixed price from the user’s wallet, sends price - 5% to the KOL’s wallet and 5% to the platform wallet. If the user doesn’t have sufficient balance, or the transaction fails, inform them and abort the join process.
+	3.	Add User to Group: Once payment is successful, the bot needs to actually grant the user access to the private Telegram group:
+	•	Invite Link Method: Since bots cannot directly add users to groups by user ID via Bot API, the typical solution is to generate an invite link and share it with the user. The bot (as an admin in the group) can call createChatInviteLink for the KOL’s group chat, with member_limit=1 to make it a single-use invite ￼. This produces a unique URL the user can click to join the group. The bot sends this link to the user: “✅ Payment received! Click here to join the group: [Invite Link].” Once the user joins, the link expires (due to the one-use limit). Using a one-time invite ensures the link cannot be reused or shared with others without paying.
+	•	Alternate (Join Request) Method: An alternative approach is to use join requests (setting creates_join_request=True in createChatInviteLink). In that case, the user would tap “Join Group” via the invite link and the bot (or group admin) must approve the request. However, since we want automatic access after payment, the direct one-time link method is preferable for simplicity.
+	•	Automatic Invite Note: Ensure the bot has can_invite_users permission in the group. The KOL should have already made the bot an admin during setup.
+	4.	Confirm Group Access to User: After sending the invite link, optionally the bot can double-check if the user successfully joined (the Telegram API will send an update when the user joins the group). If so, we can send a welcome message in the group or a confirmation in the bot chat: “✅ You have joined @KOLuser’s private group. Enjoy the exclusive content!”
+	5.	Notify KOL: The bot sends a message to the KOL: “👥 @User123 has paid 1 USDC and joined your private group.” This lets the KOL know a new member has been added via the paid access system. The KOL might also see the user join in Telegram, but a direct bot message provides a clear confirmation (including the amount paid and that fees were taken: e.g., “You received 0.95 USDC after a 5% platform fee.”).
+
+Both flows ensure that both the sender and the KOL are notified of the outcome, fulfilling the requirement that all transactions have confirmation messages to both parties.
+
+5. Wallet Handling (Custodial Wallets)
+
+The SendrPay bot operates with custodial wallets for users and KOLs, meaning the bot (or its backend) holds the private keys or signing capability for the wallets. This design avoids any external wallet prompts (like Phantom or OAuth flows) and keeps the user experience entirely within Telegram. As noted, Phantom or other external wallet connections are not used – all transactions are initiated by the bot using the credentials already stored.
+	•	User Wallets: Each user who interacts with the bot has either a generated wallet (custodial) or they have securely imported their own key into the bot (manual import). For example, on first use, the bot might create a new Solana keypair for the user and store it (encrypted) in the database. The user can deposit funds into this wallet to use for tipping and group purchases. This approach is similar to other Solana Telegram bots that provide an internal wallet for the user ￼. It simplifies onboarding – users just use Telegram; they can send funds to their bot-provided address instead of dealing with external wallet apps.
+	•	KOL Wallets: Similarly, KOLs have wallets linked to the bot. A KOL might choose to import an existing wallet or use a custodial one generated by the bot. When someone tips a KOL or buys group access, the funds (minus fees) are sent to the KOL’s wallet. KOLs can withdraw from their custodial wallet using bot commands (assuming the bot provides a withdrawal function), or they might manage funds directly if they hold the keys.
+	•	Security: Emphasize securing private keys. In a Replit deployment, environment variables or a secure database should be used to store secrets. Use proper encryption and restrict access to the wallet data. Since there is no Phantom/OAuth, users must trust the bot with their private keys/funds, so platform security is crucial.
+	•	No External Sign-In: The flows do not require the user to leave Telegram or sign transactions manually. Everything is programmatic. This provides a smooth UX: for instance, the JPool MEV bot on Solana also simply gives the user a wallet to deposit SOL and runs entirely via bot commands ￼. SendrPay follows this model for simplicity. It’s important to transparently communicate to users that this is a custodial service.
+
+6. Extensible Token Support
+
+The bot’s design will allow easy addition of new tokens (or even new chains) in the future:
+	•	Token Configuration: Create a centralized configuration for supported tokens. For example, a Python dictionary or JSON file like:
+
+SUPPORTED_TOKENS = {
+    "USDC": {
+        "symbol": "USDC",
+        "decimals": 6,
+        "mint_address": "<USDC_mint_address_on_Solana>",
+        "icon": "💵"
+    },
+    "SOL": {
+        "symbol": "SOL",
+        "decimals": 9,
+        "mint_address": None,  # None for native SOL
+        "icon": "⚡"
+    }
+}
+
+Each entry can include details needed for processing: token symbol, number of decimals for formatting, and any chain-specific identifiers (like contract address or mint). This way, when building the UI and doing transfers, the code can reference SUPPORTED_TOKENS[token] to get needed info.
+
+	•	Abstract Transfer Logic: Implement blockchain interactions in a token-agnostic way. For example, a function send_token(from_wallet, to_address, token_symbol, amount) can internally decide if it’s a native transfer (if token_symbol == "SOL") or an SPL token transfer (if a mint address is provided). By abstracting this, adding a new token (say, another SPL token or even an Ethereum-based token if expanding chains) mostly requires updating the config and ensuring the send function knows how to handle that token’s chain.
+	•	Dynamic Button Generation: The inline buttons in the UI (Section 1) should be generated by iterating over the KOL’s allowed tokens. This means if tomorrow we add support for, say, BONK or another token, and a KOL enables it, the code automatically adds a “Tip in BONK” button without hardcoding each currency. The same applies to group access – if multi-token support for group payments is desired, the bot could offer multiple join buttons (one per token with their respective prices). Each new token should also be trivial to include in the /setup flow (e.g., if SUPPORTED_TOKENS is updated, the setup menu for tokens can list the new one as an option).
+	•	Testing New Tokens: When adding a new token, minimal code changes should be needed beyond configuration. Always test that the decimal handling, fee calculation, and transaction sending work for the new token. Our platform fee logic is percentage-based, so it naturally applies to any token value.
+
+By structuring the code in a modular way (separating config, blockchain logic, and Telegram interaction handlers), the bot will be maintainable and extendable.
+
+Conclusion
+
+With these upgrades, the SendrPay Telegram bot will provide a seamless experience for creators and supporters:
+	•	Inline keyboards offer one-click tipping and joining, improving usability.
+	•	KOL-configurable settings allow flexibility in how creators monetize (choosing tokens and prices).
+	•	Automatic fee handling ensures the platform earns revenue (2% on tips, 5% on group access) while transparently adjusting payouts.
+	•	Robust payment flows confirm each action and notify all parties, creating trust through receipts.
+	•	Custodial wallet integration means no external wallet apps are needed, aligning with other successful crypto Telegram bots’ approach ￼.
+	•	Extensible design enables supporting more tokens or features in the future with minimal changes.
+
+All these enhancements are implemented with clean, modular code ready to deploy on Replit (or any Python environment). By following the above plan, the bot’s functionality is significantly expanded while remaining user-friendly and secure.

@@ -19,6 +19,7 @@ model User {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   activeWalletId Int?
+  isKol          Boolean   @default(false)
 
   // Relations
   wallets         Wallet[]
@@ -29,6 +30,9 @@ model User {
   socialLinks     SocialLink[]
   sessions        Session[]
   oauthAccounts   OAuthAccount[]
+  kolSettings     KolSettings?
+  groupAccess     GroupAccess[] @relation("GroupMember")
+  ownedGroups     GroupAccess[] @relation("GroupOwner")
 
   @@map("users")
 }
@@ -99,6 +103,8 @@ model Payment {
   feeRaw         String   // Fee amount as string (bigint)
   serviceFeeRaw  String?  // Service fee amount as string (bigint)
   serviceFeeToken String? // Mint address of token used for service fee
+  platformFeeRaw String?  // Platform fee amount (2% tips, 5% group access)
+  paymentType    String   @default("payment") // "payment" | "tip" | "group_access"
   note           String?
   status         String   // "pending" | "sent" | "confirmed" | "failed" | "refunded" | "expired" | "awaiting_confirmation"
   txSig          String?  // Transaction signature
@@ -334,6 +340,98 @@ model Session {
   @@index([userId])
   @@index([expiresAt])
   @@map("sessions")
+}
+
+model KolSettings {
+  id                  Int      @id @default(autoincrement())
+  userId              Int      @unique
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  acceptedTipTokens   String[] // Array of token tickers accepted for tips (e.g., ["USDC", "SOL"])
+  groupAccessEnabled  Boolean  @default(false)
+  groupAccessToken    String?  // Token ticker for group access payment
+  groupAccessPrice    String?  // Price in raw units for group access
+  privateGroupChatId  String?  // Telegram chat ID of the private group
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  
+  @@index([userId])
+  @@map("kol_settings")
+}
+
+model GroupAccess {
+  id            String   @id @default(cuid())
+  memberId      Int
+  member        User     @relation("GroupMember", fields: [memberId], references: [id], onDelete: Cascade)
+  groupOwnerId  Int
+  groupOwner    User     @relation("GroupOwner", fields: [groupOwnerId], references: [id], onDelete: Cascade)
+  groupChatId   String   // Telegram chat ID of the private group
+  paymentId     String?  // Reference to the payment for this access
+  accessGranted DateTime @default(now())
+  expiresAt     DateTime? // Optional expiration date for access
+  
+  @@unique([memberId, groupChatId])
+  @@index([memberId])
+  @@index([groupOwnerId])
+  @@index([groupChatId])
+  @@map("group_access")
+}
+
+model KolChannel {
+  id           String   @id @default(cuid())
+  tgChatId     String   @unique // Telegram channel ID
+  ownerTgId    String   // Telegram ID of the channel owner
+  channelTitle String?  // Channel name/title
+  defaultToken String   @default("USDC") // Default token for payments
+  defaultPrice String   @default("1000000") // Default price in raw units
+  tipPresets   String   @default("[1,5,10,25,50]") // JSON array of tip amounts
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  // Relations
+  lockedPosts  LockedPost[]
+  
+  @@index([ownerTgId])
+  @@index([isActive])
+  @@map("kol_channels")
+}
+
+model LockedPost {
+  id             Int      @id @default(autoincrement())
+  tgChatId       String   // Foreign key to KolChannel
+  channelMsgId   String   // Message ID of the teaser in channel
+  contentType    String   // "text" | "video"
+  priceAmount    String   // Price in raw units
+  priceToken     String   // "USDC" | "SOL" | "BONK" | "JUP"
+  payloadRef     String   @db.Text // Text content or video file_id
+  title          String?  // Optional display title
+  teaserText     String?  @db.Text // Preview/teaser text
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  // Relations
+  channel        KolChannel @relation(fields: [tgChatId], references: [tgChatId], onDelete: Cascade)
+  accessList     PostAccess[]
+  
+  @@index([tgChatId])
+  @@index([channelMsgId])
+  @@map("locked_posts")
+}
+
+model PostAccess {
+  id         Int      @id @default(autoincrement())
+  postId     Int      // Foreign key to LockedPost
+  userTgId   String   // Telegram ID of the user who has access
+  grantedAt  DateTime @default(now())
+  txnRef     String?  // Transaction reference/signature
+  
+  // Relations
+  post       LockedPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  
+  @@unique([postId, userTgId])
+  @@index([userTgId])
+  @@index([postId])
+  @@map("post_access")
 }
 
 

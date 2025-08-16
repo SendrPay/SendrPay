@@ -1,0 +1,257 @@
+Here’s a machine-ready prompt you can paste into Replit/Copilot to build paywalled text + video posts in a Telegram KOL Channel. It’s Telegram-only, uses inline buttons, supports SOL + USDC, and delivers unlocked content by DM with a per-user watermark (so the channel never exposes the full post).
+
+⸻
+
+Build Prompt — “Channel Paywall (Text + Video)”
+
+Objective
+Add a “pay to unlock” system for KOL Channel posts. A post has a public teaser in the channel and an Unlock button. After payment, the buyer gets the full text or video via DM, watermarked with their @username, channel name, and a short txn id. Fees: default 2% on tips, 5% on unlocks (receiver pays). Keep existing P2P/tips untouched.
+
+Stack/assumptions
+	•	Node + TypeScript + Telegraf v4 + Express webhook (Telegram only).
+	•	Env: TG_BOT_TOKEN, PUBLIC_URL, PORT.
+	•	Core you already have: wallet + intents:
+	•	createPaymentIntent({flow, payerTgId, receiverTgId, amount, token, feeMode})
+	•	waitForIntent(intentId) → { success, explorer, amount, token, payerTgId, receiverTgId }
+	•	Fee mode for paywall = "receiver".
+	•	Storage: Prisma or similar DB.
+
+⸻
+
+1) Data models (Prisma-style)
+
+model KolChannel {
+  tgChatId            String @id          // channel id
+  ownerTgId           String
+  defaultToken        String              // "USDC" | "SOL"
+  defaultPrice        Decimal             // per-post fallback
+  tipPresets          String              // JSON "[1,5,10]"
+  isActive            Boolean @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model LockedPost {
+  id                  Int     @id @default(autoincrement())
+  tgChatId            String           // FK -> KolChannel
+  channelMsgId        String           // message id of the teaser in channel
+  contentType         String           // "text" | "video"
+  priceAmount         Decimal
+  priceToken          String           // "USDC" | "SOL"
+  payloadRef          String           // text blob id or video file_id (or CDN key)
+  title               String?          // optional display title
+  createdAt           DateTime @default(now())
+}
+
+model PostAccess {
+  id                  Int     @id @default(autoincrement())
+  postId              Int              // FK -> LockedPost
+  userTgId            String
+  grantedAt           DateTime @default(now())
+  txnRef              String?          // short intent id / sig
+  @@unique([postId, userTgId])         // prevent duplicate purchase
+}
+
+
+⸻
+
+2) Admin/KOL setup & posting
+
+Add admin commands in KOL DM:
+	•	/channel_init → KOL forwards any message from their Channel.
+	•	Validate bot is admin with post/edit rights.
+	•	Ask defaults: defaultToken, defaultPrice, tipPresets.
+	•	Upsert KolChannel.
+	•	/post_locked (wizard):
+	1.	Ask content type: Text or Video.
+	2.	If Text → ask for title (optional) then full text (markdown supported).
+If Video → ask KOL to upload video (we’ll capture file_id).
+	3.	Ask price + token (or use channel defaults).
+	4.	Create LockedPost with payloadRef =
+	•	text: store in DB (or files table);
+	•	video: Telegram file_id (or your CDN key).
+	5.	Post teaser to Channel with Unlock and Tip buttons.
+
+Teaser formatting (Channel post)
+
+{title or "Premium post"} 
+— teaser/preview —
+Unlock to view full {text|video}.
+
+Inline keyboard (JSON)
+
+{
+  "inline_keyboard": [
+    [{ "text": "🔓 Unlock ({{price}} {{token}})", "callback_data": "unlock:{{postId}}" }],
+    [{ "text": "💖 Tip", "callback_data": "tip_open:{{kolTgId}}" }]
+  ]
+}
+
+
+⸻
+
+3) Buyer flow (Unlock)
+
+Handlers in src/paywall/inline.ts:
+	•	unlock:<postId>
+	•	Fetch LockedPost, render confirm:
+“Unlock {title or Post #} for {amount token}. Creator covers a small platform fee.”
+	•	Buttons: ✅ Pay now → unlock_go:<postId> | ✖️ Cancel.
+	•	unlock_go:<postId>
+	•	Create intent:
+
+createPaymentIntent({
+  flow: "post_unlock",
+  payerTgId: ctx.from.id,
+  receiverTgId: channel.ownerTgId,
+  amount: post.priceAmount,
+  token: post.priceToken,
+  feeMode: "receiver"
+})
+
+
+	•	Edit message: show deeplink + I’ve paid button → unlock_chk:<intentId>:<postId>.
+
+	•	unlock_chk:<intentId>:<postId>
+	•	Call waitForIntent. If pending → show “🔁 Check again”.
+	•	On success: upsert PostAccess(user, post) with txnRef.
+	•	Deliver content by DM (not in channel):
+	•	Watermark string: @{username} • {channelName} • {date} • {txnShort}.
+	•	If text: send as Markdown message with \n\n— {watermark}.
+	•	If video: resend via sendVideo using the stored file_id, with caption = watermark.
+(If you host files yourself, generate a signed, short-lived URL and send as link + preview.)
+	•	Reply in-channel to user (or edit original button message) with:
+“✅ Unlocked. Check your DM.”
+	•	Creator DM:
+“🔓 Post unlocked by @{buyer}: {amount token}. Tx: {explorer}”.
+
+Revisit behavior
+	•	If buyer taps Unlock again on the same post → detect PostAccess and show “You already unlocked this — Resend to DM” with a Resend button.
+
+⸻
+
+4) Tip panel in channel
+	•	tip_open:<kolTgId> → show presets from KolChannel.tipPresets + Custom (token selector: SOL/USDC if both allowed).
+	•	On confirm → createPaymentIntent({ flow:'tip', feeMode:'receiver', ... }).
+	•	Success → buyer “✅ Tip sent”, creator DM “💸 Tip received …”.
+
+(Preserves your existing tip logic; reuses buttons inside channel.)
+
+⸻
+
+5) Anti-leak (best-effort)
+	•	Per-buyer watermark on all delivered content.
+	•	Channel never holds full content; only teasers exist there.
+	•	Optional: generate expiring links for externally hosted videos (e.g., 1–24h signed URLs).
+	•	Log every resend (rate-limit resends to prevent scraping).
+
+⸻
+
+6) Copy strings
+	•	Confirm unlock:
+You’re unlocking **{title}** for **{amt} {token}**.\n<i>Creator covers a small platform fee.</i>
+	•	Pending: ⏳ Waiting for confirmation…
+	•	Success (buyer): ✅ Unlocked! I’ve sent it to your DM.
+	•	Success (creator): 🔓 {title} unlocked by @{user}: {amt} {token}.
+	•	Already purchased: You already own this. Want me to resend it to your DM?
+
+⸻
+
+7) Acceptance criteria
+	•	/channel_init stores channel & defaults; /post_locked publishes a teaser with working buttons.
+	•	Payment → DM delivery (text or video) with visible watermark.
+	•	PostAccess prevents double-charge; Resend works.
+	•	Fees on unlocks = 5% receiver-pays; tips = 2% receiver-pays; P2P unchanged.
+	•	All handlers idempotent; Telegram runs in webhook mode only.
+
+⸻
+
+8) Minimal handler skeletons (TypeScript)
+
+// src/paywall/inline.ts
+import { Telegraf, Context } from "telegraf";
+import { db } from "../db";
+import { createPaymentIntent, waitForIntent } from "../core/payments";
+import { fmtPrice, wmString } from "./util";
+
+export function registerPaywall(bot: Telegraf<Context>) {
+  bot.action(/^unlock:(\d+)$/, async (ctx) => {
+    const postId = Number(ctx.match![1]);
+    const post = await db.lockedPost.findUnique({ where: { id: postId }, include: { channel: true }});
+    if (!post) return ctx.answerCbQuery("Post not found", { show_alert: true });
+
+    const kb = { inline_keyboard: [[
+      { text: `✅ Pay ${fmtPrice(post)}`, callback_data: `unlock_go:${postId}` },
+      { text: "✖️ Cancel", callback_data: "cancel" }
+    ]]};
+    await ctx.editMessageText(
+      `You’re unlocking <b>${post.title ?? `Post #${postId}`}</b> for <b>${fmtPrice(post)}</b>.\n<i>Creator covers a small platform fee.</i>`,
+      { parse_mode: "HTML", reply_markup: kb }
+    );
+  });
+
+  bot.action(/^unlock_go:(\d+)$/, async (ctx) => {
+    const postId = Number(ctx.match![1]);
+    const post = await db.lockedPost.findUnique({ where: { id: postId }, include: { channel: true }});
+    if (!post) return ctx.answerCbQuery("Missing post", { show_alert: true });
+
+    const intent = await createPaymentIntent({
+      flow: "post_unlock",
+      payerTgId: String(ctx.from!.id),
+      receiverTgId: post.channel.ownerTgId,
+      amount: String(post.priceAmount),
+      token: post.priceToken as any,
+      feeMode: "receiver"
+    });
+
+    const kb = { inline_keyboard: [[
+      { text: "I’ve paid", callback_data: `unlock_chk:${intent.id}:${postId}` },
+      { text: "✖️ Cancel", callback_data: "cancel" }
+    ]]};
+    await ctx.editMessageText(
+      `Pay <b>${fmtPrice(post)}</b> to unlock.\nPayment ID: <code>${intent.id.slice(0,8)}</code>\n${intent.deepLink}`,
+      { parse_mode: "HTML", reply_markup: kb, disable_web_page_preview: true }
+    );
+  });
+
+  bot.action(/^unlock_chk:([A-Za-z0-9_-]+):(\d+)$/, async (ctx) => {
+    const [intentId, postIdStr] = [ctx.match![1], ctx.match![2]];
+    const postId = Number(postIdStr);
+    const res = await waitForIntent(intentId);
+    if (!res?.success) {
+      return ctx.editMessageText("⏳ Still pending…", { reply_markup: { inline_keyboard: [[
+        { text: "🔁 Check again", callback_data: `unlock_chk:${intentId}:${postId}` }
+      ]] }});
+    }
+
+    // grant access
+    await db.postAccess.upsert({
+      where: { postId_userTgId: { postId, userTgId: String(ctx.from!.id) } },
+      update: { txnRef: res.explorer },
+      create: { postId, userTgId: String(ctx.from!.id), txnRef: res.explorer }
+    });
+
+    // deliver by DM
+    const post = await db.lockedPost.findUnique({ where: { id: postId }, include: { channel: true }});
+    const wm = wmString(ctx.from!, post!.channel.tgChatId, res.explorer);
+    try {
+      if (post!.contentType === "text") {
+        await ctx.telegram.sendMessage(ctx.from!.id, `${post!.title ? `📝 <b>${post!.title}</b>\n\n` : ""}${post!.payloadRef}\n\n— ${wm}`, { parse_mode: "HTML" });
+      } else {
+        await ctx.telegram.sendVideo(ctx.from!.id, post!.payloadRef, { caption: `— ${wm}` });
+      }
+    } catch {}
+
+    await ctx.editMessageText("✅ Unlocked. Check your DM.");
+    // notify creator
+    try {
+      await ctx.telegram.sendMessage(Number(post!.channel.ownerTgId),
+        `🔓 ${post!.title ?? `Post #${postId}`} unlocked by @${ctx.from!.username ?? ctx.from!.id} — ${res.amount} ${res.token}\nTx: ${res.explorer}`);
+    } catch {}
+  });
+}
+
+
+⸻
+
+That’s everything you need for paywalled text + video in KOL channels with clean UX and your fee model. Want me to also generate the /post_locked wizard (admin) file so you can paste it in next?

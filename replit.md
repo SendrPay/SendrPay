@@ -1,71 +1,154 @@
-# SendrPay
+# SendrPay Telegram Bot - Project Documentation
 
 ## Overview
-SendrPay is a production-ready multi-platform bot designed to facilitate Solana blockchain payments within Telegram and Discord. Its primary purpose is to simplify cryptocurrency transactions, making them accessible and user-friendly across platforms. Key capabilities include custodial wallet management, support for multiple SPL tokens (SOL, USDC, BONK, JUP), cross-platform account linking, and functionalities for payments, tipping, and escrow. All transactions are processed on the Solana devnet, leveraging Helius RPC infrastructure. The project envisions a simplified, unified cryptocurrency transaction experience for users on their preferred messaging platforms.
+A robust multi-platform blockchain payment bot integrating Telegram and Discord for seamless crypto transactions on the Solana devnet, with advanced cross-platform user management, wallet linking, and KOL (Key Opinion Leader) monetization features.
+
+## Recent Changes (August 16, 2025)
+
+### KOL Monetization Features Added
+- **Inline Payment Buttons**: Replaced text commands with interactive buttons for tipping and group joining
+- **KOL Setup Command**: `/setup` allows KOLs to configure accepted tokens and group pricing
+- **Platform Fees**: Implemented 2% fee on tips and 5% fee on group access payments
+- **Private Group Access**: KOLs can charge for access to private Telegram groups
+- **Dynamic Button Generation**: Buttons are generated based on each KOL's configuration
+- **Group Linking**: `/linkgroup` command to connect private groups to KOL accounts
+
+## Key Technologies
+- TypeScript-powered cross-platform bot infrastructure
+- Solana blockchain integration via Helius API
+- PostgreSQL database for advanced user management
+- Webhook-based communication for Discord and Telegram
+- Enhanced blockchain transaction validation
+- Comprehensive wallet management system
+- Platform fee collection system
+
+## Project Architecture
+
+### Core Components
+1. **Bot Framework**: Grammy for Telegram bot functionality
+2. **Database**: PostgreSQL with Prisma ORM
+3. **Blockchain**: Solana devnet integration
+4. **Encryption**: AES-GCM for private key security
+
+### New KOL Features
+1. **KOL Settings Model**: Stores accepted tokens, group pricing, and linked groups
+2. **Group Access Model**: Tracks paid memberships
+3. **Platform Fee System**: Automatic fee deduction and treasury collection
+4. **Inline Button Handler**: Callback query processing for interactive payments
+
+## Commands
+
+### User Commands
+- `/start` - Initialize wallet and bot setup
+- `/pay @user amount TOKEN [note]` - Send tokens to another user
+- `/tip amount [TOKEN]` - Tip by replying to a message
+- `/balance` - Check wallet balances
+- `/withdraw amount TOKEN address` - Withdraw to external address
+- `/deposit` - Get deposit address
+- `/history` - View transaction history
+
+### KOL Commands
+- `/setup` - Configure KOL payment settings (tip tokens, group pricing)
+- `/kol [@username]` - Display KOL profile with payment buttons
+- `/linkgroup` - Link private group for paid access (use in group)
+- `/unlinkgroup` - Unlink private group
+
+### Admin Commands
+- `/enable` - Group admins whitelist the bot
+- `/settings` - Configure bot settings
+- `/admin` - Owner-only administration
+
+## Platform Fees
+- **Tips**: 2% platform fee (deducted from recipient)
+- **Group Access**: 5% platform fee (deducted from recipient)
+- **Fee Collection**: Automatically sent to platform treasury wallet
+
+## KOL Setup Flow
+
+1. **Initial Setup**: KOL uses `/setup` command
+2. **Token Selection**: Choose which tokens to accept for tips (USDC, SOL, BONK, JUP)
+3. **Group Configuration**: Set price and token for private group access
+4. **Group Linking**: Add bot as admin and use `/linkgroup` in the private group
+5. **Profile Creation**: Automatic generation of payment buttons based on settings
+
+## Inline Button Features
+
+### Tip Buttons
+- Dynamic generation based on accepted tokens
+- Quick amount selection (1, 5, 10, 25, 50, 100) or custom
+- Confirmation with fee breakdown
+- Automatic notifications to both parties
+
+### Group Join Buttons
+- Single-use invite link generation
+- Automatic access grant after payment
+- Member tracking in database
+- Expiration support for time-limited access
+
+## Security Features
+- **Custodial Wallets**: Bot manages private keys securely
+- **Encrypted Storage**: Private keys encrypted with AES-GCM
+- **Rate Limiting**: Prevents abuse and spam
+- **Transaction Validation**: All payments verified on-chain
+- **Single-Use Invites**: Group links expire after one use
+
+## Environment Variables Required
+- `BOT_TOKEN` - Telegram bot token
+- `DATABASE_URL` - PostgreSQL connection string
+- `MASTER_KMS_KEY` - Base64 encoded 32-byte key for encryption
+- `SOLANA_RPC_URL` - Helius API endpoint
+- `HELIUS_API_KEY` - Helius API key
+- `FEE_TREASURY_ADDRESS` - Platform fee collection wallet (optional)
+- `OWNER_TELEGRAM_ID` - Bot owner's Telegram ID
+
+## Database Schema Updates
+
+### KolSettings Table
+- `userId` - Link to User
+- `acceptedTipTokens` - Array of token tickers
+- `groupAccessEnabled` - Boolean flag
+- `groupAccessToken` - Token for group payment
+- `groupAccessPrice` - Price in raw units
+- `privateGroupChatId` - Linked Telegram group ID
+
+### GroupAccess Table
+- `memberId` - User who gained access
+- `groupOwnerId` - KOL who owns the group
+- `groupChatId` - Telegram group ID
+- `paymentId` - Reference to payment record
+- `accessGranted` - Timestamp
+- `expiresAt` - Optional expiration
+
+### Payment Table Updates
+- `platformFeeRaw` - Platform fee amount
+- `paymentType` - "payment" | "tip" | "group_access"
 
 ## User Preferences
-Preferred communication style: Simple, everyday language.
-Data handling: All data must be live and accurate - never use mock, placeholder, or fake data.
+- Clear, concise communication without technical jargon
+- Step-by-step explanations for complex features
+- Proactive error handling with user-friendly messages
 
-## System Architecture
+## Development Notes
+- Always use Prisma for database operations
+- Platform fees are percentage-based for easy adjustment
+- Inline buttons use callback_data with encoded parameters
+- Group invite links require bot admin permissions
+- All amounts stored as raw units (bigint) in database
 
-### Backend Architecture
-- **Framework**: Node.js with TypeScript using grammY (Telegram) and Discord.js (Discord).
-- **API Structure**: Express.js server for webhooks and web routes.
-- **Command System**: Separate handlers for group and DM commands with session management.
-- **Processing Flow**: Commands are parsed, validated, interact with the blockchain, and then formatted for response.
+## Testing Checklist
+- [ ] KOL can configure tip tokens via `/setup`
+- [ ] KOL can set group access price
+- [ ] Bot can be linked to private group
+- [ ] Inline tip buttons appear on KOL profile
+- [ ] Tips deduct 2% platform fee
+- [ ] Group join deducts 5% platform fee
+- [ ] Invite links are generated correctly
+- [ ] Both parties receive notifications
+- [ ] Transaction records include platform fees
 
-### Database & Storage
-- **ORM**: Prisma (with SQLite for dev, PostgreSQL for production).
-- **Schema**: Comprehensive schema covering users, wallets, tokens, chats, transactions, and escrows.
-- **Caching**: In-memory token cache for performance.
-- **Encryption**: AES-GCM encryption for private key storage.
-
-### Blockchain Integration
-- **Network**: Solana devnet via Helius RPC.
-- **Wallet Management**: Custodial (server-managed) and non-custodial (private key import).
-- **Token Support**: Native SOL and configurable SPL token allowlist.
-- **Transaction Handling**: Direct blockchain transactions with fee calculation and an escrow system. Automatic admin wallet funding ensures rent exemption for fee collection, and recipient wallet funding for new users.
-
-### Security Architecture
-- **Rate Limiting**: Token bucket algorithm.
-- **Input Validation**: Zod schemas for comprehensive validation.
-- **Webhook Security**: HMAC signature verification for Helius webhooks.
-- **Key Management**: Encrypted private key storage.
-- **Idempotency**: Transaction deduplication using client intent IDs.
-- **Authentication**: Telegram user ID-based authentication.
-- **Authorization**: Admin-controlled bot whitelisting per group and role-based access; sender-only payment confirmation controls to prevent griefing.
-
-### Feature Architecture
-- **Payment System**: Direct transfers with in-kind fee deduction and escrow. Payments support both group and direct messages, including explicit cross-platform targeting. Username verification is strict and case-insensitive.
-- **Fee System**: Configurable basis points with per-token minimum fees.
-- **Escrow System**: Temporary fund holding for users without linked wallets.
-- **Onboarding System**: Three-option setup flow for new users: custodial wallet generation, private key import, or cross-platform account linking with secure expiring codes. Wallet selection feature for users with existing wallets on both platforms.
-- **Transaction History**: Enhanced history display showing detailed sender/receiver information for both miniapp and bot. History shows counterparty names, usernames, and transaction details with proper formatting.
-- **Quick Send System**: Recent recipients feature showing last 5 transfer recipients in Send tab for quick re-transfers with pre-filled amounts and tokens.
-- **Miniapp Interface**: Comprehensive Telegram miniapp with tabbed navigation (Home, Send, History, Settings), matching SendrPay blue branding (#2481cc). Full settings system with wallet management, private key export, cross-platform linking, and withdrawal functionality.
-- **Notifications**: Standardized message templates for all bot interactions with consistent formatting and simplified emoji-only reaction system for payment notifications.
-- **UI/UX**: Modern, clean interface design with concise language and consistent formatting for welcome messages, balance displays, payment confirmations, error messages, and help documentation. Rich embeds and interactive buttons for Discord.
-- **Cross-Platform Account Linking**: Users can link their Discord and Telegram accounts via secure link codes to share one wallet across both platforms, enabling cross-platform payments and unified balance management. Support for platform-specific usernames.
-
-## External Dependencies
-
-### Blockchain Infrastructure
-- **Helius API**: RPC provider, webhook services, transaction broadcasting.
-- **Solana Web3.js**: Blockchain interaction and transaction construction.
-- **SPL Token Library**: Token account management and transfers.
-
-### Communication Platforms
-- **Telegram Bot API**: Message handling, inline keyboards, user interaction.
-- **Discord.js v14**: Discord bot framework with slash commands and button interactions.
-- **grammY Framework**: Telegram bot framework with session management and middleware support.
-
-### Development & Deployment
-- **Prisma ORM**: Database schema management and query building.
-- **Express.js**: HTTP server for webhooks and health checks.
-- **Pino Logger**: Structured logging.
-
-### Cryptography & Security
-- **Node.js Crypto Module**: AES-GCM encryption and HMAC verification.
-- **BS58 Encoding**: Solana address and key encoding/decoding.
-- **UUID Library**: Unique identifier generation.
+## Future Enhancements
+- Time-limited group access with automatic removal
+- Subscription-based recurring payments
+- Analytics dashboard for KOLs
+- Multi-tier group access levels
+- Custom tip messages and reactions

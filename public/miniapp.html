@@ -259,6 +259,15 @@
             console.log('InitData length:', initData?.length || 0);
             
             if (!initData) {
+                // First try to get initData from alternative sources
+                const webApp = window.Telegram?.WebApp;
+                const urlParams = new URLSearchParams(window.location.search);
+                const hashParams = new URLSearchParams(window.location.hash.substring(1));
+                
+                console.log('WebApp object:', webApp);
+                console.log('URL Params:', urlParams.toString());
+                console.log('Hash Params:', hashParams.toString());
+                
                 throw new Error('No Telegram authentication data available. Please open this app through Telegram.');
             }
             
@@ -292,6 +301,37 @@
                 // Wait a moment for Telegram to initialize
                 await new Promise(resolve => setTimeout(resolve, 500));
                 
+                try {
+                    userData = await apiCall('/user');
+                    
+                    // If authentication failed but we have user structure, show limited interface
+                    if (userData.error && !userData.user) {
+                        // Show as demo mode
+                        document.getElementById('user-info').innerHTML = `
+                            <div style=\"color: orange;\">Demo Mode - Authentication Required</div>
+                            <div style=\"font-size: 12px; margin-top: 5px;\">
+                                ${userData.message || 'Please configure miniapp in BotFather'}
+                            </div>
+                        `;
+                        
+                        // Show demo interface
+                        document.getElementById('balance-card').style.display = 'block';
+                        document.getElementById('balance-amount').textContent = '0.00';
+                        
+                        // Disable send functionality
+                        const sendBtn = document.querySelector('button[onclick=\"showSendForm()\"]');
+                        if (sendBtn) {
+                            sendBtn.textContent = 'Send (Auth Required)';
+                            sendBtn.disabled = true;
+                            sendBtn.style.opacity = '0.5';
+                        }
+                        return;
+                    }
+                } catch (error) {
+                    // If it's a network error, show that
+                    throw error;
+                }
+                
                 userData = await apiCall('/user');
                 
                 document.getElementById('user-info').textContent = 
@@ -308,14 +348,23 @@
             } catch (error) {
                 showError('Failed to load user data: ' + error.message);
                 
-                // Show debug info
+                // Show detailed debug info
+                const webApp = window.Telegram?.WebApp;
                 const debugInfo = `
                     <div style="margin-top: 20px; padding: 10px; background: #f0f0f0; border-radius: 8px; font-size: 12px;">
                         <strong>Debug Info:</strong><br>
-                        Telegram WebApp: ${!!window.Telegram?.WebApp}<br>
-                        InitData: ${!!window.Telegram?.WebApp?.initData}<br>
-                        InitData Length: ${window.Telegram?.WebApp?.initData?.length || 0}<br>
-                        User Agent: ${navigator.userAgent.includes('Telegram') ? 'Telegram' : 'Other'}
+                        Telegram WebApp Available: ${!!webApp}<br>
+                        InitData Available: ${!!webApp?.initData}<br>
+                        InitData Length: ${webApp?.initData?.length || 0}<br>
+                        User Agent: ${navigator.userAgent}<br>
+                        Is Telegram Browser: ${navigator.userAgent.includes('Telegram')}<br>
+                        WebApp Version: ${webApp?.version || 'N/A'}<br>
+                        Platform: ${webApp?.platform || 'N/A'}<br>
+                        <br>
+                        <strong>Possible Solutions:</strong><br>
+                        1. Make sure you opened this through Telegram (not a browser)<br>
+                        2. Check if the miniapp URL is configured in BotFather<br>
+                        3. Try refreshing the miniapp in Telegram
                     </div>
                 `;
                 

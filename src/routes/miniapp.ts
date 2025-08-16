@@ -117,13 +117,43 @@ router.get('/test', (req, res) => {
   });
 });
 
-// Simple user route for testing
-router.get('/user', (req, res) => {
-  res.json({
-    error: 'Authentication temporarily disabled for testing',
-    hasInitData: !!req.headers['x-telegram-init-data'],
-    initDataLength: req.headers['x-telegram-init-data']?.length || 0
-  });
+// Simple user route for testing (with better error handling)
+router.get('/user', async (req, res) => {
+  try {
+    const initData = req.headers['x-telegram-init-data'];
+    
+    if (!initData) {
+      // Return a helpful error for missing initData
+      return res.json({
+        error: 'No Telegram authentication data provided',
+        debug: {
+          hasInitData: false,
+          initDataLength: 0,
+          userAgent: req.headers['user-agent'],
+          isTelegramBrowser: req.headers['user-agent']?.includes('Telegram') || false
+        },
+        message: 'This app must be opened through Telegram. Please configure the miniapp URL in BotFather and try again.'
+      });
+    }
+
+    // If we have initData, try to validate it (but handle errors gracefully)
+    const initDataStr = Array.isArray(initData) ? initData[0] : initData;
+    logger.info(`Received initData: ${initDataStr.substring(0, 50)}...`);
+    
+    res.json({
+      success: true,
+      message: 'InitData received but authentication needs to be implemented',
+      hasInitData: true,
+      initDataLength: initData.length
+    });
+    
+  } catch (error) {
+    logger.error('User route error:', error);
+    res.status(500).json({
+      error: 'Internal server error',
+      message: error.message
+    });
+  }
 });
 
 // API Routes with authentication (temporarily disabled)

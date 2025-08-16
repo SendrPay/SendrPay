@@ -15,8 +15,13 @@ app.use(express.json({ limit: "1mb" }));
 // Serve static files for miniapp FIRST
 app.use(express.static('public'));
 
-// Miniapp API routes
-app.use('/api', miniappRoutes);
+// Miniapp API routes (with error handling)
+try {
+  app.use('/api', miniappRoutes);
+  console.log('✅ Miniapp routes loaded successfully');
+} catch (error) {
+  console.error('❌ Failed to load miniapp routes:', error);
+}
 
 // Root route - redirect to miniapp.html
 app.get("/", (req, res) => {

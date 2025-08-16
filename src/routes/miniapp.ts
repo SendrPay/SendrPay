@@ -10,8 +10,13 @@ const router = Router();
 // Telegram WebApp data validation
 function validateTelegramWebAppData(initData: string): any {
   try {
+    logger.info(`Validating Telegram WebApp data, length: ${initData.length}`);
+    
     const urlParams = new URLSearchParams(initData);
     const hash = urlParams.get('hash');
+    
+    logger.info(`InitData params - hasHash: ${!!hash}, params: ${Array.from(urlParams.keys()).join(',')}, hasUser: ${!!urlParams.get('user')}`);
+    
     urlParams.delete('hash');
     
     // Create data check string
@@ -32,6 +37,8 @@ function validateTelegramWebAppData(initData: string): any {
       .update(dataCheckString)
       .digest('hex');
     
+    logger.info(`Hash validation - received: ${hash}, expected: ${expectedHash}`);
+    
     if (hash !== expectedHash) {
       throw new Error('Invalid hash');
     }
@@ -43,6 +50,7 @@ function validateTelegramWebAppData(initData: string): any {
     }
     
     const user = JSON.parse(userParam);
+    logger.info(`User data parsed successfully - ID: ${user.id}, username: ${user.username}`);
     return user;
   } catch (error) {
     logger.error('WebApp data validation failed:', error);
@@ -54,8 +62,18 @@ function validateTelegramWebAppData(initData: string): any {
 async function authenticateWebApp(req: any, res: any, next: any) {
   try {
     const initData = req.headers['x-telegram-init-data'];
+    
+    // Log for debugging
+    logger.info(`Authentication attempt - hasInitData: ${!!initData}, length: ${initData?.length || 0}`);
+    
     if (!initData) {
-      return res.status(401).json({ error: 'No Telegram init data' });
+      return res.status(401).json({ 
+        error: 'No Telegram init data',
+        debug: {
+          hasHeader: !!req.headers['x-telegram-init-data'],
+          headers: Object.keys(req.headers)
+        }
+      });
     }
     
     const user = validateTelegramWebAppData(initData);
@@ -87,8 +105,29 @@ async function authenticateWebApp(req: any, res: any, next: any) {
   }
 }
 
-// API Routes
-router.get('/user', authenticateWebApp, async (req: any, res) => {
+// Test route (no authentication required)
+router.get('/test', (req, res) => {
+  res.json({ 
+    success: true, 
+    message: 'API is working',
+    timestamp: new Date().toISOString(),
+    userAgent: req.headers['user-agent'],
+    initDataHeader: !!req.headers['x-telegram-init-data'],
+    initDataLength: req.headers['x-telegram-init-data']?.length || 0
+  });
+});
+
+// Simple user route for testing
+router.get('/user', (req, res) => {
+  res.json({
+    error: 'Authentication temporarily disabled for testing',
+    hasInitData: !!req.headers['x-telegram-init-data'],
+    initDataLength: req.headers['x-telegram-init-data']?.length || 0
+  });
+});
+
+// API Routes with authentication (temporarily disabled)
+router.get('/user-auth', authenticateWebApp, async (req: any, res) => {
   try {
     const { user } = req;
     const balances = await getBalances(user.dbUser.id);

@@ -252,9 +252,19 @@
         
         // Make authenticated API calls
         async function apiCall(endpoint, options = {}) {
+            // Check if we have initData
+            const initData = window.Telegram?.WebApp?.initData;
+            console.log('Telegram WebApp available:', !!window.Telegram?.WebApp);
+            console.log('InitData available:', !!initData);
+            console.log('InitData length:', initData?.length || 0);
+            
+            if (!initData) {
+                throw new Error('No Telegram authentication data available. Please open this app through Telegram.');
+            }
+            
             const headers = {
                 'Content-Type': 'application/json',
-                'X-Telegram-Init-Data': window.Telegram.WebApp.initData,
+                'X-Telegram-Init-Data': initData,
                 ...options.headers
             };
             
@@ -274,6 +284,14 @@
         // Load user data
         async function loadUser() {
             try {
+                // First check if we're in Telegram WebApp environment
+                if (!window.Telegram?.WebApp) {
+                    throw new Error('This app must be opened through Telegram');
+                }
+                
+                // Wait a moment for Telegram to initialize
+                await new Promise(resolve => setTimeout(resolve, 500));
+                
                 userData = await apiCall('/user');
                 
                 document.getElementById('user-info').textContent = 
@@ -289,6 +307,19 @@
                 document.getElementById('balance-card').style.display = 'block';
             } catch (error) {
                 showError('Failed to load user data: ' + error.message);
+                
+                // Show debug info
+                const debugInfo = `
+                    <div style="margin-top: 20px; padding: 10px; background: #f0f0f0; border-radius: 8px; font-size: 12px;">
+                        <strong>Debug Info:</strong><br>
+                        Telegram WebApp: ${!!window.Telegram?.WebApp}<br>
+                        InitData: ${!!window.Telegram?.WebApp?.initData}<br>
+                        InitData Length: ${window.Telegram?.WebApp?.initData?.length || 0}<br>
+                        User Agent: ${navigator.userAgent.includes('Telegram') ? 'Telegram' : 'Other'}
+                    </div>
+                `;
+                
+                document.getElementById('user-info').innerHTML = 'Authentication failed' + debugInfo;
             }
         }
         
@@ -425,8 +456,23 @@
             }, 3000);
         }
         
+        // Test API connection first
+        async function testConnection() {
+            try {
+                const response = await fetch('/api/test');
+                const data = await response.json();
+                console.log('API test successful:', data);
+                
+                // Now load user data
+                loadUser();
+            } catch (error) {
+                console.error('API test failed:', error);
+                showError('Cannot connect to server: ' + error.message);
+            }
+        }
+        
         // Initialize app
-        loadUser();
+        testConnection();
     </script>
 </body>
 </html>

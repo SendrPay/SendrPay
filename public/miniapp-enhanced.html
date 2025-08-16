@@ -440,6 +440,129 @@
         .hidden {
             display: none !important;
         }
+        
+        /* Profile modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        
+        .modal-content {
+            background: var(--tg-theme-bg-color, #ffffff);
+            border-radius: 16px;
+            padding: 24px;
+            max-width: 320px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        
+        .profile-header {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+        
+        .profile-photo {
+            width: 80px;
+            height: 80px;
+            border-radius: 40px;
+            margin: 0 auto 16px;
+            background: linear-gradient(135deg, #2481cc, #1e6bb8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 32px;
+            font-weight: bold;
+            overflow: hidden;
+        }
+        
+        .profile-photo img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .profile-name {
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+        
+        .profile-wallet {
+            font-size: 12px;
+            font-family: monospace;
+            color: var(--tg-theme-hint-color, #666);
+            background: var(--tg-theme-secondary-bg-color, #f5f5f5);
+            padding: 8px;
+            border-radius: 8px;
+            word-break: break-all;
+            cursor: pointer;
+        }
+        
+        .quick-pay-section {
+            margin-top: 24px;
+        }
+        
+        .quick-pay-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            text-align: center;
+        }
+        
+        .quick-pay-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+        }
+        
+        .quick-pay-btn {
+            padding: 16px 12px;
+            border: none;
+            border-radius: 12px;
+            background: var(--tg-theme-secondary-bg-color, #f5f5f5);
+            color: var(--tg-theme-text-color, #000);
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+        }
+        
+        .quick-pay-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        
+        .quick-pay-btn.sol {
+            background: linear-gradient(135deg, #2481cc, #1e6bb8);
+            color: white;
+        }
+        
+        .quick-pay-btn.usdc {
+            background: linear-gradient(135deg, #2775ca, #1f5f99);
+            color: white;
+        }
+        
+        .modal-close {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            background: none;
+            border: none;
+            font-size: 24px;
+            color: var(--tg-theme-hint-color, #666);
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
@@ -619,6 +742,40 @@
 
     <!-- Notification -->
     <div id="notification" class="notification"></div>
+
+    <!-- Profile Modal -->
+    <div id="profileModal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeProfileModal()">×</button>
+            <div class="profile-header">
+                <div class="profile-photo" id="profilePhoto"></div>
+                <div class="profile-name" id="profileName"></div>
+                <div class="profile-wallet" id="profileWallet" onclick="copyText(this.textContent)"></div>
+            </div>
+            
+            <div class="quick-pay-section">
+                <div class="quick-pay-title">Quick Send</div>
+                <div class="quick-pay-grid">
+                    <button class="quick-pay-btn sol" onclick="quickSend('0.25', 'SOL')">
+                        <div>0.25 SOL</div>
+                        <div style="font-size: 11px; opacity: 0.8;">~$60</div>
+                    </button>
+                    <button class="quick-pay-btn sol" onclick="quickSend('1', 'SOL')">
+                        <div>1 SOL</div>
+                        <div style="font-size: 11px; opacity: 0.8;">~$240</div>
+                    </button>
+                    <button class="quick-pay-btn usdc" onclick="quickSend('50', 'USDC')">
+                        <div>$50 USDC</div>
+                        <div style="font-size: 11px; opacity: 0.8;">Fixed</div>
+                    </button>
+                    <button class="quick-pay-btn usdc" onclick="quickSend('100', 'USDC')">
+                        <div>$100 USDC</div>
+                        <div style="font-size: 11px; opacity: 0.8;">Fixed</div>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <script>
         let userData = null;
@@ -916,9 +1073,9 @@
                 const timeSince = getTimeSince(new Date(recipient.lastSent));
                 
                 return `
-                    <div class="transaction-item" style="cursor: pointer;" onclick="selectRecipient('${recipient.displayName}', '${amount}', '${recipient.lastToken}')">
-                        <div class="transaction-icon" style="background: #2481cc; color: white;">
-                            👤
+                    <div class="transaction-item" style="cursor: pointer;" onclick="openProfileModal('${recipient.id}', '${recipient.displayName}', '${recipient.telegramId}')">
+                        <div class="profile-photo" style="width: 40px; height: 40px; border-radius: 20px; font-size: 16px;" id="recipientPhoto_${recipient.id}">
+                            ${recipient.displayName.charAt(0).toUpperCase()}
                         </div>
                         <div class="transaction-details">
                             <div class="transaction-type">${recipient.displayName}</div>
@@ -928,6 +1085,11 @@
                     </div>
                 `;
             }).join('');
+            
+            // Load profile photos after rendering
+            recipients.forEach(recipient => {
+                setTimeout(() => loadUserPhoto(recipient.id, recipient.telegramId), 100);
+            });
         }
 
         // Select recipient for quick send
@@ -1441,6 +1603,106 @@
                 console.error('App initialization failed:', error);
             }
         }
+
+        // Profile modal functions
+        let currentRecipientData = null;
+        
+        async function openProfileModal(userId, displayName, telegramId) {
+            currentRecipientData = { userId, displayName, telegramId };
+            
+            // Set profile information
+            document.getElementById('profileName').textContent = displayName;
+            
+            // Load user's wallet address
+            try {
+                const userWallet = await getUserWalletAddress(userId);
+                document.getElementById('profileWallet').textContent = userWallet || 'Wallet not found';
+            } catch (error) {
+                document.getElementById('profileWallet').textContent = 'Wallet not found';
+            }
+            
+            // Load profile photo
+            await loadUserPhoto('profile', telegramId);
+            
+            // Show modal
+            document.getElementById('profileModal').classList.remove('hidden');
+        }
+        
+        function closeProfileModal() {
+            document.getElementById('profileModal').classList.add('hidden');
+            currentRecipientData = null;
+        }
+        
+        async function loadUserPhoto(elementSuffix, telegramId) {
+            try {
+                // Use Telegram Web App API to get user photo
+                if (window.Telegram?.WebApp?.initDataUnsafe?.user) {
+                    const photoElement = document.getElementById(elementSuffix === 'profile' ? 'profilePhoto' : `recipientPhoto_${elementSuffix}`);
+                    
+                    if (telegramId && window.Telegram.WebApp.initDataUnsafe.user.id.toString() === telegramId) {
+                        // Current user - can access their photo
+                        if (window.Telegram.WebApp.initDataUnsafe.user.photo_url) {
+                            photoElement.innerHTML = `<img src="${window.Telegram.WebApp.initDataUnsafe.user.photo_url}" alt="Profile">`;
+                        }
+                    } else {
+                        // Other users - use placeholder with first letter
+                        const firstLetter = currentRecipientData?.displayName?.charAt(0).toUpperCase() || '?';
+                        if (elementSuffix === 'profile') {
+                            photoElement.textContent = firstLetter;
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to load user photo:', error);
+            }
+        }
+        
+        async function getUserWalletAddress(userId) {
+            try {
+                // Get user's wallet address from the API
+                const response = await fetch(`/api/user-wallet/${userId}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    return data.address;
+                }
+                return null;
+            } catch (error) {
+                console.error('Failed to get user wallet:', error);
+                return null;
+            }
+        }
+        
+        async function quickSend(amount, token) {
+            if (!currentRecipientData) return;
+            
+            // Fill send form and switch to send tab
+            document.getElementById('sendRecipient').value = `@${currentRecipientData.displayName}`;
+            document.getElementById('sendAmount').value = amount;
+            document.getElementById('sendToken').value = token;
+            
+            // Close modal
+            closeProfileModal();
+            
+            // Switch to send tab
+            switchTab('send');
+            
+            // Scroll to form
+            setTimeout(() => {
+                document.querySelector('.form-container:last-child').scrollIntoView({ 
+                    behavior: 'smooth', 
+                    block: 'start' 
+                });
+            }, 300);
+            
+            showNotification(`Pre-filled ${amount} ${token} payment to ${currentRecipientData.displayName}`, 'success');
+        }
+        
+        // Close modal when clicking outside
+        document.getElementById('profileModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeProfileModal();
+            }
+        });
 
         // Start the app
         initApp();

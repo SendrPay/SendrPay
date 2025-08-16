@@ -586,4 +586,32 @@ router.get('/recent-recipients', authenticateWebApp, async (req: any, res) => {
   }
 });
 
+// Get user wallet address by user ID
+router.get('/user-wallet/:userId', authenticateWebApp, async (req: any, res) => {
+  try {
+    const { userId } = req.params;
+    
+    const user = await prisma.user.findUnique({
+      where: { id: parseInt(userId) },
+      include: {
+        wallets: {
+          where: { isActive: true }
+        }
+      }
+    });
+    
+    if (!user || !user.wallets[0]) {
+      return res.status(404).json({ error: 'User wallet not found' });
+    }
+    
+    res.json({ 
+      address: user.wallets[0].address,
+      label: user.wallets[0].label
+    });
+  } catch (error) {
+    logger.error('Get user wallet API error:', error);
+    res.status(500).json({ error: 'Failed to get user wallet' });
+  }
+});
+
 export default router;

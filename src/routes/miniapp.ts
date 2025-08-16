@@ -178,6 +178,60 @@ router.get('/debug', async (req, res) => {
   }
 });
 
+// Mock endpoints for testing outside Telegram
+router.get('/test', async (req, res) => {
+  res.json({
+    message: 'API is working',
+    timestamp: new Date().toISOString(),
+    userAgent: req.headers['user-agent']
+  });
+});
+
+router.get('/mock-user', async (req, res) => {
+  res.json({
+    user: {
+      id: 123456789,
+      username: 'testuser',
+      first_name: 'Test',
+      last_name: 'User'
+    },
+    wallet: {
+      address: 'DemoWalletAddress123...',
+      balances: [
+        { mint: 'SOL', amount: '1.5', symbol: 'SOL', name: 'Solana' },
+        { mint: 'USDC', amount: '100.0', symbol: 'USDC', name: 'USD Coin' }
+      ]
+    }
+  });
+});
+
+router.get('/mock-history', async (req, res) => {
+  res.json({
+    transactions: [
+      {
+        id: 'demo1',
+        type: 'receive',
+        amount: '0.5',
+        token: 'SOL',
+        from: 'alice',
+        to: 'testuser',
+        createdAt: new Date(Date.now() - 86400000).toISOString(),
+        note: 'Demo payment'
+      },
+      {
+        id: 'demo2',
+        type: 'send',
+        amount: '25.0',
+        token: 'USDC',
+        from: 'testuser',
+        to: 'bob',
+        createdAt: new Date(Date.now() - 3600000).toISOString(),
+        note: 'Demo transfer'
+      }
+    ]
+  });
+});
+
 // API Routes with authentication (temporarily disabled)
 router.get('/user-auth', authenticateWebApp, async (req: any, res) => {
   try {

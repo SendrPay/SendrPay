@@ -35,7 +35,7 @@ export async function commandHistory(ctx: BotContext) {
           { fromUserId: user.id },
           { toUserId: user.id }
         ],
-        status: "sent"
+        status: { in: ['sent', 'confirmed'] }
       },
       include: {
         from: true,
@@ -63,10 +63,27 @@ export async function commandHistory(ctx: BotContext) {
       
       const tokenTicker = token?.ticker || (tx.mint === "So11111111111111111111111111111111111111112" ? "SOL" : "TOKEN");
       
-      // Format counterpart
-      const counterpart = isOutgoing 
-        ? (tx.to?.handle ? `@${tx.to.handle}` : `User ${tx.to?.telegramId}`)
-        : (tx.from?.handle ? `@${tx.from.handle}` : `User ${tx.from?.telegramId}`);
+      // Format counterpart with enhanced display
+      let counterpart = '';
+      if (isOutgoing) {
+        // Sent to someone
+        if (tx.to?.handle) {
+          counterpart = `@${tx.to.handle}`;
+        } else if (tx.to?.telegramId) {
+          counterpart = `User ${tx.to.telegramId}`;
+        } else {
+          counterpart = 'Unknown User';
+        }
+      } else {
+        // Received from someone  
+        if (tx.from?.handle) {
+          counterpart = `@${tx.from.handle}`;
+        } else if (tx.from?.telegramId) {
+          counterpart = `User ${tx.from.telegramId}`;
+        } else {
+          counterpart = 'Unknown User';
+        }
+      }
       
       // Format date
       const date = tx.createdAt.toLocaleDateString();

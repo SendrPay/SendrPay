@@ -216,15 +216,59 @@ router.get('/balance', authenticateWebApp, async (req: any, res) => {
 router.get('/history', authenticateWebApp, async (req: any, res) => {
   try {
     const { user } = req;
-    const transactions = await prisma.transaction.findMany({
+    
+    // Get payment history with sender/receiver details
+    const payments = await prisma.payment.findMany({
       where: {
         OR: [
-          { senderTelegramId: user.id.toString() },
-          { recipientTelegramId: user.id.toString() }
-        ]
+          { fromUserId: user.dbUser.id },
+          { toUserId: user.dbUser.id }
+        ],
+        status: { in: ['sent', 'confirmed'] } // Only show completed payments
+      },
+      include: {
+        from: {
+          select: {
+            id: true,
+            handle: true,
+            telegramId: true,
+            discordId: true
+          }
+        },
+        to: {
+          select: {
+            id: true,
+            handle: true,
+            telegramId: true,
+            discordId: true
+          }
+        }
       },
       orderBy: { createdAt: 'desc' },
       take: 50
+    });
+    
+    // Transform payment data to include proper sender/receiver info
+    const transactions = payments.map(payment => {
+      const isReceived = payment.toUserId === user.dbUser.id;
+      const counterparty = isReceived ? payment.from : payment.to;
+      
+      return {
+        id: payment.id,
+        type: isReceived ? 'received' : 'sent',
+        amount: payment.amountRaw,
+        token: payment.mint === 'SOL' ? 'SOL' : 'USDC', // Simplify for now
+        note: payment.note,
+        createdAt: payment.createdAt,
+        txSig: payment.txSig,
+        counterparty: counterparty ? {
+          id: counterparty.id,
+          handle: counterparty.handle,
+          telegramId: counterparty.telegramId,
+          discordId: counterparty.discordId,
+          displayName: counterparty.handle || `User ${counterparty.id}`
+        } : null
+      };
     });
     
     res.json({ transactions });
@@ -448,6 +492,61 @@ router.get('/tokens', async (req, res) => {
   } catch (error) {
     logger.error('Get tokens API error:', error);
     res.status(500).json({ error: 'Failed to get supported tokens' });
+  }
+});
+
+// Get recent recipients for quick send
+router.get('/recent-recipients', authenticateWebApp, async (req: any, res) => {
+  try {
+    const { user } = req;
+    
+    // Get last 5 unique recipients from sent payments
+    const recentPayments = await prisma.payment.findMany({
+      where: {
+        fromUserId: user.dbUser.id,
+        status: { in: ['sent', 'confirmed'] },
+        toUserId: { not: null }
+      },
+      include: {
+        to: {
+          select: {
+            id: true,
+            handle: true,
+            telegramId: true,
+            discordId: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 20 // Get more to filter duplicates
+    });
+    
+    // Get unique recipients with their last transaction details
+    const recipientMap = new Map();
+    
+    for (const payment of recentPayments) {
+      if (payment.to && !recipientMap.has(payment.to.id)) {
+        recipientMap.set(payment.to.id, {
+          id: payment.to.id,
+          handle: payment.to.handle,
+          telegramId: payment.to.telegramId,
+          discordId: payment.to.discordId,
+          displayName: payment.to.handle || `User ${payment.to.id}`,
+          lastAmount: payment.amountRaw,
+          lastToken: payment.mint === 'SOL' ? 'SOL' : 'USDC',
+          lastSent: payment.createdAt
+        });
+        
+        if (recipientMap.size >= 5) break;
+      }
+    }
+    
+    const recentRecipients = Array.from(recipientMap.values());
+    
+    res.json({ recentRecipients });
+  } catch (error) {
+    logger.error('Get recent recipients API error:', error);
+    res.status(500).json({ error: 'Failed to get recent recipients' });
   }
 });
 

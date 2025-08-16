@@ -41,6 +41,9 @@ Data handling: All data must be live and accurate - never use mock, placeholder,
 - **Fee System**: Configurable basis points with per-token minimum fees.
 - **Escrow System**: Temporary fund holding for users without linked wallets.
 - **Onboarding System**: Three-option setup flow for new users: custodial wallet generation, private key import, or cross-platform account linking with secure expiring codes. Wallet selection feature for users with existing wallets on both platforms.
+- **Transaction History**: Enhanced history display showing detailed sender/receiver information for both miniapp and bot. History shows counterparty names, usernames, and transaction details with proper formatting.
+- **Quick Send System**: Recent recipients feature showing last 5 transfer recipients in Send tab for quick re-transfers with pre-filled amounts and tokens.
+- **Miniapp Interface**: Comprehensive Telegram miniapp with tabbed navigation (Home, Send, History, Settings), matching SendrPay blue branding (#2481cc). Full settings system with wallet management, private key export, cross-platform linking, and withdrawal functionality.
 - **Notifications**: Standardized message templates for all bot interactions with consistent formatting and simplified emoji-only reaction system for payment notifications.
 - **UI/UX**: Modern, clean interface design with concise language and consistent formatting for welcome messages, balance displays, payment confirmations, error messages, and help documentation. Rich embeds and interactive buttons for Discord.
 - **Cross-Platform Account Linking**: Users can link their Discord and Telegram accounts via secure link codes to share one wallet across both platforms, enabling cross-platform payments and unified balance management. Support for platform-specific usernames.

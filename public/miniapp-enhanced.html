@@ -853,10 +853,11 @@
                 const isReceived = tx.type === 'received';
                 const type = isReceived ? 'Received' : 'Sent';
                 
-                // Convert amount from raw to display format
-                const amount = tx.token === 'SOL' ? 
-                    (parseFloat(tx.amount) / Math.pow(10, 9)).toFixed(4) : 
-                    (parseFloat(tx.amount) / Math.pow(10, 6)).toFixed(2);
+                // Convert amount from raw to display format using proper decimals
+                const decimals = tx.decimals || (tx.token === 'SOL' ? 9 : 6);
+                const amount = (parseFloat(tx.amount) / Math.pow(10, decimals)).toFixed(
+                    tx.token === 'SOL' ? 4 : 2
+                );
                 
                 const date = new Date(tx.createdAt).toLocaleDateString();
                 const icon = isReceived ? '↓' : '↑';
@@ -907,9 +908,10 @@
             
             containerEl.style.display = 'block';
             container.innerHTML = recipients.map(recipient => {
-                const amount = recipient.lastToken === 'SOL' ? 
-                    (parseFloat(recipient.lastAmount) / Math.pow(10, 9)).toFixed(4) : 
-                    (parseFloat(recipient.lastAmount) / Math.pow(10, 6)).toFixed(2);
+                const decimals = recipient.lastToken === 'SOL' ? 9 : 6;
+                const amount = (parseFloat(recipient.lastAmount) / Math.pow(10, decimals)).toFixed(
+                    recipient.lastToken === 'SOL' ? 4 : 2
+                );
                 
                 const timeSince = getTimeSince(new Date(recipient.lastSent));
                 

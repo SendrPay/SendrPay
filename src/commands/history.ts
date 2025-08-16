@@ -56,12 +56,30 @@ export async function commandHistory(ctx: BotContext) {
     
     for (const tx of transactions) {
       const isOutgoing = tx.fromUserId === user.id;
-      // Get token info first to get correct decimals
-      const token = await resolveToken(tx.mint);
-      const decimals = token?.decimals || 6; // Default to 6 if token not found
-      const amount = Number(tx.amountRaw) / Math.pow(10, decimals);
       
-      const tokenTicker = token?.ticker || (tx.mint === "So11111111111111111111111111111111111111112" ? "SOL" : "TOKEN");
+      // Get token info first to get correct decimals and ticker
+      const token = await resolveToken(tx.mint);
+      let decimals = 9; // Default SOL decimals
+      let tokenTicker = 'UNKNOWN';
+      
+      if (tx.mint === 'SOL' || tx.mint === 'So11111111111111111111111111111111111111112') {
+        tokenTicker = 'SOL';
+        decimals = 9;
+      } else if (token) {
+        tokenTicker = token.ticker;
+        decimals = token.decimals;
+      } else {
+        // Fallback for common tokens
+        if (tx.mint.includes('USDC') || tx.mint === 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v') {
+          tokenTicker = 'USDC';
+          decimals = 6;
+        } else {
+          tokenTicker = 'TOKEN';
+          decimals = 6; // Default fallback
+        }
+      }
+      
+      const amount = Number(tx.amountRaw) / Math.pow(10, decimals);
       
       // Format counterpart with enhanced display
       let counterpart = '';

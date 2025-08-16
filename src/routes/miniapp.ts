@@ -249,15 +249,38 @@ router.get('/history', authenticateWebApp, async (req: any, res) => {
     });
     
     // Transform payment data to include proper sender/receiver info
-    const transactions = payments.map(payment => {
+    const transactions = await Promise.all(payments.map(async payment => {
       const isReceived = payment.toUserId === user.dbUser.id;
       const counterparty = isReceived ? payment.from : payment.to;
+      
+      // Properly resolve token information
+      const { resolveToken } = await import("../core/tokens");
+      const tokenInfo = await resolveToken(payment.mint);
+      
+      // Determine token ticker and decimals
+      let tokenTicker = 'UNKNOWN';
+      let decimals = 9; // Default SOL decimals
+      
+      if (payment.mint === 'SOL' || payment.mint === 'So11111111111111111111111111111111111111112') {
+        tokenTicker = 'SOL';
+        decimals = 9;
+      } else if (tokenInfo) {
+        tokenTicker = tokenInfo.ticker;
+        decimals = tokenInfo.decimals;
+      } else {
+        // Fallback for common tokens
+        if (payment.mint.includes('USDC') || payment.mint === 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v') {
+          tokenTicker = 'USDC';
+          decimals = 6;
+        }
+      }
       
       return {
         id: payment.id,
         type: isReceived ? 'received' : 'sent',
         amount: payment.amountRaw,
-        token: payment.mint === 'SOL' ? 'SOL' : 'USDC', // Simplify for now
+        token: tokenTicker,
+        decimals: decimals,
         note: payment.note,
         createdAt: payment.createdAt,
         txSig: payment.txSig,
@@ -269,7 +292,7 @@ router.get('/history', authenticateWebApp, async (req: any, res) => {
           displayName: counterparty.handle || `User ${counterparty.id}`
         } : null
       };
-    });
+    }));
     
     res.json({ transactions });
   } catch (error) {
@@ -526,6 +549,19 @@ router.get('/recent-recipients', authenticateWebApp, async (req: any, res) => {
     
     for (const payment of recentPayments) {
       if (payment.to && !recipientMap.has(payment.to.id)) {
+        // Properly resolve token information
+        const { resolveToken } = await import("../core/tokens");
+        const tokenInfo = await resolveToken(payment.mint);
+        
+        let tokenTicker = 'UNKNOWN';
+        if (payment.mint === 'SOL' || payment.mint === 'So11111111111111111111111111111111111111112') {
+          tokenTicker = 'SOL';
+        } else if (tokenInfo) {
+          tokenTicker = tokenInfo.ticker;
+        } else if (payment.mint.includes('USDC') || payment.mint === 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v') {
+          tokenTicker = 'USDC';
+        }
+        
         recipientMap.set(payment.to.id, {
           id: payment.to.id,
           handle: payment.to.handle,
@@ -533,7 +569,7 @@ router.get('/recent-recipients', authenticateWebApp, async (req: any, res) => {
           discordId: payment.to.discordId,
           displayName: payment.to.handle || `User ${payment.to.id}`,
           lastAmount: payment.amountRaw,
-          lastToken: payment.mint === 'SOL' ? 'SOL' : 'USDC',
+          lastToken: tokenTicker,
           lastSent: payment.createdAt
         });
         

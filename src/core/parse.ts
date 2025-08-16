@@ -4,7 +4,6 @@ import { resolveToken } from "./tokens";
 export interface PayCommand {
   payeeId?: string;
   payeeHandle?: string;
-  targetPlatform?: "telegram" | "discord" | null;
   amount: number;
   tokenTicker: string;
   note?: string;
@@ -15,15 +14,11 @@ export interface TipCommand {
   tokenTicker?: string;
 }
 
-
-
 export interface WithdrawCommand {
   amount: number;
   tokenTicker: string;
   toAddress: string;
 }
-
-
 
 export async function parsePayCommand(ctx: BotContext): Promise<PayCommand | null> {
   const text = ctx.message?.text || "";
@@ -33,35 +28,17 @@ export async function parsePayCommand(ctx: BotContext): Promise<PayCommand | nul
 
   let payeeId: string | undefined;
   let payeeHandle: string | undefined;
-  let targetPlatform: "telegram" | "discord" | null = null;
 
   // Check for reply-to-message first
   if (ctx.message?.reply_to_message?.from) {
     payeeId = ctx.message.reply_to_message.from.id.toString();
-    payeeHandle = ctx.message.reply_to_message.from.username; // Keep original case
+    payeeHandle = ctx.message.reply_to_message.from.username;
   } else {
-    // Look for @mention or platform:username in args
-    const targetArg = args.find(arg => arg.startsWith('@') || arg.includes(':'));
+    // Look for @mention in args
+    const targetArg = args.find(arg => arg.startsWith('@'));
     if (targetArg) {
-      // Handle platform:username format (e.g., discord:vi100x, telegram:vi100x)
-      if (targetArg.includes(':')) {
-        const [platform, handle] = targetArg.split(':');
-        const platformLower = platform.toLowerCase();
-        
-        if (platformLower === 'discord' || platformLower === 'dc') {
-          targetPlatform = 'discord';
-          payeeHandle = handle.replace('@', '');
-        } else if (platformLower === 'telegram' || platformLower === 'tg') {
-          targetPlatform = 'telegram';
-          payeeHandle = handle.replace('@', '');
-        } else {
-          return null; // Invalid platform
-        }
-      } else {
-        // Regular @mention format - remove @ prefix, preserve case for database search
-        payeeHandle = targetArg.slice(1);
-        targetPlatform = null; // Will default to current platform
-      }
+      // Regular @mention format - remove @ prefix
+      payeeHandle = targetArg.slice(1);
       
       // Remove target from args for further parsing
       args.splice(args.indexOf(targetArg), 1);
@@ -88,7 +65,6 @@ export async function parsePayCommand(ctx: BotContext): Promise<PayCommand | nul
   return {
     payeeId,
     payeeHandle,
-    targetPlatform,
     amount,
     tokenTicker,
     note
@@ -118,8 +94,6 @@ export function parseTipCommand(ctx: BotContext): TipCommand | null {
   };
 }
 
-
-
 export function parseWithdrawCommand(ctx: BotContext): WithdrawCommand | null {
   const text = ctx.message?.text || "";
   const args = text.split(' ').slice(1); // Remove /withdraw
@@ -145,8 +119,6 @@ export function parseWithdrawCommand(ctx: BotContext): WithdrawCommand | null {
     toAddress
   };
 }
-
-
 
 export function parseAmount(amountStr: string, decimals: number): bigint | null {
   const amount = parseFloat(amountStr);

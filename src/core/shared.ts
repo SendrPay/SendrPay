@@ -118,23 +118,7 @@ export async function lookupByHandle(platform: "telegram" | "discord" | "twitter
   } : null;
 }
 
-export async function lookupAllPlatformsByHandle(handle: string) {
-  const user = await prisma.user.findFirst({
-    where: { handle }
-  });
-
-  if (!user) return [];
-
-  const platforms = [];
-  if (user.telegramId) {
-    platforms.push({ platform: "telegram" as const, platformId: user.telegramId, handle });
-  }
-  if (user.discordId) {
-    platforms.push({ platform: "discord" as const, platformId: user.discordId, handle });
-  }
-
-  return platforms;
-}
+// Function removed - Discord functionality stripped
 
 export async function lookupLocalMentionDiscord(raw: string, ctx: any) {
   // Accept <@123>, <@!123>, or @username in the same guild

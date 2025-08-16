@@ -1,12 +1,11 @@
 import "./infra/env";
 import { bot as telegramBot } from "./bot";
-import { client as discordClient } from "./discord/bot";
 import express from "express";
 import { heliusWebhook } from "./routes/helius";
 import { logger } from "./infra/logger";
 import { env } from "./infra/env";
 
-console.log("🚀 FIXED DEPLOYMENT - WEBHOOKS WORKING");
+console.log("🚀 SENDPAY TELEGRAM BOT - SIMPLIFIED");
 
 const app = express();
 app.use(express.json({ limit: "1mb" }));
@@ -15,9 +14,8 @@ app.use(express.json({ limit: "1mb" }));
 app.get("/", (req, res) => {
   try {
     res.send(`
-      <h1>SendrPay - Both Bots Working</h1>
-      <p>Discord: ${discordClient?.isReady() ? '✅ ONLINE' : '❌ OFFLINE'}</p>
-      <p>Telegram: ${telegramBot ? '✅ ONLINE' : '❌ OFFLINE'}</p>
+      <h1>SendrPay - Telegram Bot</h1>
+      <p>Telegram Bot: ${telegramBot ? '✅ ONLINE' : '❌ OFFLINE'}</p>
       <p>Updated: ${new Date().toISOString()}</p>
     `);
   } catch (error) {
@@ -33,8 +31,6 @@ app.get("/health", (req, res) => {
       status: "ok", 
       timestamp: new Date().toISOString(),
       telegramBotConfigured: !!telegramBot,
-      discordBotConfigured: !!discordClient,
-      discordBotReady: discordClient?.isReady() || false,
       environment: env.NODE_ENV 
     });
   } catch (error) {
@@ -45,7 +41,7 @@ app.get("/health", (req, res) => {
 
 app.post("/webhooks/helius", heliusWebhook);
 
-// Telegram webhook endpoint - FIXED VERSION
+// Telegram webhook endpoint
 app.post("/tg", async (req, res) => {
   if (!telegramBot) {
     return res.status(404).json({ error: "Telegram bot not configured" });
@@ -59,65 +55,6 @@ app.post("/tg", async (req, res) => {
     res.status(500).json({ error: "Webhook failed" });
   }
 });
-
-async function startDiscordBot() {
-  if (!env.DISCORD_TOKEN) {
-    logger.warn("DISCORD_TOKEN not provided, Discord bot will not start");
-    return;
-  }
-
-  // Add Discord client event listeners for better connection management
-  discordClient.on('disconnect', () => {
-    logger.warn('Discord bot disconnected, will attempt to reconnect');
-  });
-
-  discordClient.on('reconnecting', () => {
-    logger.info('Discord bot reconnecting...');
-  });
-
-  discordClient.on('resume', () => {
-    logger.info('Discord bot resumed connection');
-  });
-
-  discordClient.on('error', (error) => {
-    logger.error({ error }, 'Discord bot error');
-    // Don't exit - let Discord.js handle reconnection
-  });
-
-  discordClient.on('warn', (info) => {
-    logger.warn({ info }, 'Discord bot warning');
-  });
-
-  try {
-    logger.info("Starting Discord bot...");
-    await discordClient.login(env.DISCORD_TOKEN);
-    logger.info("✅ Discord bot started successfully");
-    
-    // Set up periodic status check
-    setInterval(() => {
-      if (discordClient.isReady()) {
-        logger.debug('Discord bot status: online');
-      } else {
-        logger.warn('Discord bot status: offline - attempting reconnection');
-        // Try to reconnect if not ready
-        discordClient.login(env.DISCORD_TOKEN).catch(err => {
-          logger.error('Discord reconnection failed:', err);
-        });
-      }
-    }, 60000); // Check every minute
-    
-  } catch (error) {
-    logger.error("Discord bot start error:", error);
-    // Don't exit process - keep Telegram bot running
-    logger.warn("Continuing with Telegram bot only");
-    
-    // Retry connection after 30 seconds
-    setTimeout(() => {
-      logger.info("Retrying Discord bot connection...");
-      startDiscordBot();
-    }, 30000);
-  }
-}
 
 async function startTelegramBot() {
   if (!telegramBot) {
@@ -165,20 +102,17 @@ async function startTelegramBot() {
   }
 }
 
-const port = process.env.PORT || 5000;
+const port = Number(process.env.PORT) || 5000;
 
-async function startCombinedApp() {
+async function startApp() {
   // Start HTTP server
   app.listen(port, "0.0.0.0", async () => {
     logger.info(`HTTP server listening on port ${port}`);
     
-    // Start both bots
-    await Promise.allSettled([
-      startDiscordBot(),
-      startTelegramBot()
-    ]);
+    // Start Telegram bot
+    await startTelegramBot();
     
-    logger.info("✅ Combined application started - both bots active");
+    logger.info("✅ SendrPay Telegram bot started successfully");
     
     // Add keep-alive mechanism to prevent server from sleeping
     setInterval(() => {
@@ -201,17 +135,10 @@ async function startCombinedApp() {
 process.on('SIGINT', async () => {
   logger.info('🔄 Shutting down gracefully...');
   
-  const shutdownPromises: Promise<any>[] = [];
-  
   if (telegramBot) {
-    shutdownPromises.push(telegramBot.stop());
+    await telegramBot.stop();
   }
   
-  if (discordClient) {
-    shutdownPromises.push(discordClient.destroy());
-  }
-  
-  await Promise.allSettled(shutdownPromises);
   logger.info('✅ Graceful shutdown complete');
   process.exit(0);
 });
@@ -219,17 +146,15 @@ process.on('SIGINT', async () => {
 // Handle uncaught errors gracefully
 process.on('uncaughtException', (error) => {
   logger.error({ error }, 'Uncaught Exception');
-  // Don't exit - keep both bots running
+  // Don't exit - keep bot running
 });
 
 process.on('unhandledRejection', (reason) => {
   logger.error({ reason }, 'Unhandled Rejection');
-  // Don't exit - keep both bots running
+  // Don't exit - keep bot running
 });
 
-startCombinedApp().catch(error => {
-  logger.error('Failed to start combined application:', error);
+startApp().catch(error => {
+  logger.error('Failed to start application:', error);
   process.exit(1);
 });
-
-// Note: Main graceful shutdown handler is above, this is just cleanup

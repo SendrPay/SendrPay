@@ -6,7 +6,6 @@ export interface PaymentNotificationData {
   senderHandle: string;
   senderName: string;
   recipientTelegramId?: string;
-  recipientDiscordId?: string;
   amount: number;
   tokenTicker: string;
   signature: string;
@@ -29,7 +28,6 @@ export async function sendPaymentNotification(
     const {
       senderHandle,
       recipientTelegramId,
-      recipientDiscordId,
       amount,
       tokenTicker,
       signature,
@@ -45,14 +43,14 @@ export async function sendPaymentNotification(
     let balanceText = "Calculating...";
     try {
       const user = await prisma.user.findUnique({
-        where: recipientTelegramId ? { telegramId: recipientTelegramId } : { discordId: recipientDiscordId },
-        include: { wallet: true }
+        where: { telegramId: recipientTelegramId },
+        include: { wallets: true }
       });
       
-      if (user?.wallet?.address) {
+      if (user?.wallets?.[0]?.address) {
         const { Connection } = await import("@solana/web3.js");
         const connection = new Connection(process.env.SOLANA_RPC_URL!);
-        const balance = await connection.getBalance(new (await import("@solana/web3.js")).PublicKey(user.wallet.address));
+        const balance = await connection.getBalance(new (await import("@solana/web3.js")).PublicKey(user.wallets[0].address));
         balanceText = `${(balance / 1e9).toFixed(4)} SOL`;
       }
     } catch (error) {
@@ -105,23 +103,6 @@ export async function sendPaymentNotification(
       logger.info(`Telegram ${type} notification sent successfully`);
     }
 
-    // Send to Discord if recipient has Discord ID
-    if (recipientDiscordId) {
-      try {
-        const { client: discordClient } = await import("../discord/bot");
-        const discordUser = await discordClient.users.fetch(recipientDiscordId);
-        
-        // Convert message to Discord format (remove markdown links)
-        const discordMessage = message
-          .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-          .replace(/\*\*(.*?)\*\*/g, '**$1**');
-        
-        await discordUser.send(discordMessage);
-        logger.info(`Discord ${type} notification sent successfully`);
-      } catch (discordError) {
-        logger.error("Failed to send Discord notification", discordError);
-      }
-    }
 
   } catch (error) {
     logger.error(`Failed to send ${data.type || 'payment'} notification`);

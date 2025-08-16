@@ -4,7 +4,6 @@ import { z } from 'zod';
 const envSchema = z.object({
   // Bot configuration
   BOT_TOKEN: z.string().min(1, "Telegram bot token is required").optional(),
-  DISCORD_TOKEN: z.string().min(1, "Discord bot token is required").optional(),
   APP_BASE_URL: z.string().url("Valid app base URL is required").optional(),
 
   // Helius configuration  

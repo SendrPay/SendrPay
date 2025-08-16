@@ -1,7 +1,7 @@
 import type { BotContext } from "../bot";
 import { prisma } from "../infra/prisma";
 import { parsePayCommand } from "../core/parse";
-import { resolveUserCrossPlatform } from "../core/cross-platform-resolver";
+import { resolveUserByHandle } from "../core/user-resolver";
 import { resolveToken } from "../core/tokens";
 import { calculateFee, generateFeeConfirmationMessage } from "../core/fees";
 import { executeTransfer } from "../core/transfer";
@@ -44,14 +44,14 @@ export async function commandPay(ctx: BotContext) {
     // Parse command
     const parsed = await parsePayCommand(ctx);
     if (!parsed) {
-      return ctx.reply("❌ Usage: \`/pay @username amount TOKEN [note]\`\nCross-platform: \`/pay discord:username amount TOKEN\` or \`/pay telegram:username amount TOKEN\`", { parse_mode: "Markdown" });
+      return ctx.reply("❌ Usage: `/pay @username amount TOKEN [note]`", { parse_mode: "Markdown" });
     }
 
-    const { payeeId, payeeHandle, targetPlatform, amount, tokenTicker, note } = parsed;
+    const { payeeId, payeeHandle, amount, tokenTicker, note } = parsed;
 
     // Username verification: payments only succeed when directed to verified usernames
     if (!payeeHandle) {
-      return ctx.reply("❌ Specify recipient username: \`/pay @username amount TOKEN\`", { parse_mode: "Markdown" });
+      return ctx.reply("❌ Specify recipient username: `/pay @username amount TOKEN`", { parse_mode: "Markdown" });
     }
 
     // Resolve token
@@ -72,37 +72,16 @@ export async function commandPay(ctx: BotContext) {
       return ctx.reply("❌ Could not identify sender.");
     }
 
-    // Determine current platform - check if this is from Discord via context indicator
-    const currentPlatform = ctx.from?.username === "discord_context" ? "discord" : "telegram";
-    
-    let payer;
-    if (currentPlatform === "discord") {
-      // Use the same robust user detection as balance command
-      const { getOrCreateUserByDiscordId } = await import("../core/shared");
-      payer = await getOrCreateUserByDiscordId(payerId);
-    } else {
-      payer = await prisma.user.findUnique({
-        where: { telegramId: payerId },
-        include: { wallets: { where: { isActive: true } } }
-      });
-    }
+    const payer = await prisma.user.findUnique({
+      where: { telegramId: payerId },
+      include: { wallets: { where: { isActive: true } } }
+    });
 
-    // Enhanced wallet detection for Discord users (same as balance command)
-    let payerWallet = payer?.wallets && payer.wallets.length > 0 ? payer.wallets[0] : null;
-    if (!payerWallet && currentPlatform === "discord") {
-      payerWallet = await prisma.wallet.findFirst({
-        where: { 
-          userId: payer?.id,
-          isActive: true 
-        }
-      });
-    }
+    const payerWallet = payer?.wallets && payer.wallets.length > 0 ? payer.wallets[0] : null;
 
     if (!payer || !payerWallet) {
-      return ctx.reply("❌ Create wallet first: DM me with \`/start\`", { parse_mode: "Markdown" });
+      return ctx.reply("❌ Create wallet first: DM me with `/start`", { parse_mode: "Markdown" });
     }
-
-    // payerWallet is already defined above with enhanced detection
 
     // Calculate fees with flexible service fee system
     const feeCalc = await calculateFee(amountRaw, token.mint);
@@ -127,16 +106,12 @@ export async function commandPay(ctx: BotContext) {
     // Debug: Log the search parameters
     logger.info("Payment recipient search");
     
-    // Cross-platform user resolution
-    const resolvedPayee = await resolveUserCrossPlatform(payeeHandle, targetPlatform || null, currentPlatform);
+    // Resolve Telegram user
+    const resolvedPayee = await resolveUserByHandle(payeeHandle);
     
     if (!resolvedPayee) {
       logger.warn("Recipient not found");
-      if (targetPlatform) {
-        return ctx.reply(`❌ User @${payeeHandle} not found on ${targetPlatform}. They need to start the bot to register.`);
-      } else {
-        return ctx.reply(`❌ User @${payeeHandle} not found. They need to start the bot to register their username.`);
-      }
+      return ctx.reply(`❌ User @${payeeHandle} not found. They need to start the bot to register their username.`);
     }
     
     logger.info("Recipient resolved");
@@ -156,12 +131,6 @@ export async function commandPay(ctx: BotContext) {
       return ctx.reply(`❌ User @${payeeHandle} needs to create a wallet first.`);
     }
 
-    // Show cross-platform payment info if applicable
-    let platformInfo = "";
-    if (targetPlatform && targetPlatform !== currentPlatform) {
-      platformInfo = ` (${targetPlatform} user)`;
-    }
-
     // Show payment confirmation using message templates
     const recipientReceives = Number(amountRaw) / (10 ** token.decimals);
     const transactionFee = Number(feeRaw) / (10 ** token.decimals);
@@ -173,7 +142,7 @@ export async function commandPay(ctx: BotContext) {
     
     // Use standardized payment confirmation template
     const messageData: MessageData = {
-      recipient: `@${payeeHandle}${platformInfo}`,
+      recipient: `@${payeeHandle}`,
       amount: recipientReceives.toString(),
       token: token.ticker,
       network_fee: `${transactionFee} ${token.ticker}`,
@@ -252,20 +221,11 @@ export async function handlePaymentConfirmation(ctx: BotContext, confirmed: bool
       return ctx.reply("❌ Payment already processed.");
     }
 
-    // ANTI-GRIEFING: Only the payment sender can confirm/cancel transactions
+    // Only the payment sender can confirm/cancel transactions
     const currentUserId = ctx.from?.id.toString();
-    const currentPlatform = ctx.from?.username === "discord_context" ? "discord" : "telegram";
     
-    // Check authorization based on current platform
-    let isAuthorized = false;
-    if (currentPlatform === "telegram" && payment.from?.telegramId === currentUserId) {
-      isAuthorized = true;
-    } else if (currentPlatform === "discord" && payment.from?.discordId === currentUserId) {
-      isAuthorized = true;
-    }
-    
-    if (!currentUserId || !isAuthorized) {
-      console.log(`Payment authorization failed: currentUserId=${currentUserId}, currentPlatform=${currentPlatform}, payment.from.telegramId=${payment.from?.telegramId}, payment.from.discordId=${payment.from?.discordId}`);
+    if (!currentUserId || payment.from?.telegramId !== currentUserId) {
+      console.log(`Payment authorization failed: currentUserId=${currentUserId}, payment.from.telegramId=${payment.from?.telegramId}`);
       return ctx.answerCallbackQuery({
         text: "❌ Only the payment sender can confirm this transaction.",
         show_alert: true
@@ -366,15 +326,14 @@ export async function handlePaymentConfirmation(ctx: BotContext, confirmed: bool
       // Send payment notification to recipient
       logger.info("Checking notification requirements");
 
-      if ((payment.to?.telegramId || payment.to?.discordId) && payment.from?.handle && result.signature) {
+      if (payment.to?.telegramId && payment.from?.handle && result.signature) {
         try {
           logger.info("Sending payment notification");
 
           await sendPaymentNotification(ctx.api, {
             senderHandle: payment.from.handle,
             senderName: payment.from.handle,
-            recipientTelegramId: payment.to.telegramId || undefined,
-            recipientDiscordId: payment.to.discordId || undefined,
+            recipientTelegramId: payment.to.telegramId,
             amount: recipientAmount,
             tokenTicker: token.ticker,
             signature: result.signature,

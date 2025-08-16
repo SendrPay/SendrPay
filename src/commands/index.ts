@@ -16,9 +16,6 @@ import { commandDeposit } from "./deposit";
 import { commandHistory } from "./history";
 import { commandDebugReply, commandDebugReset, commandDebugMessage } from "./debug";
 import { commandLinkcode } from "./linkcode";
-import { commandKeepDiscord, commandKeepTelegram } from "./merge-wallet";
-import { handleKeepDiscord } from "./keepdiscord";
-import { handleKeepTelegram } from "./keeptelegram";
 
 export function registerGroupRoutes(bot: Bot<BotContext>) {
   // Group commands
@@ -78,8 +75,6 @@ Send private key now:`, { parse_mode: "Markdown" });
   bot.command("deposit", commandDeposit);
   bot.command("history", commandHistory);
   bot.command("linkcode", commandLinkcode);
-  bot.command("keepdiscord", handleKeepDiscord);
-  bot.command("keeptelegram", handleKeepTelegram);
   
   // Debug commands for troubleshooting (admin-only)
   bot.command("debug_reply", commandDebugReply);
@@ -128,23 +123,6 @@ Send your private key in your next message:
 Send private key now:`, { parse_mode: "Markdown" });
   });
 
-  bot.callbackQuery("link_discord", async (ctx) => {
-    await ctx.answerCallbackQuery();
-    await ctx.reply(`🔗 **Link Discord Account**
-
-Already have SendrPay on Discord? Connect your accounts to share one wallet:
-
-**Step 1:** Go to Discord and use \`/linktelegram\`
-**Step 2:** Copy the code you receive
-**Step 3:** Come back here and use \`/linkcode <CODE>\`
-
-**Benefits:**
-• One wallet across both platforms
-• Send payments between Discord and Telegram users
-• Unified balance and transaction history
-
-Use \`/linkcode\` when you have your Discord code ready!`, { parse_mode: "Markdown" });
-  });
 
   // Settings menu callback handlers
   bot.callbackQuery(/^(home|wallet|send_payment|receive_payment|security|history|help|bot_settings|settings_main|quick_pay)$/, async (ctx) => {

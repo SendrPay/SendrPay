@@ -312,18 +312,9 @@ export async function handleTipConfirmation(ctx: BotContext, confirmed: boolean)
 
     // ANTI-GRIEFING: Only the tip sender can confirm/cancel transactions
     const currentUserId = ctx.from?.id.toString();
-    const currentPlatform = ctx.from?.username === "discord_context" ? "discord" : "telegram";
     
-    // Check authorization based on current platform
-    let isAuthorized = false;
-    if (currentPlatform === "telegram" && payment.from?.telegramId === currentUserId) {
-      isAuthorized = true;
-    } else if (currentPlatform === "discord" && payment.from?.discordId === currentUserId) {
-      isAuthorized = true;
-    }
-    
-    if (!currentUserId || !isAuthorized) {
-      console.log(`Tip authorization failed: currentUserId=${currentUserId}, currentPlatform=${currentPlatform}, payment.from.telegramId=${payment.from?.telegramId}, payment.from.discordId=${payment.from?.discordId}`);
+    if (!currentUserId || payment.from?.telegramId !== currentUserId) {
+      console.log(`Tip authorization failed: currentUserId=${currentUserId}, payment.from.telegramId=${payment.from?.telegramId}`);
       return ctx.answerCallbackQuery({
         text: "❌ Only the tip sender can confirm this transaction.",
         show_alert: true
@@ -376,8 +367,8 @@ export async function handleTipConfirmation(ctx: BotContext, confirmed: boolean)
       // @ts-ignore - New fields from schema update
       serviceFeeToken: payment.serviceFeeToken || payment.mint,
       token,
-      senderTelegramId: payment.from?.telegramId,
-      recipientTelegramId: payment.to?.telegramId,
+      senderTelegramId: payment.from?.telegramId || undefined,
+      recipientTelegramId: payment.to?.telegramId || undefined,
       note: payment.note || "tip",
       type: "tip"
     });

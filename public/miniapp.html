@@ -301,37 +301,6 @@
                 // Wait a moment for Telegram to initialize
                 await new Promise(resolve => setTimeout(resolve, 500));
                 
-                try {
-                    userData = await apiCall('/user');
-                    
-                    // If authentication failed but we have user structure, show limited interface
-                    if (userData.error && !userData.user) {
-                        // Show as demo mode
-                        document.getElementById('user-info').innerHTML = `
-                            <div style=\"color: orange;\">Demo Mode - Authentication Required</div>
-                            <div style=\"font-size: 12px; margin-top: 5px;\">
-                                ${userData.message || 'Please configure miniapp in BotFather'}
-                            </div>
-                        `;
-                        
-                        // Show demo interface
-                        document.getElementById('balance-card').style.display = 'block';
-                        document.getElementById('balance-amount').textContent = '0.00';
-                        
-                        // Disable send functionality
-                        const sendBtn = document.querySelector('button[onclick=\"showSendForm()\"]');
-                        if (sendBtn) {
-                            sendBtn.textContent = 'Send (Auth Required)';
-                            sendBtn.disabled = true;
-                            sendBtn.style.opacity = '0.5';
-                        }
-                        return;
-                    }
-                } catch (error) {
-                    // If it's a network error, show that
-                    throw error;
-                }
-                
                 userData = await apiCall('/user');
                 
                 document.getElementById('user-info').textContent = 

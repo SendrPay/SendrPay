@@ -117,13 +117,36 @@ router.get('/test', (req, res) => {
   });
 });
 
-// Simple user route for testing (with better error handling)
-router.get('/user', async (req, res) => {
+// Main user route with proper authentication
+router.get('/user', authenticateWebApp, async (req: any, res) => {
+  try {
+    const { user } = req;
+    const balances = await getBalances(user.dbUser.id);
+    
+    res.json({
+      user: {
+        id: user.id,
+        username: user.username,
+        first_name: user.first_name,
+        last_name: user.last_name
+      },
+      wallet: {
+        address: user.dbUser.wallets[0]?.address,
+        balances
+      }
+    });
+  } catch (error) {
+    logger.error('Get user API error:', error);
+    res.status(500).json({ error: 'Failed to get user data' });
+  }
+});
+
+// Test route for debugging (no auth required)
+router.get('/debug', async (req, res) => {
   try {
     const initData = req.headers['x-telegram-init-data'];
     
     if (!initData) {
-      // Return a helpful error for missing initData
       return res.json({
         error: 'No Telegram authentication data provided',
         debug: {
@@ -132,23 +155,22 @@ router.get('/user', async (req, res) => {
           userAgent: req.headers['user-agent'],
           isTelegramBrowser: req.headers['user-agent']?.includes('Telegram') || false
         },
-        message: 'This app must be opened through Telegram. Please configure the miniapp URL in BotFather and try again.'
+        message: 'This app must be opened through Telegram.'
       });
     }
 
-    // If we have initData, try to validate it (but handle errors gracefully)
     const initDataStr = Array.isArray(initData) ? initData[0] : initData;
     logger.info(`Received initData: ${initDataStr.substring(0, 50)}...`);
     
     res.json({
       success: true,
-      message: 'InitData received but authentication needs to be implemented',
+      message: 'InitData received successfully',
       hasInitData: true,
-      initDataLength: initData.length
+      initDataLength: initDataStr.length
     });
     
   } catch (error) {
-    logger.error('User route error:', error);
+    logger.error('Debug route error:', error);
     res.status(500).json({
       error: 'Internal server error',
       message: error.message

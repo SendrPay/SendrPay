@@ -269,4 +269,186 @@ router.post('/send', authenticateWebApp, async (req: any, res) => {
   }
 });
 
+// Wallet information endpoint
+router.get('/wallet-info', authenticateWebApp, async (req: any, res) => {
+  try {
+    const { user } = req;
+    const wallet = user.dbUser.wallets[0];
+    
+    if (!wallet) {
+      return res.status(404).json({ error: 'No wallet found' });
+    }
+    
+    const balances = await getBalances(user.dbUser.id);
+    
+    // Get additional wallet details
+    const transactions = await prisma.transaction.findMany({
+      where: {
+        OR: [
+          { senderTelegramId: user.id.toString() },
+          { recipientTelegramId: user.id.toString() }
+        ]
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 5 // Recent transactions
+    });
+    
+    res.json({
+      wallet: {
+        address: wallet.address,
+        label: wallet.label,
+        isActive: wallet.isActive,
+        createdAt: wallet.createdAt
+      },
+      balances,
+      recentTransactions: transactions.length,
+      totalTransactions: await prisma.transaction.count({
+        where: {
+          OR: [
+            { senderTelegramId: user.id.toString() },
+            { recipientTelegramId: user.id.toString() }
+          ]
+        }
+      })
+    });
+  } catch (error) {
+    logger.error('Wallet info API error:', error);
+    res.status(500).json({ error: 'Failed to get wallet information' });
+  }
+});
+
+// Export private key (security feature)
+router.post('/export-key', authenticateWebApp, async (req: any, res) => {
+  try {
+    const { user } = req;
+    const wallet = user.dbUser.wallets[0];
+    
+    if (!wallet || !wallet.encPrivKey) {
+      return res.status(404).json({ error: 'No custodial wallet found' });
+    }
+    
+    // Return the private key (stored as Buffer)
+    const privateKeyArray = Array.from(wallet.encPrivKey);
+    
+    res.json({ 
+      success: true, 
+      privateKey: privateKeyArray,
+      warning: 'Keep this private key secure. Never share it with anyone.'
+    });
+  } catch (error) {
+    logger.error('Export key API error:', error);
+    res.status(500).json({ error: 'Failed to export private key' });
+  }
+});
+
+// Bot settings endpoint
+router.get('/settings', authenticateWebApp, async (req: any, res) => {
+  try {
+    const { user } = req;
+    
+    // Get user preferences from database
+    const userSettings = await prisma.user.findUnique({
+      where: { telegramId: user.id.toString() },
+      select: {
+        id: true,
+        telegramId: true,
+        handle: true,
+        discordId: true,
+
+        createdAt: true,
+        wallets: {
+          where: { isActive: true },
+          select: {
+            address: true,
+            label: true,
+            createdAt: true
+          }
+        }
+      }
+    });
+    
+    res.json({
+      user: userSettings,
+      linkedAccounts: {
+        telegram: !!userSettings?.telegramId,
+        discord: !!userSettings?.discordId
+      },
+      notifications: {
+        payments: true, // Default settings
+        tips: true,
+        mentions: true
+      }
+    });
+  } catch (error) {
+    logger.error('Settings API error:', error);
+    res.status(500).json({ error: 'Failed to get settings' });
+  }
+});
+
+// Generate link code for cross-platform account linking
+router.post('/generate-linkcode', authenticateWebApp, async (req: any, res) => {
+  try {
+    const { user } = req;
+    
+    const { createLinkCode } = await import("../core/shared");
+    const linkCode = await createLinkCode(user.dbUser.id, 'telegram');
+    
+    res.json({ 
+      success: true, 
+      linkCode,
+      expiresIn: '10 minutes',
+      instructions: 'Use this code in Discord with /link command to connect your accounts'
+    });
+  } catch (error) {
+    logger.error('Generate linkcode API error:', error);
+    res.status(500).json({ error: 'Failed to generate link code' });
+  }
+});
+
+// Withdraw to external address
+router.post('/withdraw', authenticateWebApp, async (req: any, res) => {
+  try {
+    const { user } = req;
+    const { address, amount, token } = req.body;
+    
+    // Validate input
+    if (!address || !amount || !token) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+    
+    // Validate Solana address format
+    try {
+      const { PublicKey } = await import("@solana/web3.js");
+      new PublicKey(address);
+    } catch {
+      return res.status(400).json({ error: 'Invalid Solana address' });
+    }
+    
+    // Execute withdrawal
+    const { withdraw } = await import("../core/shared");
+    const result = await withdraw(user.dbUser.id, amount.toString(), token, address);
+    
+    res.json({ success: true, transaction: result.tx });
+  } catch (error) {
+    logger.error('Withdraw API error:', error);
+    res.status(500).json({ error: 'Failed to withdraw funds' });
+  }
+});
+
+// Get supported tokens
+router.get('/tokens', async (req, res) => {
+  try {
+    // Return hardcoded supported tokens for now
+    const tokens = [
+      { symbol: 'SOL', name: 'Solana', decimals: 9 },
+      { symbol: 'USDC', name: 'USD Coin', decimals: 6 }
+    ];
+    
+    res.json({ tokens });
+  } catch (error) {
+    logger.error('Get tokens API error:', error);
+    res.status(500).json({ error: 'Failed to get supported tokens' });
+  }
+});
+
 export default router;

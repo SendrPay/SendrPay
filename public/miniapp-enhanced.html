@@ -1,0 +1,1353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SendrPay - Telegram Wallet</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--tg-theme-bg-color, #ffffff);
+            color: var(--tg-theme-text-color, #000000);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+        
+        .app-container {
+            max-width: 400px;
+            margin: 0 auto;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        /* Header with SendrPay branding */
+        .app-header {
+            background: linear-gradient(135deg, #2481cc, #1e6bb8);
+            color: white;
+            padding: 20px 16px;
+            text-align: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        
+        .brand-logo {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            margin-bottom: 8px;
+        }
+        
+        .logo-icon {
+            width: 32px;
+            height: 32px;
+            background: white;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .logo-text {
+            font-size: 24px;
+            font-weight: 700;
+            color: white;
+        }
+        
+        .user-greeting {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        
+        /* Navigation */
+        .nav-tabs {
+            display: flex;
+            background: var(--tg-theme-secondary-bg-color, #f5f5f5);
+            border-bottom: 1px solid var(--tg-theme-hint-color, #e0e0e0);
+            position: sticky;
+            top: 72px;
+            z-index: 90;
+        }
+        
+        .nav-tab {
+            flex: 1;
+            padding: 12px 8px;
+            text-align: center;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--tg-theme-hint-color, #666);
+            background: none;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .nav-tab.active {
+            color: #2481cc;
+            background: var(--tg-theme-bg-color, #ffffff);
+            border-bottom: 2px solid #2481cc;
+        }
+        
+        /* Content area */
+        .content {
+            flex: 1;
+            padding: 16px;
+            overflow-y: auto;
+        }
+        
+        /* Tab content */
+        .tab-content {
+            display: none;
+            animation: fadeIn 0.3s ease-in;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* Balance card */
+        .balance-card {
+            background: linear-gradient(135deg, #2481cc, #1e6bb8);
+            color: white;
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .balance-amount {
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+        
+        .balance-label {
+            font-size: 14px;
+            opacity: 0.9;
+            margin-bottom: 16px;
+        }
+        
+        .wallet-address {
+            font-size: 11px;
+            opacity: 0.8;
+            background: rgba(255,255,255,0.2);
+            padding: 8px 12px;
+            border-radius: 8px;
+            word-break: break-all;
+            cursor: pointer;
+        }
+        
+        /* Action buttons */
+        .action-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+        
+        .action-btn {
+            padding: 16px;
+            border: none;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            background: var(--tg-theme-secondary-bg-color, #f5f5f5);
+            color: var(--tg-theme-text-color, #000);
+        }
+        
+        .action-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        
+        .action-btn.primary {
+            background: #2481cc;
+            color: white;
+        }
+        
+        .action-icon {
+            font-size: 24px;
+        }
+        
+        /* Settings menu */
+        .settings-menu {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .settings-item {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 16px;
+            background: var(--tg-theme-secondary-bg-color, #f5f5f5);
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+            width: 100%;
+            text-align: left;
+            color: var(--tg-theme-text-color, #000);
+        }
+        
+        .settings-item:hover {
+            transform: translateX(4px);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .settings-icon {
+            font-size: 20px;
+            width: 24px;
+            text-align: center;
+        }
+        
+        .settings-content {
+            flex: 1;
+        }
+        
+        .settings-title {
+            font-weight: 600;
+            margin-bottom: 2px;
+        }
+        
+        .settings-description {
+            font-size: 12px;
+            color: var(--tg-theme-hint-color, #666);
+        }
+        
+        .settings-arrow {
+            font-size: 16px;
+            color: var(--tg-theme-hint-color, #666);
+        }
+        
+        /* Forms */
+        .form-container {
+            background: var(--tg-theme-secondary-bg-color, #f5f5f5);
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .form-title {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 16px;
+        }
+        
+        .form-group {
+            margin-bottom: 16px;
+        }
+        
+        .form-label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        
+        .form-input, .form-select {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid var(--tg-theme-hint-color, #e0e0e0);
+            border-radius: 8px;
+            font-size: 16px;
+            background: var(--tg-theme-bg-color, #ffffff);
+            color: var(--tg-theme-text-color, #000000);
+            transition: border-color 0.2s;
+        }
+        
+        .form-input:focus, .form-select:focus {
+            outline: none;
+            border-color: #2481cc;
+        }
+        
+        .form-buttons {
+            display: flex;
+            gap: 12px;
+            margin-top: 20px;
+        }
+        
+        .btn {
+            flex: 1;
+            padding: 14px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .btn-primary {
+            background: #2481cc;
+            color: white;
+        }
+        
+        .btn-secondary {
+            background: var(--tg-theme-secondary-bg-color, #f5f5f5);
+            color: var(--tg-theme-text-color, #000);
+        }
+        
+        .btn:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+        
+        /* Transaction history */
+        .transaction-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        .transaction-item {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 16px;
+            background: var(--tg-theme-secondary-bg-color, #f5f5f5);
+            border-radius: 12px;
+        }
+        
+        .transaction-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+        
+        .transaction-icon.sent {
+            background: #ff4444;
+            color: white;
+        }
+        
+        .transaction-icon.received {
+            background: #44ff44;
+            color: white;
+        }
+        
+        .transaction-details {
+            flex: 1;
+        }
+        
+        .transaction-type {
+            font-weight: 600;
+            margin-bottom: 2px;
+        }
+        
+        .transaction-date {
+            font-size: 12px;
+            color: var(--tg-theme-hint-color, #666);
+        }
+        
+        .transaction-amount {
+            font-weight: 700;
+            text-align: right;
+        }
+        
+        .transaction-amount.sent {
+            color: #ff4444;
+        }
+        
+        .transaction-amount.received {
+            color: #44ff44;
+        }
+        
+        /* Notifications */
+        .notification {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-weight: 600;
+            z-index: 1000;
+            display: none;
+        }
+        
+        .notification.error {
+            background: #ff4444;
+            color: white;
+        }
+        
+        .notification.success {
+            background: #44ff44;
+            color: white;
+        }
+        
+        /* Loading state */
+        .loading {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--tg-theme-hint-color, #666);
+        }
+        
+        .spinner {
+            width: 24px;
+            height: 24px;
+            border: 2px solid var(--tg-theme-hint-color, #e0e0e0);
+            border-top: 2px solid #2481cc;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 16px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* Back button */
+        .back-button {
+            position: absolute;
+            left: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: white;
+            padding: 8px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 18px;
+        }
+        
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <div class="app-header">
+            <button class="back-button hidden" onclick="goBack()" id="backButton">←</button>
+            <div class="brand-logo">
+                <div class="logo-icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="#2481cc">
+                        <path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/>
+                    </svg>
+                </div>
+                <div class="logo-text">SendrPay</div>
+            </div>
+            <div class="user-greeting" id="userGreeting">Loading...</div>
+        </div>
+
+        <!-- Navigation -->
+        <div class="nav-tabs">
+            <button class="nav-tab active" onclick="switchTab('home')" data-tab="home">
+                <div>🏠</div>
+                <div>Home</div>
+            </button>
+            <button class="nav-tab" onclick="switchTab('send')" data-tab="send">
+                <div>💸</div>
+                <div>Send</div>
+            </button>
+            <button class="nav-tab" onclick="switchTab('history')" data-tab="history">
+                <div>📋</div>
+                <div>History</div>
+            </button>
+            <button class="nav-tab" onclick="switchTab('settings')" data-tab="settings">
+                <div>⚙️</div>
+                <div>Settings</div>
+            </button>
+        </div>
+
+        <!-- Content -->
+        <div class="content">
+            <!-- Home Tab -->
+            <div id="home-tab" class="tab-content active">
+                <div class="balance-card" id="balanceCard" style="display: none;">
+                    <div class="balance-amount" id="balanceAmount">0.00</div>
+                    <div class="balance-label">SOL Balance</div>
+                    <div class="wallet-address" id="walletAddress" onclick="copyAddress()"></div>
+                </div>
+
+                <div class="action-grid">
+                    <button class="action-btn primary" onclick="switchTab('send')">
+                        <div class="action-icon">💸</div>
+                        <div>Send Payment</div>
+                    </button>
+                    <button class="action-btn" onclick="showReceiveModal()">
+                        <div class="action-icon">📲</div>
+                        <div>Receive</div>
+                    </button>
+                    <button class="action-btn" onclick="switchTab('history')">
+                        <div class="action-icon">📋</div>
+                        <div>History</div>
+                    </button>
+                    <button class="action-btn" onclick="refreshBalance()">
+                        <div class="action-icon">🔄</div>
+                        <div>Refresh</div>
+                    </button>
+                </div>
+
+                <div id="homeLoading" class="loading">
+                    <div class="spinner"></div>
+                    Loading your wallet...
+                </div>
+            </div>
+
+            <!-- Send Tab -->
+            <div id="send-tab" class="tab-content">
+                <div class="form-container">
+                    <div class="form-title">💸 Send Payment</div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Recipient (@username)</label>
+                        <input type="text" id="sendRecipient" class="form-input" placeholder="@username">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Amount</label>
+                        <input type="number" id="sendAmount" class="form-input" placeholder="0.00" step="0.001">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Token</label>
+                        <select id="sendToken" class="form-select">
+                            <option value="SOL">SOL</option>
+                            <option value="USDC">USDC</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Note (optional)</label>
+                        <input type="text" id="sendNote" class="form-input" placeholder="Payment note">
+                    </div>
+                    
+                    <div class="form-buttons">
+                        <button class="btn btn-primary" onclick="sendPayment()">Send Payment</button>
+                        <button class="btn btn-secondary" onclick="clearSendForm()">Clear</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- History Tab -->
+            <div id="history-tab" class="tab-content">
+                <div id="historyLoading" class="loading">
+                    <div class="spinner"></div>
+                    Loading transactions...
+                </div>
+                <div id="transactionList" class="transaction-list"></div>
+            </div>
+
+            <!-- Settings Tab -->
+            <div id="settings-tab" class="tab-content">
+                <div class="settings-menu">
+                    <button class="settings-item" onclick="showWalletInfo()">
+                        <div class="settings-icon">💰</div>
+                        <div class="settings-content">
+                            <div class="settings-title">My Wallet</div>
+                            <div class="settings-description">View address and balances</div>
+                        </div>
+                        <div class="settings-arrow">→</div>
+                    </button>
+
+                    <button class="settings-item" onclick="showSecuritySettings()">
+                        <div class="settings-icon">🔒</div>
+                        <div class="settings-content">
+                            <div class="settings-title">Security Settings</div>
+                            <div class="settings-description">Export keys and security options</div>
+                        </div>
+                        <div class="settings-arrow">→</div>
+                    </button>
+
+                    <button class="settings-item" onclick="showWithdrawOptions()">
+                        <div class="settings-icon">📤</div>
+                        <div class="settings-content">
+                            <div class="settings-title">Withdraw</div>
+                            <div class="settings-description">Send to external wallet</div>
+                        </div>
+                        <div class="settings-arrow">→</div>
+                    </button>
+
+                    <button class="settings-item" onclick="showBotSettings()">
+                        <div class="settings-icon">⚙️</div>
+                        <div class="settings-content">
+                            <div class="settings-title">Bot Settings</div>
+                            <div class="settings-description">Notifications and preferences</div>
+                        </div>
+                        <div class="settings-arrow">→</div>
+                    </button>
+
+                    <button class="settings-item" onclick="showHelp()">
+                        <div class="settings-icon">❓</div>
+                        <div class="settings-content">
+                            <div class="settings-title">Help & Support</div>
+                            <div class="settings-description">Commands and documentation</div>
+                        </div>
+                        <div class="settings-arrow">→</div>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification -->
+    <div id="notification" class="notification"></div>
+
+    <script>
+        let userData = null;
+        let currentTab = 'home';
+        let navigationStack = [];
+
+        // Initialize Telegram WebApp
+        if (window.Telegram?.WebApp) {
+            window.Telegram.WebApp.ready();
+            window.Telegram.WebApp.expand();
+            
+            // Set header color to match our branding
+            window.Telegram.WebApp.setHeaderColor('#2481cc');
+            window.Telegram.WebApp.setBackgroundColor('#ffffff');
+        }
+
+        // API helper function
+        async function apiCall(endpoint, options = {}) {
+            const initData = window.Telegram?.WebApp?.initData;
+            
+            if (!initData) {
+                throw new Error('No Telegram authentication data available. Please open this app through Telegram.');
+            }
+            
+            const headers = {
+                'Content-Type': 'application/json',
+                'X-Telegram-Init-Data': initData,
+                ...options.headers
+            };
+            
+            const response = await fetch(`/api${endpoint}`, {
+                ...options,
+                headers
+            });
+            
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'API call failed');
+            }
+            
+            return response.json();
+        }
+
+        // Tab switching
+        function switchTab(tab) {
+            if (tab === currentTab) return;
+            
+            // Update navigation
+            document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+            document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
+            
+            // Update content
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.getElementById(`${tab}-tab`).classList.add('active');
+            
+            currentTab = tab;
+            
+            // Load tab-specific data
+            if (tab === 'history') {
+                loadTransactionHistory();
+            }
+            
+            // Hide back button on main tabs
+            document.getElementById('backButton').classList.add('hidden');
+            navigationStack = [];
+        }
+
+        // Navigation stack for settings
+        function pushView(viewName) {
+            navigationStack.push(currentTab);
+            document.getElementById('backButton').classList.remove('hidden');
+        }
+
+        function goBack() {
+            if (navigationStack.length > 0) {
+                const previousView = navigationStack.pop();
+                if (navigationStack.length === 0) {
+                    document.getElementById('backButton').classList.add('hidden');
+                }
+                // Handle back navigation logic here
+            }
+        }
+
+        // Load user data
+        async function loadUser() {
+            try {
+                document.getElementById('homeLoading').style.display = 'block';
+                
+                // Test connection first
+                await fetch('/api/test');
+                
+                // Load user data
+                userData = await apiCall('/user');
+                
+                document.getElementById('userGreeting').textContent = 
+                    `Welcome, ${userData.user.first_name}!`;
+                
+                if (userData.wallet.address) {
+                    const addressEl = document.getElementById('walletAddress');
+                    const shortAddress = `${userData.wallet.address.slice(0, 8)}...${userData.wallet.address.slice(-4)}`;
+                    addressEl.textContent = shortAddress;
+                    addressEl.title = userData.wallet.address;
+                }
+                
+                await updateBalance();
+                document.getElementById('balanceCard').style.display = 'block';
+                document.getElementById('homeLoading').style.display = 'none';
+                
+            } catch (error) {
+                showNotification('Failed to load user data: ' + error.message, 'error');
+                document.getElementById('homeLoading').innerHTML = `
+                    <div style="color: red; text-align: center;">
+                        <div style="margin-bottom: 16px;">❌ Authentication failed</div>
+                        <div style="font-size: 14px;">Please open this app through Telegram</div>
+                    </div>
+                `;
+            }
+        }
+
+        // Update balance
+        async function updateBalance() {
+            try {
+                const data = await apiCall('/balance');
+                const balances = data.balances;
+                
+                document.getElementById('balanceAmount').textContent = balances.SOL;
+                
+                // Show USDC balance if available
+                if (parseFloat(balances.USDC) > 0) {
+                    document.getElementById('balanceAmount').textContent += ` | ${balances.USDC} USDC`;
+                }
+            } catch (error) {
+                showNotification('Failed to load balance: ' + error.message, 'error');
+            }
+        }
+
+        // Refresh balance
+        async function refreshBalance() {
+            const refreshBtn = event.target.closest('.action-btn');
+            const originalText = refreshBtn.innerHTML;
+            refreshBtn.innerHTML = '<div class="action-icon">🔄</div><div>Refreshing...</div>';
+            
+            try {
+                await updateBalance();
+                showNotification('Balance updated successfully', 'success');
+            } catch (error) {
+                showNotification('Failed to refresh balance', 'error');
+            } finally {
+                refreshBtn.innerHTML = originalText;
+            }
+        }
+
+        // Send payment
+        async function sendPayment() {
+            const recipient = document.getElementById('sendRecipient').value.trim();
+            const amount = document.getElementById('sendAmount').value.trim();
+            const token = document.getElementById('sendToken').value;
+            const note = document.getElementById('sendNote').value.trim();
+            
+            if (!recipient || !amount) {
+                showNotification('Please fill in recipient and amount', 'error');
+                return;
+            }
+            
+            const sendBtn = event.target;
+            const originalText = sendBtn.textContent;
+            sendBtn.textContent = 'Sending...';
+            sendBtn.disabled = true;
+            
+            try {
+                await apiCall('/send', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        recipient: recipient.replace('@', ''),
+                        amount: parseFloat(amount),
+                        token,
+                        note: note || undefined
+                    })
+                });
+                
+                showNotification('Payment sent successfully!', 'success');
+                clearSendForm();
+                await updateBalance();
+                
+                // Switch to history tab to show the transaction
+                setTimeout(() => switchTab('history'), 1000);
+                
+            } catch (error) {
+                showNotification('Failed to send payment: ' + error.message, 'error');
+            } finally {
+                sendBtn.textContent = originalText;
+                sendBtn.disabled = false;
+            }
+        }
+
+        // Clear send form
+        function clearSendForm() {
+            document.getElementById('sendRecipient').value = '';
+            document.getElementById('sendAmount').value = '';
+            document.getElementById('sendNote').value = '';
+        }
+
+        // Load transaction history
+        async function loadTransactionHistory() {
+            try {
+                document.getElementById('historyLoading').style.display = 'block';
+                document.getElementById('transactionList').innerHTML = '';
+                
+                const data = await apiCall('/history');
+                displayTransactions(data.transactions);
+                
+            } catch (error) {
+                document.getElementById('transactionList').innerHTML = 
+                    `<div style="text-align: center; color: red; padding: 20px;">Failed to load history: ${error.message}</div>`;
+            } finally {
+                document.getElementById('historyLoading').style.display = 'none';
+            }
+        }
+
+        // Display transactions
+        function displayTransactions(transactions) {
+            const container = document.getElementById('transactionList');
+            
+            if (transactions.length === 0) {
+                container.innerHTML = '<div style="text-align: center; color: #666; padding: 40px;">No transactions yet</div>';
+                return;
+            }
+            
+            container.innerHTML = transactions.map(tx => {
+                const isReceived = tx.recipientTelegramId === userData.user.id.toString();
+                const type = isReceived ? 'Received' : 'Sent';
+                const amount = (parseFloat(tx.amount) / Math.pow(10, 9)).toFixed(4);
+                const date = new Date(tx.createdAt).toLocaleDateString();
+                const icon = isReceived ? '↓' : '↑';
+                
+                return `
+                    <div class="transaction-item">
+                        <div class="transaction-icon ${isReceived ? 'received' : 'sent'}">
+                            ${icon}
+                        </div>
+                        <div class="transaction-details">
+                            <div class="transaction-type">${type}</div>
+                            <div class="transaction-date">${date}${tx.note ? ` • ${tx.note}` : ''}</div>
+                        </div>
+                        <div class="transaction-amount ${isReceived ? 'received' : 'sent'}">
+                            ${isReceived ? '+' : '-'}${amount} ${tx.tokenTicker}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Settings functions
+        async function showWalletInfo() {
+            pushView('wallet-info');
+            const settingsTab = document.getElementById('settings-tab');
+            
+            try {
+                const data = await apiCall('/wallet-info');
+                
+                settingsTab.innerHTML = `
+                    <div class="form-container">
+                        <div class="form-title">💰 My Wallet</div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Wallet Address</label>
+                            <div style="font-family: monospace; word-break: break-all; padding: 12px; background: var(--tg-theme-bg-color, #ffffff); border: 1px solid var(--tg-theme-hint-color, #e0e0e0); border-radius: 8px; cursor: pointer;" onclick="copyText('${data.wallet.address}')">
+                                ${data.wallet.address}
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Wallet Type</label>
+                            <div style="padding: 12px; background: var(--tg-theme-secondary-bg-color, #f5f5f5); border-radius: 8px;">
+                                ${data.wallet.label || 'Custodial'}
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Created</label>
+                            <div style="padding: 12px; background: var(--tg-theme-secondary-bg-color, #f5f5f5); border-radius: 8px;">
+                                ${new Date(data.wallet.createdAt).toLocaleDateString()}
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Balances</label>
+                            <div style="padding: 16px; background: var(--tg-theme-secondary-bg-color, #f5f5f5); border-radius: 8px;">
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                                    <span>SOL:</span>
+                                    <span style="font-weight: bold;">${data.balances.SOL}</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span>USDC:</span>
+                                    <span style="font-weight: bold;">${data.balances.USDC}</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Statistics</label>
+                            <div style="padding: 16px; background: var(--tg-theme-secondary-bg-color, #f5f5f5); border-radius: 8px;">
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                                    <span>Total Transactions:</span>
+                                    <span style="font-weight: bold;">${data.totalTransactions}</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span>Recent Transactions:</span>
+                                    <span style="font-weight: bold;">${data.recentTransactions}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } catch (error) {
+                showNotification('Failed to load wallet info', 'error');
+            }
+        }
+
+        async function showSecuritySettings() {
+            pushView('security');
+            const settingsTab = document.getElementById('settings-tab');
+            
+            settingsTab.innerHTML = `
+                <div class="form-container">
+                    <div class="form-title">🔒 Security Settings</div>
+                    
+                    <div class="settings-menu">
+                        <button class="settings-item" onclick="exportPrivateKey()">
+                            <div class="settings-icon">🔑</div>
+                            <div class="settings-content">
+                                <div class="settings-title">Export Private Key</div>
+                                <div class="settings-description">Download your wallet's private key</div>
+                            </div>
+                            <div class="settings-arrow">→</div>
+                        </button>
+
+                        <button class="settings-item" onclick="generateLinkCode()">
+                            <div class="settings-icon">🔗</div>
+                            <div class="settings-content">
+                                <div class="settings-title">Link Accounts</div>
+                                <div class="settings-description">Generate code to link Discord account</div>
+                            </div>
+                            <div class="settings-arrow">→</div>
+                        </button>
+                        
+                        <button class="settings-item" onclick="showAccountInfo()">
+                            <div class="settings-icon">👤</div>
+                            <div class="settings-content">
+                                <div class="settings-title">Account Info</div>
+                                <div class="settings-description">View linked accounts and settings</div>
+                            </div>
+                            <div class="settings-arrow">→</div>
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function showWithdrawOptions() {
+            pushView('withdraw');
+            const settingsTab = document.getElementById('settings-tab');
+            
+            settingsTab.innerHTML = `
+                <div class="form-container">
+                    <div class="form-title">📤 Withdraw Funds</div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Recipient Address</label>
+                        <input type="text" id="withdrawAddress" class="form-input" placeholder="Solana wallet address">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Amount</label>
+                        <input type="number" id="withdrawAmount" class="form-input" placeholder="0.00" step="0.001">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Token</label>
+                        <select id="withdrawToken" class="form-select">
+                            <option value="SOL">SOL</option>
+                            <option value="USDC">USDC</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-buttons">
+                        <button class="btn btn-primary" onclick="processWithdraw()">Withdraw</button>
+                        <button class="btn btn-secondary" onclick="clearWithdrawForm()">Clear</button>
+                    </div>
+                    
+                    <div style="margin-top: 16px; padding: 12px; background: #ffffcc; border-radius: 8px; font-size: 12px;">
+                        ⚠️ <strong>Warning:</strong> Double-check the recipient address. Transactions cannot be reversed.
+                    </div>
+                </div>
+            `;
+        }
+
+        async function showBotSettings() {
+            pushView('bot-settings');
+            const settingsTab = document.getElementById('settings-tab');
+            
+            try {
+                const data = await apiCall('/settings');
+                
+                settingsTab.innerHTML = `
+                    <div class="form-container">
+                        <div class="form-title">⚙️ Bot Settings</div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Account Information</label>
+                            <div style="padding: 16px; background: var(--tg-theme-secondary-bg-color, #f5f5f5); border-radius: 8px;">
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                                    <span>Telegram:</span>
+                                    <span style="font-weight: bold; color: ${data.linkedAccounts.telegram ? 'green' : 'red'};">
+                                        ${data.linkedAccounts.telegram ? 'Connected' : 'Not Connected'}
+                                    </span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                                    <span>Discord:</span>
+                                    <span style="font-weight: bold; color: ${data.linkedAccounts.discord ? 'green' : 'red'};">
+                                        ${data.linkedAccounts.discord ? 'Connected' : 'Not Connected'}
+                                    </span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span>Username:</span>
+                                    <span style="font-weight: bold;">${data.user.handle || 'Not set'}</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Notification Preferences</label>
+                            <div style="padding: 16px; background: var(--tg-theme-secondary-bg-color, #f5f5f5); border-radius: 8px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                                    <span>Payment notifications</span>
+                                    <span style="font-weight: bold; color: green;">✓ Enabled</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                                    <span>Tip notifications</span>
+                                    <span style="font-weight: bold; color: green;">✓ Enabled</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <span>Mention notifications</span>
+                                    <span style="font-weight: bold; color: green;">✓ Enabled</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Account Created</label>
+                            <div style="padding: 12px; background: var(--tg-theme-secondary-bg-color, #f5f5f5); border-radius: 8px;">
+                                ${new Date(data.user.createdAt).toLocaleDateString()}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } catch (error) {
+                showNotification('Failed to load settings', 'error');
+            }
+        }
+
+        function showHelp() {
+            pushView('help');
+            const settingsTab = document.getElementById('settings-tab');
+            
+            settingsTab.innerHTML = `
+                <div class="form-container">
+                    <div class="form-title">❓ Help & Support</div>
+                    
+                    <div style="margin-bottom: 24px;">
+                        <h4 style="margin-bottom: 12px; color: #2481cc;">📱 Miniapp Commands</h4>
+                        <div style="padding: 16px; background: var(--tg-theme-secondary-bg-color, #f5f5f5); border-radius: 8px; font-size: 14px; line-height: 1.6;">
+                            • <strong>Home:</strong> View balance and quick actions<br>
+                            • <strong>Send:</strong> Send payments to any user<br>
+                            • <strong>History:</strong> View transaction history<br>
+                            • <strong>Settings:</strong> Manage wallet and account
+                        </div>
+                    </div>
+                    
+                    <div style="margin-bottom: 24px;">
+                        <h4 style="margin-bottom: 12px; color: #2481cc;">💬 Bot Commands</h4>
+                        <div style="padding: 16px; background: var(--tg-theme-secondary-bg-color, #f5f5f5); border-radius: 8px; font-size: 14px; line-height: 1.6;">
+                            • <strong>/pay @user amount TOKEN:</strong> Send payment<br>
+                            • <strong>/tip amount:</strong> Reply to tip a message<br>
+                            • <strong>/balance:</strong> Check your balance<br>
+                            • <strong>/history:</strong> View transaction history<br>
+                            • <strong>/deposit:</strong> Get deposit address<br>
+                            • <strong>/withdraw:</strong> Withdraw to external wallet<br>
+                            • <strong>/settings:</strong> Open settings menu<br>
+                            • <strong>/help:</strong> Show help information
+                        </div>
+                    </div>
+                    
+                    <div style="margin-bottom: 24px;">
+                        <h4 style="margin-bottom: 12px; color: #2481cc;">🔗 Account Linking</h4>
+                        <div style="padding: 16px; background: var(--tg-theme-secondary-bg-color, #f5f5f5); border-radius: 8px; font-size: 14px; line-height: 1.6;">
+                            Link your Discord and Telegram accounts to use one wallet across both platforms:<br><br>
+                            1. Generate a link code in Security Settings<br>
+                            2. Use <strong>/link [code]</strong> command in Discord<br>
+                            3. Your accounts will share the same wallet
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <h4 style="margin-bottom: 12px; color: #2481cc;">🛡️ Security Tips</h4>
+                        <div style="padding: 16px; background: var(--tg-theme-secondary-bg-color, #f5f5f5); border-radius: 8px; font-size: 14px; line-height: 1.6;">
+                            • Never share your private key with anyone<br>
+                            • Double-check recipient addresses before sending<br>
+                            • Start with small amounts for testing<br>
+                            • Keep your bot interactions in private messages<br>
+                            • Report any suspicious activity immediately
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function showReceiveModal() {
+            if (userData?.wallet?.address) {
+                navigator.clipboard.writeText(userData.wallet.address);
+                showNotification('Wallet address copied to clipboard!', 'success');
+            }
+        }
+
+        // Copy wallet address
+        function copyAddress() {
+            if (userData?.wallet?.address) {
+                navigator.clipboard.writeText(userData.wallet.address);
+                showNotification('Address copied to clipboard!', 'success');
+            }
+        }
+
+        // Show notification
+        function showNotification(message, type = 'info') {
+            const notification = document.getElementById('notification');
+            notification.textContent = message;
+            notification.className = `notification ${type}`;
+            notification.style.display = 'block';
+            
+            setTimeout(() => {
+                notification.style.display = 'none';
+            }, type === 'error' ? 5000 : 3000);
+        }
+
+        // Additional helper functions for new settings features
+        async function exportPrivateKey() {
+            if (!confirm('Are you sure you want to export your private key? Keep it secure and never share it.')) {
+                return;
+            }
+            
+            try {
+                const data = await apiCall('/export-key', { method: 'POST' });
+                
+                // Create downloadable file
+                const keyData = JSON.stringify(data.privateKey);
+                const blob = new Blob([keyData], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'sendpay-private-key.json';
+                a.click();
+                
+                URL.revokeObjectURL(url);
+                
+                showNotification('Private key exported successfully. Keep it secure!', 'success');
+            } catch (error) {
+                showNotification('Failed to export private key: ' + error.message, 'error');
+            }
+        }
+        
+        async function generateLinkCode() {
+            try {
+                const data = await apiCall('/generate-linkcode', { method: 'POST' });
+                
+                const linkCode = data.linkCode;
+                
+                // Copy to clipboard
+                navigator.clipboard.writeText(linkCode);
+                
+                alert(`Link Code Generated: ${linkCode}\n\nCopied to clipboard!\n\nUse this code in Discord with /link command to connect your accounts.\nExpires in 10 minutes.`);
+                
+                showNotification('Link code generated and copied to clipboard!', 'success');
+            } catch (error) {
+                showNotification('Failed to generate link code: ' + error.message, 'error');
+            }
+        }
+        
+        async function showAccountInfo() {
+            try {
+                const data = await apiCall('/settings');
+                
+                alert(`Account Information:\n\nTelegram ID: ${data.user.telegramId}\nUsername: ${data.user.handle || 'Not set'}\nDiscord: ${data.linkedAccounts.discord ? 'Connected' : 'Not Connected'}\nAccount Created: ${new Date(data.user.createdAt).toLocaleDateString()}`);
+            } catch (error) {
+                showNotification('Failed to load account info', 'error');
+            }
+        }
+        
+        async function processWithdraw() {
+            const address = document.getElementById('withdrawAddress').value.trim();
+            const amount = document.getElementById('withdrawAmount').value.trim();
+            const token = document.getElementById('withdrawToken').value;
+            
+            if (!address || !amount) {
+                showNotification('Please fill in all fields', 'error');
+                return;
+            }
+            
+            if (!confirm(`Are you sure you want to withdraw ${amount} ${token} to ${address}?\n\nThis action cannot be reversed.`)) {
+                return;
+            }
+            
+            const withdrawBtn = event.target;
+            const originalText = withdrawBtn.textContent;
+            withdrawBtn.textContent = 'Processing...';
+            withdrawBtn.disabled = true;
+            
+            try {
+                await apiCall('/withdraw', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        address,
+                        amount: parseFloat(amount),
+                        token
+                    })
+                });
+                
+                showNotification('Withdrawal completed successfully!', 'success');
+                clearWithdrawForm();
+                await updateBalance();
+                
+                // Go back to settings
+                setTimeout(() => {
+                    switchTab('settings');
+                    showBotSettings();
+                }, 2000);
+                
+            } catch (error) {
+                showNotification('Failed to process withdrawal: ' + error.message, 'error');
+            } finally {
+                withdrawBtn.textContent = originalText;
+                withdrawBtn.disabled = false;
+            }
+        }
+        
+        function clearWithdrawForm() {
+            document.getElementById('withdrawAddress').value = '';
+            document.getElementById('withdrawAmount').value = '';
+        }
+        
+        function copyText(text) {
+            navigator.clipboard.writeText(text);
+            showNotification('Copied to clipboard!', 'success');
+        }
+        
+        // Enhanced navigation functions
+        function pushView(viewName) {
+            navigationStack.push({ tab: currentTab, scroll: window.scrollY });
+            document.getElementById('backButton').classList.remove('hidden');
+        }
+
+        function goBack() {
+            if (navigationStack.length > 0) {
+                const previousState = navigationStack.pop();
+                
+                if (navigationStack.length === 0) {
+                    document.getElementById('backButton').classList.add('hidden');
+                }
+                
+                // Return to settings menu
+                const settingsTab = document.getElementById('settings-tab');
+                settingsTab.innerHTML = `
+                    <div class="settings-menu">
+                        <button class="settings-item" onclick="showWalletInfo()">
+                            <div class="settings-icon">💰</div>
+                            <div class="settings-content">
+                                <div class="settings-title">My Wallet</div>
+                                <div class="settings-description">View address and balances</div>
+                            </div>
+                            <div class="settings-arrow">→</div>
+                        </button>
+
+                        <button class="settings-item" onclick="showSecuritySettings()">
+                            <div class="settings-icon">🔒</div>
+                            <div class="settings-content">
+                                <div class="settings-title">Security Settings</div>
+                                <div class="settings-description">Export keys and security options</div>
+                            </div>
+                            <div class="settings-arrow">→</div>
+                        </button>
+
+                        <button class="settings-item" onclick="showWithdrawOptions()">
+                            <div class="settings-icon">📤</div>
+                            <div class="settings-content">
+                                <div class="settings-title">Withdraw</div>
+                                <div class="settings-description">Send to external wallet</div>
+                            </div>
+                            <div class="settings-arrow">→</div>
+                        </button>
+
+                        <button class="settings-item" onclick="showBotSettings()">
+                            <div class="settings-icon">⚙️</div>
+                            <div class="settings-content">
+                                <div class="settings-title">Bot Settings</div>
+                                <div class="settings-description">Notifications and preferences</div>
+                            </div>
+                            <div class="settings-arrow">→</div>
+                        </button>
+
+                        <button class="settings-item" onclick="showHelp()">
+                            <div class="settings-icon">❓</div>
+                            <div class="settings-content">
+                                <div class="settings-title">Help & Support</div>
+                                <div class="settings-description">Commands and documentation</div>
+                            </div>
+                            <div class="settings-arrow">→</div>
+                        </button>
+                    </div>
+                `;
+                
+                if (previousState) {
+                    window.scrollTo(0, previousState.scroll);
+                }
+            }
+        }
+
+        // Initialize app
+        async function initApp() {
+            try {
+                await loadUser();
+            } catch (error) {
+                console.error('App initialization failed:', error);
+            }
+        }
+
+        // Start the app
+        initApp();
+    </script>
+</body>
+</html>

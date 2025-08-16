@@ -941,32 +941,85 @@
                 showNotification('Please fill in recipient and amount', 'error');
                 return;
             }
+
+            if (parseFloat(amount) <= 0) {
+                showNotification('Amount must be greater than 0', 'error');
+                return;
+            }
+
+            // Validate amount against balance
+            if (userData && userData.wallet && userData.wallet.balances) {
+                const userBalance = parseFloat(userData.wallet.balances[token] || '0');
+                if (parseFloat(amount) > userBalance) {
+                    showNotification(`Insufficient balance. You have ${userBalance} ${token}`, 'error');
+                    return;
+                }
+            }
             
-            const sendBtn = event.target;
+            const sendBtn = event.target || document.querySelector('.btn.btn-primary');
             const originalText = sendBtn.textContent;
-            sendBtn.textContent = 'Sending...';
+            sendBtn.textContent = 'Processing blockchain...';
             sendBtn.disabled = true;
             
             try {
-                await apiCall('/send', {
+                showNotification('Processing blockchain transaction...', 'info');
+                
+                const response = await apiCall('/send', {
                     method: 'POST',
                     body: JSON.stringify({
-                        recipient: recipient.replace('@', ''),
+                        recipient: recipient.startsWith('@') ? recipient.slice(1) : recipient,
                         amount: parseFloat(amount),
                         token,
                         note: note || undefined
                     })
                 });
-                
-                showNotification('Payment sent successfully!', 'success');
-                clearSendForm();
-                await updateBalance();
-                
-                // Switch to history tab to show the transaction
-                setTimeout(() => switchTab('history'), 1000);
+
+                if (response.success) {
+                    showNotification('Payment confirmed on blockchain!', 'success');
+                    clearSendForm();
+                    
+                    // Refresh all relevant data
+                    await Promise.all([
+                        loadWalletData(),
+                        loadTransactionHistory(),
+                        loadRecentRecipients()
+                    ]);
+                    
+                    // Show transaction details
+                    if (response.transaction && response.signature) {
+                        setTimeout(() => {
+                            const confirmed = confirm(
+                                `Payment successful!\nTransaction: ${response.signature.substring(0, 8)}...\n\nView on Solscan?`
+                            );
+                            if (confirmed) {
+                                window.open(response.transaction, '_blank');
+                            }
+                        }, 1500);
+                    }
+                    
+                    // Switch to history tab to show the transaction
+                    setTimeout(() => switchTab('history'), 2000);
+                } else {
+                    throw new Error('Transaction failed');
+                }
                 
             } catch (error) {
-                showNotification('Failed to send payment: ' + error.message, 'error');
+                console.error('Payment error:', error);
+                let errorMessage = 'Payment failed';
+                
+                if (error.message.includes('Insufficient balance')) {
+                    errorMessage = error.message;
+                } else if (error.message.includes('not found')) {
+                    errorMessage = 'Recipient not found. Check the username.';
+                } else if (error.message.includes('Token') && error.message.includes('not found')) {
+                    errorMessage = 'Selected token is not available';
+                } else if (error.message.includes('wallet not found') || error.message.includes('inaccessible')) {
+                    errorMessage = 'Wallet error. Please try again.';
+                } else {
+                    errorMessage = `Payment failed: ${error.message}`;
+                }
+                
+                showNotification(errorMessage, 'error');
             } finally {
                 sendBtn.textContent = originalText;
                 sendBtn.disabled = false;

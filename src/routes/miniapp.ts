@@ -329,7 +329,12 @@ router.post('/send', authenticateWebApp, async (req: any, res) => {
       note
     });
     
-    res.json({ success: true, transaction: result.tx });
+    res.json({ 
+      success: true, 
+      transaction: result.tx,
+      signature: result.signature,
+      paymentId: result.paymentId
+    });
   } catch (error) {
     logger.error('Send payment API error:', error);
     res.status(500).json({ error: 'Failed to send payment' });

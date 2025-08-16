@@ -160,6 +160,25 @@ export async function sendPayment(opts: {
       throw new Error("Recipient wallet not found");
     }
 
+    // Resolve token information to get proper mint address and decimals
+    const { resolveToken } = await import("./tokens.js");
+    const tokenInfo = await resolveToken(opts.token);
+    let mint: string;
+    let decimals: number;
+    
+    if (opts.token === "SOL") {
+      mint = "So11111111111111111111111111111111111111112";
+      decimals = 9;
+    } else if (tokenInfo) {
+      mint = tokenInfo.mint;
+      decimals = tokenInfo.decimals;
+    } else {
+      throw new Error(`Token ${opts.token} not found or not enabled`);
+    }
+
+    // Convert amount to raw format (multiply by decimals)
+    const amountRaw = BigInt(Math.floor(parseFloat(opts.amount) * Math.pow(10, decimals)));
+    
     // Create payment record in database
     const payment = await prisma.payment.create({
       data: {
@@ -169,16 +188,71 @@ export async function sendPayment(opts: {
         toUserId: opts.toUserId,
         fromWallet: fromUser.wallets[0].address,
         toWallet: toUser.wallets[0].address,
-        mint: opts.token === "SOL" ? "SOL" : opts.token,
-        amountRaw: opts.amount,
-        feeRaw: "0", // Simplified for now
+        mint: mint,
+        amountRaw: amountRaw.toString(),
+        feeRaw: "0", // Will be calculated in executeTransfer
         note: opts.note,
         status: "pending"
       }
     });
 
-    // For now, return a demo transaction signature
-    return { tx: `https://solscan.io/tx/DEMO_${payment.id}` };
+    try {
+      // Execute the actual blockchain transaction
+      const { executeTransfer } = await import("./transfer.js");
+      const transferResult = await executeTransfer({
+        fromWallet: fromUser.wallets[0],
+        toAddress: toUser.wallets[0].address,
+        mint: mint,
+        amountRaw: amountRaw,
+        feeRaw: 0n, // No platform fee for now
+        token: opts.token as any,
+        senderTelegramId: fromUser.telegramId || undefined,
+        recipientTelegramId: toUser.telegramId || undefined,
+        note: opts.note,
+        type: "payment"
+      });
+
+      if (!transferResult.success) {
+        // Update payment status to failed
+        await prisma.payment.update({
+          where: { id: payment.id },
+          data: { 
+            status: "failed",
+            note: transferResult.error ? `${opts.note || ''} [Error: ${transferResult.error}]` : opts.note
+          }
+        });
+        
+        throw new Error(transferResult.error || "Transfer failed");
+      }
+
+      // Update payment record with successful transaction
+      await prisma.payment.update({
+        where: { id: payment.id },
+        data: { 
+          status: "sent",
+          txSig: transferResult.signature,
+          feeRaw: "0" // Network fees are handled internally
+        }
+      });
+
+      return { 
+        tx: `https://solscan.io/tx/${transferResult.signature}?cluster=devnet`,
+        signature: transferResult.signature,
+        paymentId: payment.id
+      };
+
+    } catch (error) {
+      // Update payment status to failed
+      await prisma.payment.update({
+        where: { id: payment.id },
+        data: { 
+          status: "failed",
+          note: error instanceof Error ? `${opts.note || ''} [Error: ${error.message}]` : opts.note
+        }
+      });
+      
+      throw error;
+    }
   } else if (opts.escrow) {
     // Create escrow - for now return a demo response
     return { tx: "https://solscan.io/tx/ESCROW_PLACEHOLDER" };

@@ -121,12 +121,19 @@ export async function handleUnlockPayCallback(ctx: BotContext) {
     await ctx.answerCallbackQuery("Processing payment...");
     
     const data = ctx.callbackQuery?.data || "";
+    logger.info(`Processing unlock payment callback: ${data}`);
+    
     const match = data.match(/^unlock_pay:(\d+):([^:]+):([^:]+):([^:]+)$/);
-    if (!match) return;
+    if (!match) {
+      logger.error(`Invalid callback data format: ${data}`);
+      return ctx.editMessageText("❌ Invalid payment data. Please try again.");
+    }
     
     const [_, postIdStr, ownerTgId, priceAmount, priceToken] = match;
     const postId = parseInt(postIdStr);
     const userId = String(ctx.from!.id);
+    
+    logger.info(`Payment details: postId=${postId}, userId=${userId}, amount=${priceAmount}, token=${priceToken}`);
     
     // Get post and check again
     const post = await prisma.lockedPost.findUnique({
@@ -165,8 +172,22 @@ export async function handleUnlockPayCallback(ctx: BotContext) {
     // Note: We'll let the payment function handle insufficient funds validation
     // This keeps the payment flow consistent and maintains error handling
     
+    // Resolve token to get proper decimals
+    const tokenInfo = await resolveToken(priceToken);
+    if (!tokenInfo) {
+      logger.error(`Token not found: ${priceToken}`);
+      return ctx.editMessageText(
+        `❌ **Token Error**\n\n` +
+        `Token "${priceToken}" not recognized.\n\n` +
+        `Please contact support.`,
+        { parse_mode: "Markdown" }
+      );
+    }
+    
     // Execute payment with platform fee using data from callback
-    const amount = parseFloat(priceAmount) / Math.pow(10, resolveTokenSync(priceToken)?.decimals || 6);
+    const amount = parseFloat(priceAmount) / Math.pow(10, tokenInfo.decimals);
+    
+    logger.info(`Executing payment: amount=${amount} ${priceToken}, decimals=${tokenInfo.decimals}`);
     
     const result = await executePaymentWithPlatformFee({
       senderId: userId,
@@ -177,6 +198,8 @@ export async function handleUnlockPayCallback(ctx: BotContext) {
       platformFeePercent: 0.05,
       note: `Unlock: ${post.title || `Post #${postId}`}`
     });
+    
+    logger.info(`Payment result: success=${result.success}, error=${result.error}`);
     
     if (!result.success) {
       return ctx.editMessageText(

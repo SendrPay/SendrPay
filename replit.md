@@ -6,10 +6,12 @@ A robust multi-platform blockchain payment bot integrating Telegram and Discord 
 ## Recent Changes (August 17, 2025)
 
 ### Privacy-Enhanced Payment System Implemented
+- **Session Persistence Fixed**: Resolved "session expired" errors by eliminating session dependency - payment data now embedded in callback buttons
 - **Multi-User Support**: Fixed critical issue where channel messages were being replaced instead of preserved for multiple users
 - **DM-Only Payment Flow**: Clicking "Buy Full Access" now opens DM conversation with payment confirmation
 - **Channel Message Preservation**: Original paywalled posts remain unchanged in channels for all users to see
 - **Private Payment Processing**: All payment confirmations, transaction details, and content delivery via DM
+- **Robust State Management**: Payment flow now works reliably without session storage limitations
 - **User Account Verification**: Added Telegram ID-based user signup verification before payment processing
 - **Seamless UX**: Users get "Check your DM" notifications instead of broken channel message flow
 - **Database Import Fixes**: Resolved all `db` to `prisma` import issues preventing bot commands

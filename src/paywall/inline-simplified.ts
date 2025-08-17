@@ -84,20 +84,12 @@ export async function handleUnlockCallback(ctx: BotContext) {
       return ctx.editMessageText("❌ Post not found.");
     }
     
-    // Store unlock intent in session
-    (ctx.session as any).unlockIntent = {
-      postId,
-      channelId: post.channel.tgChatId,
-      ownerTgId: post.channel.ownerTgId,
-      priceAmount: post.priceAmount,
-      priceToken: post.priceToken,
-      title: post.title
-    };
-    
     // Send payment confirmation in DM instead of editing channel message
     try {
+      // Embed all necessary data in the callback to avoid session dependency
+      const unlockData = `${postId}:${post.channel.ownerTgId}:${post.priceAmount}:${post.priceToken}`;
       const keyboard = new InlineKeyboard()
-        .text(`✅ Pay ${fmtPrice(post)}`, `unlock_pay:${postId}`)
+        .text(`✅ Pay ${fmtPrice(post)}`, `unlock_pay:${unlockData}`)
         .text("✖️ Cancel", "cancel");
       
       await ctx.api.sendMessage(
@@ -129,18 +121,12 @@ export async function handleUnlockPayCallback(ctx: BotContext) {
     await ctx.answerCallbackQuery("Processing payment...");
     
     const data = ctx.callbackQuery?.data || "";
-    const match = data.match(/^unlock_pay:(\d+)$/);
+    const match = data.match(/^unlock_pay:(\d+):([^:]+):([^:]+):([^:]+)$/);
     if (!match) return;
     
-    const postId = parseInt(match[1]);
+    const [_, postIdStr, ownerTgId, priceAmount, priceToken] = match;
+    const postId = parseInt(postIdStr);
     const userId = String(ctx.from!.id);
-    const session = ctx.session as any;
-    
-    if (!session.unlockIntent || session.unlockIntent.postId !== postId) {
-      return ctx.editMessageText("❌ Session expired. Please try again.", {
-        reply_markup: new InlineKeyboard().text("🔓 Start Over", `unlock:${postId}`)
-      });
-    }
     
     // Get post and check again
     const post = await prisma.lockedPost.findUnique({
@@ -179,13 +165,13 @@ export async function handleUnlockPayCallback(ctx: BotContext) {
     // Note: We'll let the payment function handle insufficient funds validation
     // This keeps the payment flow consistent and maintains error handling
     
-    // Execute payment with platform fee
-    const amount = parseFloat(post.priceAmount) / Math.pow(10, resolveTokenSync(post.priceToken)?.decimals || 6);
+    // Execute payment with platform fee using data from callback
+    const amount = parseFloat(priceAmount) / Math.pow(10, resolveTokenSync(priceToken)?.decimals || 6);
     
     const result = await executePaymentWithPlatformFee({
       senderId: userId,
-      recipientId: post.channel.ownerTgId,
-      tokenTicker: post.priceToken,
+      recipientId: ownerTgId,
+      tokenTicker: priceToken,
       amount,
       paymentType: 'group_access',
       platformFeePercent: 0.05,
@@ -249,8 +235,7 @@ export async function handleUnlockPayCallback(ctx: BotContext) {
       );
     }
     
-    // Clear session
-    delete session.unlockIntent;
+    // Session data no longer needed since we use callback data
     
     // Send success confirmation via DM for privacy
     try {

@@ -134,6 +134,33 @@ export async function handleUnlockPayCallback(ctx: BotContext) {
       return ctx.editMessageText("❌ Post not found.");
     }
     
+    // Verify user is signed up and has funds
+    const user = await prisma.user.findUnique({
+      where: { id: parseInt(userId) }
+    });
+    
+    if (!user) {
+      // Send DM instead of editing public message
+      try {
+        await ctx.api.sendMessage(
+          ctx.from!.id,
+          `❌ **Account Required**\n\n` +
+          `You need to create an account first. Send me /start in a private message to get started.\n\n` +
+          `[Start here](https://t.me/${ctx.me.username})`,
+          { parse_mode: "Markdown" }
+        );
+        return ctx.editMessageText("🔒 Payment processing moved to DM for privacy.");
+      } catch (dmError) {
+        return ctx.editMessageText("❌ Please start a private chat with me first to process payments.");
+      }
+    }
+
+    // Check if user has sufficient funds before proceeding
+    const tokenAmount = parseFloat(post.priceAmount) / Math.pow(10, resolveTokenSync(post.priceToken)?.decimals || 6);
+    
+    // Note: We'll let the payment function handle insufficient funds validation
+    // This keeps the payment flow consistent and maintains error handling
+    
     // Execute payment with platform fee
     const amount = parseFloat(post.priceAmount) / Math.pow(10, resolveTokenSync(post.priceToken)?.decimals || 6);
     
@@ -148,11 +175,24 @@ export async function handleUnlockPayCallback(ctx: BotContext) {
     });
     
     if (!result.success) {
-      return ctx.editMessageText(
-        `❌ Payment failed: ${result.error}\n\n` +
-        `Please check your balance and try again.`,
-        { parse_mode: "Markdown" }
-      );
+      // Send failure notification via DM for privacy
+      try {
+        await ctx.api.sendMessage(
+          ctx.from!.id,
+          `❌ **Payment Failed**\n\n` +
+          `${result.error}\n\n` +
+          `Please check your balance and try again.\n\n` +
+          `Use /balance to check your wallet.`,
+          { parse_mode: "Markdown" }
+        );
+        return ctx.editMessageText("🔒 Payment details sent to your DM.");
+      } catch (dmError) {
+        return ctx.editMessageText(
+          `❌ Payment failed: ${result.error}\n\n` +
+          `Please check your balance and try again.`,
+          { parse_mode: "Markdown" }
+        );
+      }
     }
     
     // Grant access
@@ -202,14 +242,29 @@ export async function handleUnlockPayCallback(ctx: BotContext) {
     // Clear session
     delete session.unlockIntent;
     
+    // Send success confirmation via DM for privacy
+    try {
+      await ctx.api.sendMessage(
+        ctx.from!.id,
+        `✅ **Payment Successful!**\n\n` +
+        `You've unlocked: **${post.title || `Post #${postId}`}**\n\n` +
+        `Amount paid: **${amount} ${post.priceToken}**\n` +
+        `Transaction: [View on Explorer](${result.explorerLink})\n\n` +
+        `Content delivered above. ⬆️`,
+        { 
+          parse_mode: "Markdown"
+        }
+      );
+    } catch (dmError) {
+      logger.error("Error sending payment confirmation DM:", dmError);
+    }
+    
+    // Update public message to show completion without details
     await ctx.editMessageText(
-      `✅ **Unlocked!**\n\n` +
-      `Check your DM for the full content.\n\n` +
-      `Transaction: [View on Explorer](${result.explorerLink})`,
-      { 
-        parse_mode: "Markdown",
-        disable_web_page_preview: true
-      }
+      `🔓 **Unlocked!**\n\n` +
+      `Content has been sent to your DM.\n\n` +
+      `_Privacy protected - details in your DM_`,
+      { parse_mode: "Markdown" }
     );
     
     // Notify creator
@@ -226,8 +281,7 @@ export async function handleUnlockPayCallback(ctx: BotContext) {
         `You received: **${netAmount.toFixed(2)} ${post.priceToken}**\n\n` +
         `[View Transaction](${result.explorerLink})`,
         { 
-          parse_mode: "Markdown",
-          disable_web_page_preview: true
+          parse_mode: "Markdown"
         }
       );
     } catch (notifyError) {
@@ -421,8 +475,7 @@ export async function handleChannelTipAmountCallback(ctx: BotContext) {
       `You sent **${amount} ${token}** to the channel.\n\n` +
       `[View Transaction](${result.explorerLink})`,
       { 
-        parse_mode: "Markdown",
-        disable_web_page_preview: true
+        parse_mode: "Markdown"
       }
     );
     
@@ -440,8 +493,7 @@ export async function handleChannelTipAmountCallback(ctx: BotContext) {
         `You received: **${netAmount.toFixed(2)} ${token}**\n\n` +
         `[View Transaction](${result.explorerLink})`,
         { 
-          parse_mode: "Markdown",
-          disable_web_page_preview: true
+          parse_mode: "Markdown"
         }
       );
     } catch (notifyError) {

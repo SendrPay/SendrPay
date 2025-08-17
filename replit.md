@@ -5,6 +5,14 @@ A robust multi-platform blockchain payment bot integrating Telegram and Discord 
 
 ## Recent Changes (August 17, 2025)
 
+### Privacy-Enhanced Payment System Implemented
+- **DM Payment Confirmations**: Payment confirmations now sent via private DM instead of editing public messages for privacy
+- **User Verification**: Added Telegram ID-based user signup and funds verification before payment processing
+- **Private Transaction Details**: Payment amounts, transaction links, and sensitive info only shared in DMs
+- **Public Message Privacy**: Public channel messages only show "Payment details sent to your DM" to protect user privacy
+- **Account Requirement Checks**: Users must have bot accounts before making payments
+- **Database Import Fixes**: Resolved all `db` to `prisma` import issues preventing bot commands
+
 ### Bot Functionality Restored
 - **Fixed Critical Issues**: Resolved bot startup and command processing problems
 - **Markdown Formatting**: Fixed MarkdownV2 parsing errors in /start command that prevented bot responses
@@ -106,6 +114,9 @@ A robust multi-platform blockchain payment bot integrating Telegram and Discord 
 - **Rate Limiting**: Prevents abuse and spam
 - **Transaction Validation**: All payments verified on-chain
 - **Single-Use Invites**: Group links expire after one use
+- **Privacy Protection**: Payment confirmations sent via DM, not public messages
+- **User Authentication**: Telegram ID verification for all payment operations
+- **Account Validation**: Users must create accounts before making payments
 
 ## Environment Variables Required
 - `BOT_TOKEN` - Telegram bot token

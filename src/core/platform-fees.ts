@@ -2,7 +2,7 @@ import { prisma } from "../infra/prisma";
 import { logger } from "../infra/logger";
 import { env } from "../infra/env";
 import { resolveToken } from "./tokens";
-import { getOrCreateWallet, getWalletKeypair, getWalletBalance } from "./wallets";
+import { getWalletKeypair, getWalletBalance } from "./wallets";
 import { Connection, PublicKey, Transaction, SystemProgram, sendAndConfirmTransaction } from "@solana/web3.js";
 import { TOKEN_PROGRAM_ID, getAssociatedTokenAddress, createTransferInstruction } from "@solana/spl-token";
 
@@ -69,17 +69,17 @@ export async function executePaymentWithPlatformFee(params: {
 
     // Check balance
     const balance = await getWalletBalance(sender.wallets[0].address);
-    const tokenBalance = balance.find(b => b.mint === token.mint);
+    const tokenBalance = balance?.find(b => b.mint === token.mint);
     
     if (!tokenBalance || BigInt(tokenBalance.amount) < amountRaw) {
       return { success: false, error: "Insufficient balance" };
     }
 
     // Get connection
-    const connection = new Connection(env.SOLANA_RPC_URL);
+    const connection = new Connection(env.RPC_URL!);
 
     // Get sender keypair
-    const senderKeypair = await getWalletKeypair(sender.wallets[0]);
+    const senderKeypair = await getWalletKeypair(sender.wallets[0].address);
     if (!senderKeypair) {
       return { success: false, error: "Could not access sender wallet" };
     }
@@ -87,12 +87,11 @@ export async function executePaymentWithPlatformFee(params: {
     // Create transaction
     const transaction = new Transaction();
 
-    // Get platform wallet (treasury)
-    const platformWallet = env.FEE_TREASURY_ADDRESS || env.FEE_TREASURY_SECRET ? 
-      new PublicKey(env.FEE_TREASURY_ADDRESS || (await getWalletKeypair({ address: "", encPrivKey: Buffer.from(env.FEE_TREASURY_SECRET, 'base64') }))!.publicKey) :
-      senderKeypair.publicKey; // Fallback to sender if no treasury configured
+    // Get platform wallet (treasury) - for now use admin wallet
+    const adminWalletAddress = "YryMHU4nLRMjkAKtaVpo41tEScrRxwfNnXggoKwC8fS";
+    const platformWallet = new PublicKey(adminWalletAddress);
 
-    if (token.mint === 'SOL') {
+    if (token.mint === 'So11111111111111111111111111111111111111112') {
       // Native SOL transfers
       // Transfer to recipient
       transaction.add(
@@ -160,13 +159,26 @@ export async function executePaymentWithPlatformFee(params: {
       }
     }
 
-    // Send transaction
-    const signature = await sendAndConfirmTransaction(
-      connection,
-      transaction,
-      [senderKeypair],
-      { commitment: 'confirmed' }
-    );
+    // Send transaction with timeout
+    logger.info(`Sending transaction for ${amount} ${tokenTicker} from ${senderId} to ${recipientId}`);
+    
+    const signature = await Promise.race([
+      sendAndConfirmTransaction(
+        connection,
+        transaction,
+        [senderKeypair],
+        {
+          commitment: 'confirmed',
+          preflightCommitment: 'confirmed',
+          maxRetries: 3
+        }
+      ),
+      new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error('Transaction timeout after 30 seconds')), 30000)
+      )
+    ]);
+    
+    logger.info(`Transaction confirmed with signature: ${signature}`);
 
     // Create payment record
     const payment = await prisma.payment.create({

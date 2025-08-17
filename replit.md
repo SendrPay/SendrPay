@@ -8,7 +8,8 @@ A robust multi-platform blockchain payment bot integrating Telegram and Discord 
 ### Privacy-Enhanced Payment System Implemented
 - **Session Persistence Fixed**: Resolved "session expired" errors by eliminating session dependency - payment data now embedded in callback buttons
 - **Token Recognition Fixed**: Added SOL, USDC, BONK, and JUP tokens to database - "Unknown token: SOL" errors resolved
-- **Payment Timeout Fixed**: Enhanced error handling and logging to prevent payment confirmation timeouts
+- **Payment Timeout Fixed**: Implemented 30-second transaction timeout to prevent infinite loading - payment confirmations no longer hang
+- **Transaction Logging**: Added comprehensive logging to track payment processing and identify blockchain delays
 - **Multi-User Support**: Fixed critical issue where channel messages were being replaced instead of preserved for multiple users
 - **DM-Only Payment Flow**: Clicking "Buy Full Access" now opens DM conversation with payment confirmation
 - **Channel Message Preservation**: Original paywalled posts remain unchanged in channels for all users to see

@@ -50,6 +50,7 @@ import {
   commandKolSetup as commandKolSetupInline,
   handleKolCallbacks
 } from "./kol-inline";
+import { commandInlineInterface, handleInterfaceCallbacks } from "./inline-interface";
 import { registerPaywallCallbacks } from "../paywall/inline-simplified";
 import { handlePaywallInlineCallbacks } from "../paywall/inline-paywall";
 
@@ -117,15 +118,24 @@ Send private key now:`, { parse_mode: "Markdown" });
   bot.command("history", commandHistory);
   bot.command("linkcode", commandLinkcode);
   
-  // KOL commands (separated from paywalled content)
-  bot.command("setup", commandSetup);  // KOL private group setup only - SEPARATE from paywall
+  // KOL commands (completely separate from paywalled content)
+  bot.command("kol_setup", commandSetup);  // KOL private group setup - renamed to avoid conflicts
   bot.command("kol", commandKolProfile);
   bot.command("linkgroup", commandLinkGroup);
   bot.command("unlinkgroup", commandUnlinkGroup);
   
   // Channel paywall commands (completely separate from KOL setup)
-  bot.command("channel_init", commandChannelInit);
-  bot.command("post_locked", commandPostLocked);
+  bot.command("paywall_setup", commandChannelInit);  // Renamed for clarity
+  bot.command("create_post", commandPostLocked);     // Renamed for clarity
+  
+  // Legacy aliases for backward compatibility
+  bot.command("setup", commandSetup);           // Still works for existing users
+  bot.command("channel_init", commandChannelInit);  // Still works for existing users
+  bot.command("post_locked", commandPostLocked);    // Still works for existing users
+  
+  // New comprehensive inline interface
+  bot.command("interface", commandInlineInterface);
+  bot.command("menu", commandInlineInterface);
   
   // Debug commands for troubleshooting (admin-only)
   bot.command("debug_reply", commandDebugReply);
@@ -310,6 +320,11 @@ Send private key now:`, { parse_mode: "Markdown" });
 
   // Register legacy paywall callbacks
   registerPaywallCallbacks(bot);
+
+  // Handle comprehensive interface callbacks
+  bot.callbackQuery(/^interface_/, async (ctx) => {
+    await handleInterfaceCallbacks(ctx);
+  });
 
   // Main menu navigation callbacks
   bot.callbackQuery("main_kol", async (ctx) => {

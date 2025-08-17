@@ -53,9 +53,37 @@ if (bot) {
   registerGroupRoutes(bot);
   registerDMRoutes(bot);
 
-  // REMOVED - Callback handlers are now in commands/index.ts to prevent duplicates
+  // Handle notification callbacks (reactions only)
+  bot.on("callback_query", async (ctx) => {
+    const data = ctx.callbackQuery?.data;
+    if (!data) return;
 
-  // REMOVED - Message handler now in commands/index.ts to prevent duplicates
+    if (data.startsWith("react_")) {
+      // Handle payment reactions
+      const { handleReactionCallback } = await import("./core/notifications-simple");
+      await handleReactionCallback(ctx);
+    } else if (data === "already_reacted") {
+      // Handle already reacted button
+      const { handleAlreadyReacted } = await import("./core/notifications-simple");
+      await handleAlreadyReacted(ctx);
+    }
+    // Other callback handlers will be processed by command routers
+  });
+
+  // Handle general messages (non-command)
+  bot.on("message", async (ctx) => {
+    const chatType = ctx.chat?.type;
+    const text = ctx.message?.text || "";
+    
+    // Only handle non-command messages
+    if (!text.startsWith("/")) {
+      if (chatType === "private") {
+        // Default private message handler - only respond to non-commands
+        await ctx.reply("Use /start to begin or /help for commands.");
+      }
+      // Ignore other group messages without commands
+    }
+  });
 }
 
 export { BotContext };

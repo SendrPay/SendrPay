@@ -34,9 +34,8 @@ export async function commandStart(ctx: BotContext) {
   });
 
   if (existingWallet) {
-    // Show home page for existing users
-    const { showHomePage } = await import("./settings");
-    return showHomePage(ctx);
+    // Show main menu for existing users
+    return showMainMenu(ctx);
   }
 
   const keyboard = new InlineKeyboard()
@@ -78,4 +77,59 @@ Choose how to set up your wallet`;
     reply_markup: keyboard,
     parse_mode: "MarkdownV2" 
   });
+}
+
+// Main menu for existing users with clear navigation
+export async function showMainMenu(ctx: BotContext) {
+  const userId = ctx.from?.id.toString();
+  if (!userId) {
+    return ctx.reply("❌ Could not identify user.");
+  }
+
+  // Get user's wallet info
+  const user = await prisma.user.findUnique({
+    where: { telegramId: userId },
+    include: {
+      wallets: { where: { isActive: true } }
+    }
+  });
+
+  const wallet = user?.wallets?.[0];
+  if (!wallet) {
+    return ctx.reply("❌ No active wallet found. Use /start to set up.");
+  }
+
+  // Get balance (simplified for now)
+  let balanceText = "Loading...";
+  try {
+    const { getWalletBalance } = await import("../core/wallets");
+    const balance = await getWalletBalance(wallet.address);
+    balanceText = `${balance.toFixed(4)} SOL`;
+  } catch (error) {
+    balanceText = "0.0000 SOL";
+  }
+
+  const keyboard = new InlineKeyboard()
+    .text("🎯 KOL Features", "main_kol").text("💰 Wallet", "main_wallet").row()
+    .text("📤 Send Payment", "main_send").text("📊 History", "main_history").row()
+    .text("⚙️ Settings", "main_settings").text("❓ Help", "main_help").row();
+
+  const menuText = 
+    `🏠 **SendrPay Main Menu**\n\n` +
+    `👤 **User:** @${ctx.from?.username || "Anonymous"}\n` +
+    `💼 **Wallet:** \`${wallet.address.slice(0, 8)}...${wallet.address.slice(-8)}\`\n` +
+    `💰 **Balance:** ${balanceText}\n\n` +
+    `Choose a section to explore:`;
+
+  if (ctx.callbackQuery) {
+    await ctx.editMessageText(menuText, {
+      parse_mode: "Markdown",
+      reply_markup: keyboard
+    });
+  } else {
+    await ctx.reply(menuText, {
+      parse_mode: "Markdown", 
+      reply_markup: keyboard
+    });
+  }
 }

@@ -49,17 +49,8 @@ export async function commandPostLocked(ctx: BotContext) {
     );
   }
 
-  // Single channel - proceed directly
+  // Single channel - proceed directly to post creation
   const channel = channels[0];
-  (ctx.session as any).postCreation = {
-    step: "select_type",
-    channelId: channel.tgChatId,
-    channelTitle: channel.channelTitle,
-    defaultToken: channel.defaultToken,
-    defaultPrice: channel.defaultPrice
-  };
-
-  // Skip content type selection - go directly to post creation
   (ctx.session as any).postCreation = {
     step: "set_title",
     channelId: channel.tgChatId,
@@ -91,15 +82,7 @@ export async function handlePostChannelSelection(ctx: BotContext, channelId: str
     return ctx.editMessageText("❌ Channel not found. Please try again.");
   }
 
-  (ctx.session as any).postCreation = {
-    step: "select_type",
-    channelId: channel.tgChatId,
-    channelTitle: channel.channelTitle,
-    defaultToken: channel.defaultToken,
-    defaultPrice: channel.defaultPrice
-  };
-
-  // Skip content type selection - go directly to post creation
+  // Go directly to post creation
   (ctx.session as any).postCreation = {
     step: "set_title",
     channelId: channel.tgChatId,

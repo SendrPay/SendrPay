@@ -1,4 +1,5 @@
 import type { Bot } from "grammy";
+import { InlineKeyboard } from "grammy";
 import type { BotContext } from "../bot";
 import { logger } from "../infra/logger";
 import { commandPay } from "./pay";
@@ -10,7 +11,7 @@ import { commandWithdraw } from "./withdraw";
 
 import { commandSettings } from "./settings";
 import { commandAdmin } from "./admin";
-import { commandStart } from "./start";
+import { commandStart, showMainMenu } from "./start";
 import { commandHelp } from "./help";
 import { commandDeposit } from "./deposit";
 import { commandHistory } from "./history";
@@ -309,4 +310,162 @@ Send private key now:`, { parse_mode: "Markdown" });
 
   // Register legacy paywall callbacks
   registerPaywallCallbacks(bot);
+
+  // Main menu navigation callbacks
+  bot.callbackQuery("main_kol", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    await showKolMenu(ctx);
+  });
+
+  bot.callbackQuery("main_wallet", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const { commandBalance } = await import("./balance");
+    await commandBalance(ctx);
+  });
+
+  bot.callbackQuery("main_send", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    await ctx.editMessageText(
+      "💰 **Send Payment**\n\n" +
+      "Use the command format:\n" +
+      "`/pay @username 10 USDC`\n\n" +
+      "Or tip by replying to a message:\n" +
+      "`/tip 5 SOL`",
+      { 
+        parse_mode: "Markdown",
+        reply_markup: new InlineKeyboard().text("⬅️ Back to Menu", "back_main_menu")
+      }
+    );
+  });
+
+  bot.callbackQuery("main_history", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const { commandHistory } = await import("./history");
+    await commandHistory(ctx);
+  });
+
+  bot.callbackQuery("main_settings", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const { showHomePage } = await import("./settings");
+    await showHomePage(ctx);
+  });
+
+  bot.callbackQuery("main_help", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const { commandHelp } = await import("./help");
+    await commandHelp(ctx);
+  });
+
+  bot.callbackQuery("back_main_menu", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    await showMainMenu(ctx);
+  });
+}
+
+// KOL Features submenu
+async function showKolMenu(ctx: BotContext) {
+  const keyboard = new InlineKeyboard()
+    .text("⚙️ KOL Setup", "kol_setup").text("👤 My Profile", "kol_profile").row()
+    .text("📝 Create Content", "kol_content").text("🔗 Link Group", "kol_group").row()
+    .text("📊 KOL Stats", "kol_stats").row()
+    .text("⬅️ Back to Menu", "back_main_menu");
+
+  const menuText = 
+    `🎯 **KOL Features Menu**\n\n` +
+    `**Monetization Tools:**\n` +
+    `• Set up paid group access\n` +
+    `• Create paywalled content\n` +
+    `• Configure tip buttons\n` +
+    `• Track earnings and stats\n\n` +
+    `**Platform Fees:**\n` +
+    `• Tips: 2% (from recipient)\n` +
+    `• Content/Groups: 5% (from recipient)\n\n` +
+    `Choose what you'd like to do:`;
+
+  await ctx.editMessageText(menuText, {
+    parse_mode: "Markdown",
+    reply_markup: keyboard
+  });
+
+  
+  // Add KOL submenu callbacks to main callback system
+  bot.callbackQuery("kol_setup", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const { commandSetup } = await import("./setup");
+    await commandSetup(ctx);
+  });
+
+  bot.callbackQuery("kol_profile", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const username = ctx.from?.username;
+    if (username) {
+      const { commandKolProfile } = await import("./kol-inline");
+      await commandKolProfile(ctx);
+    } else {
+      await ctx.editMessageText(
+        "❌ You need a Telegram username to use KOL features.\n\n" +
+        "Please set a username in Telegram settings first.",
+        { reply_markup: new InlineKeyboard().text("⬅️ Back", "main_kol") }
+      );
+    }
+  });
+
+  bot.callbackQuery("kol_content", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    await ctx.editMessageText(
+      "📝 **Create Paywalled Content**\n\n" +
+      "**Setup Steps:**\n" +
+      "1. First run `/channel_init` in your channel to set it up\n" +
+      "2. Use `/post_locked` to create paywalled posts\n\n" +
+      "**Content Types:**\n" +
+      "• Text posts with pricing\n" +
+      "• Mixed content (text + images/video)\n" +
+      "• Flexible pricing in any supported token\n\n" +
+      "_Make sure you're an admin in the channel first!_",
+      { 
+        parse_mode: "Markdown",
+        reply_markup: new InlineKeyboard().text("⬅️ Back", "main_kol")
+      }
+    );
+  });
+
+  bot.callbackQuery("kol_group", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    await ctx.editMessageText(
+      "🔗 **Link Paid Group**\n\n" +
+      "**Setup Steps:**\n" +
+      "1. Add the bot as admin to your private group\n" +
+      "2. Use `/linkgroup` in the group to connect it\n" +
+      "3. Configure pricing with `/setup`\n" +
+      "4. Share your profile with `/kol @yourusername`\n\n" +
+      "**Group Features:**\n" +
+      "• One-time payment for access\n" +
+      "• Automatic invite link generation\n" +
+      "• Member management and tracking\n\n" +
+      "_Bot needs admin permissions to manage invites_",
+      { 
+        parse_mode: "Markdown",
+        reply_markup: new InlineKeyboard().text("⬅️ Back", "main_kol")
+      }
+    );
+  });
+
+  bot.callbackQuery("kol_stats", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    await ctx.editMessageText(
+      "📊 **KOL Statistics**\n\n" +
+      "This feature is coming soon!\n\n" +
+      "**Planned Stats:**\n" +
+      "• Total tips received\n" +
+      "• Content unlock earnings\n" +
+      "• Group access revenue\n" +
+      "• Top supporters\n" +
+      "• Monthly breakdowns\n\n" +
+      "_Check back in future updates_",
+      { 
+        parse_mode: "Markdown",
+        reply_markup: new InlineKeyboard().text("⬅️ Back", "main_kol")
+      }
+    );
+  });
 }

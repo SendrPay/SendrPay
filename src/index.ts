@@ -150,41 +150,33 @@ async function startTelegramBot() {
     console.warn('Error clearing webhook:', error);
   }
 
-  // Use webhooks for production deployment
-  const publicUrl = process.env.PUBLIC_URL || process.env.REPL_URL || process.env.REPLIT_DEV_DOMAIN;
+  // Check if this is a real deployment (not preview)
+  const isActualDeployment = process.env.NODE_ENV === 'production' && 
+                            process.env.REPLIT_DEPLOYMENT === 'true';
   
-  // For deployment, also check if we're on a deployed domain
-  const isDeployment = process.env.NODE_ENV === 'production' || 
-                       process.env.REPLIT_DEPLOYMENT === 'true' ||
-                       (publicUrl && !publicUrl.includes('replit.dev'));
-  
-  console.log(`🔗 Environment check: URL=${publicUrl}, IsDeployment=${isDeployment}`);
-  
-  if (publicUrl || isDeployment) {
-    try {
-      // Clear existing webhook first
-      await telegramBot.api.deleteWebhook({ drop_pending_updates: true });
-      
-      // Set new webhook with proper URL
-      let webhookUrl;
-      if (publicUrl) {
-        webhookUrl = `${publicUrl.replace(/\/$/, '')}/tg`;
-      } else {
-        // Fallback for deployment without explicit URL
-        webhookUrl = `https://${process.env.REPLIT_DEV_DOMAIN || 'localhost'}/tg`;
+  if (isActualDeployment) {
+    // Only use webhooks for actual deployments
+    const deployUrl = process.env.REPLIT_URL || process.env.PUBLIC_URL;
+    if (deployUrl) {
+      try {
+        await telegramBot.api.deleteWebhook({ drop_pending_updates: true });
+        const webhookUrl = `${deployUrl.replace(/\/$/, '')}/tg`;
+        await telegramBot.api.setWebhook(webhookUrl);
+        console.log("✅ Deployment webhook set:", webhookUrl);
+      } catch (error) {
+        console.error("Webhook setup failed:", error);
+        await telegramBot.start();
+        console.log("✅ Fallback to polling");
       }
-      
-      await telegramBot.api.setWebhook(webhookUrl);
-      console.log("✅ Telegram webhook set:", webhookUrl);
-    } catch (error) {
-      console.error("Webhook setup failed, falling back to polling:", error);
+    } else {
       await telegramBot.start();
-      console.log("✅ Telegram fallback to polling mode");
+      console.log("✅ No deploy URL, using polling");
     }
   } else {
-    // Development mode - use polling
+    // Development/preview mode - always use polling
+    await telegramBot.api.deleteWebhook({ drop_pending_updates: true });
     await telegramBot.start();
-    console.log("✅ Telegram polling mode");
+    console.log("✅ Development mode - polling started");
   }
 }
 

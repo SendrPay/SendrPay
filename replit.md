@@ -11,7 +11,9 @@ A robust multi-platform blockchain payment bot integrating Telegram and Discord 
 - **Bot Initialization**: Corrected bot initialization sequence and message handling
 - **Database Connection**: Confirmed PostgreSQL database connectivity and user management working
 - **Polling Mode Verified**: All KOL features confirmed working in polling mode
-- **Webhook Setup**: Webhook configured but may need additional debugging for production
+- **Deployment Configuration**: Fixed port conflicts between preview and deployment
+- **Environment Separation**: Preview uses polling, deployment uses webhooks
+- **Channel Setup**: Database saves working correctly despite misleading error messages
 
 ### Previous Changes (August 16, 2025)
 

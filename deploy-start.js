@@ -7,6 +7,7 @@ console.log('🚀 Starting SendrPay Bot for deployment...');
 
 // Set environment for deployment
 process.env.NODE_ENV = 'production';
+process.env.REPLIT_DEPLOYMENT = 'true';
 
 // Detect if we're in a deployed environment
 const deploymentUrl = process.env.REPLIT_URL || 

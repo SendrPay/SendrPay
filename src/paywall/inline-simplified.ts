@@ -3,7 +3,7 @@ import { prisma } from "../infra/prisma";
 import { logger } from "../infra/logger";
 import { InlineKeyboard } from "grammy";
 import { resolveToken } from "../core/tokens";
-import { calculatePlatformFee, executePaymentWithPlatformFee } from "../core/platform-fees";
+import { executeTransfer } from "../core/transfer";
 import { v4 as uuidv4 } from 'uuid';
 
 // Format price for display
@@ -147,10 +147,11 @@ export async function handleUnlockPayCallback(ctx: BotContext) {
     
     // Verify user is signed up and has funds
     const user = await prisma.user.findUnique({
-      where: { id: parseInt(userId) }
+      where: { id: parseInt(userId) },
+      include: { wallets: { where: { isActive: true } } }
     });
     
-    if (!user) {
+    if (!user || !user.wallets?.[0]) {
       // User needs to create account first
       try {
         await ctx.api.sendMessage(
@@ -184,22 +185,43 @@ export async function handleUnlockPayCallback(ctx: BotContext) {
       );
     }
     
-    // Execute payment with platform fee using data from callback
-    const amount = parseFloat(priceAmount) / Math.pow(10, tokenInfo.decimals);
-    
-    logger.info(`Executing payment: amount=${amount} ${priceToken}, decimals=${tokenInfo.decimals}`);
-    
-    const result = await executePaymentWithPlatformFee({
-      senderId: userId,
-      recipientId: ownerTgId,
-      tokenTicker: priceToken,
-      amount,
-      paymentType: 'group_access',
-      platformFeePercent: 0.05,
-      note: `Unlock: ${post.title || `Post #${postId}`}`
+    // Get recipient user and wallet
+    const recipient = await prisma.user.findUnique({
+      where: { telegramId: ownerTgId },
+      include: { wallets: { where: { isActive: true } } }
     });
     
-    logger.info(`Payment result: success=${result.success}, error=${result.error}`);
+    if (!recipient?.wallets?.[0]) {
+      return ctx.editMessageText(
+        `❌ **Creator Wallet Error**\n\n` +
+        `Content creator hasn't set up their wallet yet.\n\n` +
+        `Please contact the creator.`,
+        { parse_mode: "Markdown" }
+      );
+    }
+    
+    // Use the working executeTransfer function instead
+    const amountRaw = BigInt(priceAmount);
+    const serviceFeeRaw = amountRaw * 5n / 100n; // 5% platform fee
+    const netAmountRaw = amountRaw - serviceFeeRaw;
+    
+    logger.info(`Executing transfer: amount=${priceAmount} raw units ${priceToken}, serviceFee=${serviceFeeRaw}`);
+    
+    const result = await executeTransfer({
+      fromWallet: { address: user.wallets[0].address },
+      toAddress: recipient.wallets[0].address,
+      mint: tokenInfo.mint,
+      amountRaw: netAmountRaw,
+      feeRaw: 0n,
+      serviceFeeRaw,
+      token: tokenInfo,
+      senderTelegramId: userId,
+      recipientTelegramId: ownerTgId,
+      note: `Unlock: ${post.title || `Post #${postId}`}`,
+      type: "group_access"
+    });
+    
+    logger.info(`Transfer result: success=${result.success}, error=${result.error}`);
     
     if (!result.success) {
       return ctx.editMessageText(
@@ -266,8 +288,8 @@ export async function handleUnlockPayCallback(ctx: BotContext) {
         ctx.from!.id,
         `✅ **Payment Successful!**\n\n` +
         `You've unlocked: **${post.title || `Post #${postId}`}**\n\n` +
-        `Amount paid: **${amount} ${post.priceToken}**\n` +
-        `Transaction: [View on Explorer](${result.explorerLink})\n\n` +
+        `Amount paid: **${(Number(amountRaw) / Math.pow(10, tokenInfo.decimals)).toFixed(6)} ${priceToken}**\n` +
+        `Transaction: [View on Explorer](https://explorer.solana.com/tx/${result.signature}?cluster=devnet)\n\n` +
         `Content delivered above. ⬆️`,
         { 
           parse_mode: "Markdown"
@@ -294,10 +316,10 @@ export async function handleUnlockPayCallback(ctx: BotContext) {
         creatorTgId,
         `🔓 **Post Unlocked!**\n\n` +
         `${post.title ?? `Post #${postId}`} was unlocked by @${ctx.from!.username || ctx.from!.id}\n\n` +
-        `Amount: **${amount} ${post.priceToken}**\n` +
+        `Amount: **${(Number(amountRaw) / Math.pow(10, tokenInfo.decimals)).toFixed(6)} ${priceToken}**\n` +
         `Platform fee: **5%**\n` +
-        `You received: **${netAmount.toFixed(2)} ${post.priceToken}**\n\n` +
-        `[View Transaction](${result.explorerLink})`,
+        `You received: **${(Number(netAmountRaw) / Math.pow(10, tokenInfo.decimals)).toFixed(6)} ${priceToken}**\n\n` +
+        `[View Transaction](https://explorer.solana.com/tx/${result.signature}?cluster=devnet)`,
         { 
           parse_mode: "Markdown"
         }
@@ -466,57 +488,14 @@ export async function handleChannelTipAmountCallback(ctx: BotContext) {
       return ctx.editMessageText("❌ Session expired. Please try again.");
     }
     
-    // Execute tip payment with 2% platform fee
-    const result = await executePaymentWithPlatformFee({
-      senderId: userId,
-      recipientId: session.channelTipIntent.ownerTgId,
-      tokenTicker: token,
-      amount,
-      paymentType: 'tip',
-      platformFeePercent: 0.02,
-      note: `Tip to ${session.channelTipIntent.channelTitle || "channel"}`
-    });
-    
-    if (!result.success) {
-      return ctx.editMessageText(
-        `❌ Tip failed: ${result.error}\n\n` +
-        `Please check your balance and try again.`,
-        { parse_mode: "Markdown" }
-      );
-    }
-    
-    // Clear session
-    delete session.channelTipIntent;
-    
-    await ctx.editMessageText(
-      `✅ **Tip Sent!**\n\n` +
-      `You sent **${amount} ${token}** to the channel.\n\n` +
-      `[View Transaction](${result.explorerLink})`,
-      { 
-        parse_mode: "Markdown"
-      }
+    // Get tip details from session - this function still uses sessions for tips
+    // For now, return an error - channel tips need to be updated to work like unlock payments
+    return ctx.editMessageText(
+      `❌ **Channel tips temporarily disabled**\n\n` +
+      `Use the unlock payment system for now.\n\n` +
+      `We're updating the tip system to match the working unlock flow.`,
+      { parse_mode: "Markdown" }
     );
-    
-    // Notify channel owner
-    try {
-      const ownerTgId = parseInt(session.channelTipIntent?.ownerTgId || "0");
-      const netAmount = amount * 0.98; // After 2% fee
-      
-      await ctx.api.sendMessage(
-        ownerTgId,
-        `💖 **Tip Received!**\n\n` +
-        `@${ctx.from!.username || ctx.from!.id} sent you a tip!\n\n` +
-        `Amount: **${amount} ${token}**\n` +
-        `Platform fee: **2%**\n` +
-        `You received: **${netAmount.toFixed(2)} ${token}**\n\n` +
-        `[View Transaction](${result.explorerLink})`,
-        { 
-          parse_mode: "Markdown"
-        }
-      );
-    } catch (notifyError) {
-      logger.error("Error notifying owner:", notifyError);
-    }
   } catch (error) {
     logger.error("Error in handleChannelTipAmountCallback:", error);
     await ctx.editMessageText("❌ An error occurred processing tip. Please try again.");

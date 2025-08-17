@@ -12,6 +12,7 @@ A robust multi-platform blockchain payment bot integrating Telegram and Discord 
 - **Payment Flow Verified**: Successfully sending from wallet `H592ewyMCzLUbxb5ehzQmBJFtkBqq7vnYv7FfMYwiBKR` to `Fo83fzNnjMjFwMyKMRFKXAAAVddQ3hbmhnTW1qi27aEi`
 - **Platform Fee System Working**: 5% fee for content unlock, 2% for tips, properly calculated and collected
 - **Complete End-to-End Testing**: Payment amounts, recipient verification, wallet balance checks all functional
+- **Rent Exemption Verified**: KOL payments properly handle new wallet rent exemption (0.00089 SOL) via executeTransfer function
 
 ### Privacy-Enhanced Payment System Implemented
 - **Session Persistence Fixed**: Resolved "session expired" errors by eliminating session dependency - payment data now embedded in callback buttons

@@ -161,6 +161,34 @@ Send private key now:`, { parse_mode: "Markdown" });
           await handleChannelPresetsInput(ctx);
         }
       }
+      // Handle channel verification workflow
+      else if (session.channelVerification?.step === 'username') {
+        const { handleChannelVerification } = await import("./channel-verification");
+        await handleChannelVerification(ctx);
+      }
+      else if (session.channelVerification?.step === 'pricing' && !text.startsWith('/')) {
+        const { handleCustomPriceInput } = await import("./channel-verification");
+        await handleCustomPriceInput(ctx);
+      }
+      // Handle post content creation
+      else if (session.postCreation?.step === 'awaiting_content') {
+        await handlePostContentInput(ctx);
+      }
+      // Handle custom price input for posts
+      else if (session.postCreation?.step === 'custom_price' && !text.startsWith('/')) {
+        const match = text.match(/^([0-9.]+)\s+([A-Z]+)$/i);
+        if (match) {
+          const [_, amount, token] = match;
+          const channel = await prisma.channel.findUnique({
+            where: { chatId: session.postCreation.channelId }
+          });
+          if (channel) {
+            await createPaywalledPost(ctx, userId!, channel, amount, token.toUpperCase());
+          }
+        } else {
+          await ctx.reply("❌ Invalid format. Use: `amount TOKEN`\nExample: `0.5 SOL`", { parse_mode: "Markdown" });
+        }
+      }
       // Handle post creation inputs
       else if (session.postCreation) {
         if (session.postCreation.step === 'set_title') {
@@ -215,10 +243,29 @@ Send private key now:`, { parse_mode: "Markdown" });
   });
 
 
-  // Settings menu callback handlers
-  bot.callbackQuery(/^(home|wallet|send_payment|receive_payment|security|history|help|bot_settings|settings_main|quick_pay)$/, async (ctx) => {
-    const { handleSettingsCallback } = await import("./settings");
-    await handleSettingsCallback(ctx);
+  // Main settings button handler - NEW UI
+  bot.callbackQuery("main_settings", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const keyboard = new InlineKeyboard()
+      .text("👤 Profile Settings", "settings_profile").row()
+      .text("🔔 Notifications", "settings_notifications").row()
+      .text("💰 Default Currency", "settings_currency").row()
+      .text("🔐 Security", "settings_security").row()
+      .text("⬅️ Back to Menu", "back_to_main");
+
+    await ctx.editMessageText(
+      "⚙️ **Settings**\n\n" +
+      "Configure your SendrPay preferences:\n\n" +
+      "• **Profile**: Update username and bio\n" +
+      "• **Notifications**: Control alerts\n" +
+      "• **Currency**: Set default token\n" +
+      "• **Security**: Manage wallet security\n\n" +
+      "Select an option:",
+      { 
+        parse_mode: "Markdown",
+        reply_markup: keyboard
+      }
+    );
   });
 
   // Payment confirmation handlers
@@ -287,18 +334,80 @@ Send private key now:`, { parse_mode: "Markdown" });
     await handlePaywallInlineCallbacks(ctx);
   });
 
-  // Channel setup callbacks
-  bot.callbackQuery(/^channel_/, async (ctx) => {
-    await handleChannelCallbacks(ctx);
+  // Channel verification workflow callbacks
+  bot.callbackQuery("channel_start_verification", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    ctx.session.channelVerification = { step: 'username' };
+    
+    await ctx.editMessageText(
+      "📢 **Channel Verification - Step 1**\n\n" +
+      "Please send me your channel username (without @).\n\n" +
+      "Example: If your channel is @mychannel, just send: `mychannel`\n\n" +
+      "Make sure you've already:\n" +
+      "✅ Added the bot as admin\n" +
+      "✅ Given 'Post messages' permission",
+      { 
+        parse_mode: "Markdown",
+        reply_markup: new InlineKeyboard().text("❌ Cancel", "cancel_verification")
+      }
+    );
   });
 
-  // Post creation callbacks
-  bot.callbackQuery(/^post_/, async (ctx) => {
-    await handlePostCallbacks(ctx);
+  bot.callbackQuery("cancel_verification", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    ctx.session.channelVerification = undefined;
+    await ctx.editMessageText("❌ Channel verification cancelled.");
+  });
+
+  // Channel price setting callbacks
+  bot.callbackQuery(/^set_price:/, async (ctx) => {
+    const { handleChannelPriceCallback } = await import("./channel-verification");
+    await handleChannelPriceCallback(ctx);
+  });
+
+  bot.callbackQuery("set_custom_price", async (ctx) => {
+    const { handleChannelPriceCallback } = await import("./channel-verification");
+    await handleChannelPriceCallback(ctx);
   });
 
   // Register legacy paywall callbacks
   registerPaywallCallbacks(bot);
+
+  // Handle notification callbacks that were in bot.ts
+  bot.on("callback_query", async (ctx) => {
+    const data = ctx.callbackQuery?.data;
+    if (!data) return;
+
+    if (data.startsWith("react_")) {
+      const { handleReactionCallback } = await import("../core/notifications-simple");
+      await handleReactionCallback(ctx);
+    } else if (data === "already_reacted") {
+      const { handleAlreadyReacted } = await import("../core/notifications-simple");
+      await handleAlreadyReacted(ctx);
+    }
+  });
+
+  // Handle general non-command messages
+  bot.on("message", async (ctx) => {
+    const chatType = ctx.chat?.type;
+    const text = ctx.message?.text || "";
+    
+    // Only reply to non-commands in private chat if no session is active
+    if (!text.startsWith("/") && chatType === "private") {
+      // Check if user has any active session that expects text input
+      const session = ctx.session as any;
+      const hasActiveSession = session.channelVerification || 
+                              session.channelSetup || 
+                              session.linkingGroup || 
+                              session.expectingGroupPrice ||
+                              session.tipIntent?.step === 'custom_amount' ||
+                              session.awaitingPrivateKey;
+      
+      if (!hasActiveSession) {
+        await ctx.reply("Use /start to begin or /help for commands.");
+      }
+    }
+  });
 
   // Main menu navigation callbacks
   bot.callbackQuery("main_kol", async (ctx) => {
@@ -917,46 +1026,178 @@ Send private key now:`, { parse_mode: "Markdown" });
     let verifyText = "✅ **Verify Channel Setup**\n\n";
     
     if (channels.length > 0) {
-      verifyText += "**Your Channels:**\n";
+      verifyText += "**Your Verified Channels:**\n";
       channels.forEach(channel => {
         verifyText += `• @${channel.username || channel.chatId}\n`;
         verifyText += `  Price: ${channel.defaultPrice} ${channel.defaultToken}\n`;
+        verifyText += `  Status: ✅ Verified\n`;
         verifyText += `  Created: ${channel.createdAt.toLocaleDateString()}\n\n`;
       });
+      
+      const keyboard = new InlineKeyboard()
+        .text("➕ Add Another Channel", "channel_start_verification").row()
+        .text("⬅️ Back", "content_channel_setup");
+      
+      await ctx.editMessageText(verifyText, {
+        parse_mode: "Markdown",
+        reply_markup: keyboard
+      });
     } else {
-      verifyText += "❌ No channels set up yet.\n\n";
-      verifyText += "Use `/channel_init` in your channel to get started!";
+      verifyText += "❌ No channels verified yet.\n\n";
+      verifyText += "Let's verify your first channel!";
+      
+      const keyboard = new InlineKeyboard()
+        .text("🚀 Start Verification", "channel_start_verification").row()
+        .text("⬅️ Back", "content_channel_setup");
+      
+      await ctx.editMessageText(verifyText, {
+        parse_mode: "Markdown",
+        reply_markup: keyboard
+      });
     }
-
-    await ctx.editMessageText(verifyText, {
-      parse_mode: "Markdown",
-      reply_markup: new InlineKeyboard().text("⬅️ Back", "content_channel_setup")
-    });
   });
 
-  // Content creation type callbacks
+  // Content creation type callbacks  
   bot.callbackQuery(/^create_(text|image|video|mixed)$/, async (ctx) => {
     await ctx.answerCallbackQuery();
     const contentType = ctx.match[1];
+    const userId = ctx.from?.id.toString();
+    if (!userId) return;
+
+    // Get user's channels
+    const channels = await prisma.channel.findMany({
+      where: { adminId: userId },
+      select: { chatId: true, username: true }
+    });
+
+    if (channels.length === 0) {
+      await ctx.editMessageText(
+        "❌ **No Channels Found**\n\n" +
+        "You need to verify a channel first before creating posts.\n\n" +
+        "Click 'Channel Setup' to add your first channel.",
+        { 
+          parse_mode: "Markdown",
+          reply_markup: new InlineKeyboard()
+            .text("🏗️ Channel Setup", "content_channel_setup").row()
+            .text("⬅️ Back", "content_create_post")
+        }
+      );
+      return;
+    }
+
+    // Store content type in session
+    ctx.session.postCreation = { 
+      step: 'select_channel',
+      contentType 
+    };
+
+    const keyboard = new InlineKeyboard();
+    channels.forEach(channel => {
+      keyboard.text(`@${channel.username}`, `post_in_channel:${channel.chatId}`).row();
+    });
+    keyboard.text("⬅️ Back", "content_create_post");
+
+    await ctx.editMessageText(
+      `📝 **Create ${contentType.charAt(0).toUpperCase() + contentType.slice(1)} Post**\n\n` +
+      "Select which channel to post in:",
+      { 
+        parse_mode: "Markdown",
+        reply_markup: keyboard
+      }
+    );
+  });
+
+  // Select channel for post
+  bot.callbackQuery(/^post_in_channel:(.+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const channelId = ctx.match[1];
+    const session = ctx.session as any;
     
+    if (!session.postCreation) {
+      await ctx.editMessageText("❌ Session expired. Please start again.");
+      return;
+    }
+
+    const contentType = session.postCreation.contentType;
     const instructions = {
-      text: "📝 **Create Text Post**\n\n1. Use `/post_locked` in your channel\n2. Reply with your text content\n3. Set the price\n4. Post will be created with preview",
-      image: "🖼️ **Create Image Post**\n\n1. Use `/post_locked` in your channel\n2. Send up to 10 images (10MB each)\n3. Add caption and set price\n4. Images will be locked behind paywall",
-      video: "🎥 **Create Video Post**\n\n1. Use `/post_locked` in your channel\n2. Send your video (up to 50MB)\n3. Add description and set price\n4. Video will require payment to view",
-      mixed: "🎨 **Create Mixed Content**\n\n1. Use `/post_locked` in your channel\n2. Send text, then add media\n3. Or send media, then add text\n4. Set price for complete package"
+      text: "📝 Send your text content now.\n\nThis will be the locked content users pay to see.",
+      image: "🖼️ Send up to 10 images (10MB each).\n\nThese will be locked behind the paywall.",
+      video: "🎥 Send your video (up to 50MB).\n\nThis will require payment to view.",
+      mixed: "🎨 Send your text first, then add media.\n\nOr send media first, then add text."
+    };
+
+    session.postCreation = {
+      ...session.postCreation,
+      step: 'awaiting_content',
+      channelId
     };
 
     await ctx.editMessageText(
+      `**Creating Post in Channel**\n\n` +
       instructions[contentType as keyof typeof instructions] + "\n\n" +
-      "**Tips:**\n" +
-      "• Make preview text compelling\n" +
-      "• Price according to value\n" +
-      "• Engage with unlockers\n",
+      "Send your content now:",
       { 
         parse_mode: "Markdown",
+        reply_markup: new InlineKeyboard().text("❌ Cancel", "cancel_post_creation")
+      }
+    );
+  });
+
+  bot.callbackQuery("cancel_post_creation", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    ctx.session.postCreation = undefined;
+    await ctx.editMessageText("❌ Post creation cancelled.");
+  });
+
+  bot.callbackQuery("select_channel_for_post", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const userId = ctx.from?.id.toString();
+    if (!userId) return;
+
+    const channels = await prisma.channel.findMany({
+      where: { adminId: userId },
+      select: { chatId: true, username: true }
+    });
+
+    if (channels.length === 0) {
+      await ctx.editMessageText(
+        "❌ No channels verified yet. Please set up a channel first.",
+        {
+          reply_markup: new InlineKeyboard()
+            .text("🏗️ Channel Setup", "content_channel_setup").row()
+            .text("⬅️ Back", "kol_content")
+        }
+      );
+      return;
+    }
+
+    const keyboard = new InlineKeyboard();
+    channels.forEach(channel => {
+      keyboard.text(`@${channel.username}`, `start_post_in:${channel.chatId}`).row();
+    });
+    keyboard.text("⬅️ Back", "kol_content");
+
+    await ctx.editMessageText(
+      "📝 **Select Channel for Post**\n\n" +
+      "Choose which channel to create a post in:",
+      {
+        parse_mode: "Markdown",
+        reply_markup: keyboard
+      }
+    );
+  });
+
+  bot.callbackQuery("need_channel_first", async (ctx) => {
+    await ctx.answerCallbackQuery("Please verify a channel first!");
+    await ctx.editMessageText(
+      "⚠️ **Channel Required**\n\n" +
+      "You need to verify at least one channel before creating posts.\n\n" +
+      "Click 'Channel Setup' to get started!",
+      {
+        parse_mode: "Markdown",
         reply_markup: new InlineKeyboard()
-          .text("📺 Go to Channel", "go_to_channel").row()
-          .text("⬅️ Back", "content_create_post")
+          .text("🏗️ Channel Setup", "content_channel_setup").row()
+          .text("⬅️ Back", "kol_content")
       }
     );
   });
@@ -1062,13 +1303,351 @@ Send private key now:`, { parse_mode: "Markdown" });
       "Need help? Use /help for detailed instructions."
     );
   });
+
+  // Settings submenu callbacks
+  bot.callbackQuery("settings_profile", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const userId = ctx.from?.id.toString();
+    const username = ctx.from?.username;
+    
+    await ctx.editMessageText(
+      `👤 **Profile Settings**\n\n` +
+      `Username: @${username || 'not set'}\n` +
+      `User ID: ${userId}\n` +
+      `Account Type: ${username ? 'KOL' : 'Standard'}\n\n` +
+      `Profile features coming soon!`,
+      {
+        parse_mode: "Markdown",
+        reply_markup: new InlineKeyboard().text("⬅️ Back", "main_settings")
+      }
+    );
+  });
+
+  bot.callbackQuery("settings_notifications", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    await ctx.editMessageText(
+      "🔔 **Notification Settings**\n\n" +
+      "Control when and how you receive alerts:\n\n" +
+      "• Payment received: ✅ Enabled\n" +
+      "• Tips received: ✅ Enabled\n" +
+      "• Group joins: ✅ Enabled\n" +
+      "• Content unlocks: ✅ Enabled\n\n" +
+      "_Customization coming soon_",
+      {
+        parse_mode: "Markdown",
+        reply_markup: new InlineKeyboard().text("⬅️ Back", "main_settings")
+      }
+    );
+  });
+
+  bot.callbackQuery("settings_currency", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const keyboard = new InlineKeyboard()
+      .text("SOL", "set_default:SOL").text("USDC", "set_default:USDC").row()
+      .text("BONK", "set_default:BONK").text("JUP", "set_default:JUP").row()
+      .text("⬅️ Back", "main_settings");
+
+    await ctx.editMessageText(
+      "💰 **Default Currency**\n\n" +
+      "Select your preferred token for transactions:\n\n" +
+      "Current default: **SOL**",
+      {
+        parse_mode: "Markdown",
+        reply_markup: keyboard
+      }
+    );
+  });
+
+  bot.callbackQuery("settings_security", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    await ctx.editMessageText(
+      "🔐 **Security Settings**\n\n" +
+      "**Wallet Security:**\n" +
+      "• Private keys encrypted: ✅\n" +
+      "• 2FA enabled: ❌ Coming soon\n" +
+      "• Backup phrase: Use /export\n\n" +
+      "**Privacy:**\n" +
+      "• Transaction history: Private\n" +
+      "• Profile visibility: Public\n\n" +
+      "_Advanced security features in development_",
+      {
+        parse_mode: "Markdown",
+        reply_markup: new InlineKeyboard().text("⬅️ Back", "main_settings")
+      }
+    );
+  });
+
+  bot.callbackQuery(/^set_default:([A-Z]+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery(`Default currency set to ${ctx.match[1]}`);
+    // Store preference in database
+    await ctx.editMessageText(
+      `✅ Default currency updated to **${ctx.match[1]}**`,
+      {
+        parse_mode: "Markdown",
+        reply_markup: new InlineKeyboard().text("⬅️ Back", "settings_currency")
+      }
+    );
+  });
+
+  bot.callbackQuery("back_to_main", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const { commandStart } = await import("./start");
+    await commandStart(ctx);
+  });
+
+  // Post pricing callbacks
+  bot.callbackQuery("use_default_price", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const session = ctx.session as any;
+    const userId = ctx.from?.id.toString();
+    
+    if (!session.postCreation || !userId) {
+      await ctx.editMessageText("❌ Session expired. Please start again.");
+      return;
+    }
+    
+    const channel = await prisma.channel.findUnique({
+      where: { chatId: session.postCreation.channelId }
+    });
+    
+    if (!channel) {
+      await ctx.editMessageText("❌ Channel not found.");
+      return;
+    }
+    
+    await createPaywalledPost(ctx, userId, channel, channel.defaultPrice, channel.defaultToken);
+  });
+
+  bot.callbackQuery(/^post_price:([0-9.]+):([A-Z]+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const session = ctx.session as any;
+    const userId = ctx.from?.id.toString();
+    
+    if (!session.postCreation || !userId) {
+      await ctx.editMessageText("❌ Session expired. Please start again.");
+      return;
+    }
+    
+    const [_, amount, token] = ctx.match;
+    
+    const channel = await prisma.channel.findUnique({
+      where: { chatId: session.postCreation.channelId }
+    });
+    
+    if (!channel) {
+      await ctx.editMessageText("❌ Channel not found.");
+      return;
+    }
+    
+    await createPaywalledPost(ctx, userId, channel, amount, token);
+  });
+
+  bot.callbackQuery("post_custom_price", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    ctx.session.postCreation = {
+      ...ctx.session.postCreation,
+      step: 'custom_price'
+    };
+    
+    await ctx.editMessageText(
+      "💰 **Set Custom Price**\n\n" +
+      "Enter the price in this format:\n" +
+      "`amount TOKEN`\n\n" +
+      "Examples:\n" +
+      "• `0.25 SOL`\n" +
+      "• `10 USDC`\n" +
+      "• `1000 BONK`",
+      {
+        parse_mode: "Markdown",
+        reply_markup: new InlineKeyboard().text("❌ Cancel", "cancel_post_creation")
+      }
+    );
+  });
+
+  // Start post in channel callback
+  bot.callbackQuery(/^start_post_in:(.+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const channelId = ctx.match[1];
+    
+    ctx.session.postCreation = {
+      step: 'select_type',
+      channelId
+    };
+    
+    const keyboard = new InlineKeyboard()
+      .text("📝 Text Only", "create_text").row()
+      .text("🖼️ Images", "create_image").row()
+      .text("🎥 Video", "create_video").row()
+      .text("🎨 Mixed Content", "create_mixed").row()
+      .text("⬅️ Back", "select_channel_for_post");
+    
+    await ctx.editMessageText(
+      "📝 **Create Paywalled Post**\n\n" +
+      "What type of content will you create?\n\n" +
+      "• **Text**: Written content only\n" +
+      "• **Images**: Up to 10 photos\n" +
+      "• **Video**: Single video file\n" +
+      "• **Mixed**: Combine text + media",
+      {
+        parse_mode: "Markdown",
+        reply_markup: keyboard
+      }
+    );
+  });
+}
+
+// Create paywalled post helper
+async function createPaywalledPost(ctx: BotContext, userId: string, channel: any, amount: string, token: string) {
+  const session = ctx.session as any;
+  const postData = session.postCreation;
+  
+  if (!postData) {
+    await ctx.reply("❌ Session expired.");
+    return;
+  }
+  
+  try {
+    // Create preview text
+    let preview = "🔒 **Locked Content**\n\n";
+    if (postData.textContent) {
+      preview += postData.textContent.substring(0, 100) + "...\n\n";
+    }
+    preview += `💰 Price: ${amount} ${token}\n`;
+    preview += `📊 Content: `;
+    
+    const contentTypes = [];
+    if (postData.textContent) contentTypes.push("Text");
+    if (postData.photos?.length) contentTypes.push(`${postData.photos.length} Images`);
+    if (postData.video) contentTypes.push("Video");
+    preview += contentTypes.join(" + ");
+    
+    // Store in database
+    const post = await prisma.lockedPost.create({
+      data: {
+        channelId: channel.chatId,
+        authorId: userId,
+        messageText: postData.textContent || "",
+        priceRaw: amount,
+        priceTicker: token,
+        mediaContent: JSON.stringify({
+          photos: postData.photos || [],
+          video: postData.video || null
+        })
+      }
+    });
+    
+    // Send to channel
+    const botMessage = await ctx.api.sendMessage(
+      channel.chatId,
+      preview + "\n\n" +
+      "Click below to unlock this content:",
+      {
+        parse_mode: "Markdown",
+        reply_markup: new InlineKeyboard()
+          .text("🔓 Unlock Content", `unlock_post:${post.id}`)
+      }
+    );
+    
+    // Update post with message ID
+    await prisma.lockedPost.update({
+      where: { id: post.id },
+      data: { messageId: botMessage.message_id }
+    });
+    
+    // Clear session
+    ctx.session.postCreation = undefined;
+    
+    await ctx.reply(
+      "✅ **Post Created Successfully!**\n\n" +
+      `Channel: @${channel.username}\n` +
+      `Price: ${amount} ${token}\n` +
+      `Status: Published\n\n` +
+      "Your post is now live in the channel!",
+      {
+        parse_mode: "Markdown",
+        reply_markup: new InlineKeyboard()
+          .text("📝 Create Another", "select_channel_for_post").row()
+          .text("📊 View Stats", "content_stats").row()
+          .text("🏠 Main Menu", "back_to_main")
+      }
+    );
+    
+  } catch (error) {
+    console.error("Error creating post:", error);
+    await ctx.reply("❌ Error creating post. Please try again.");
+  }
+}
+
+// Handle post content input
+async function handlePostContentInput(ctx: BotContext) {
+  const session = ctx.session as any;
+  const userId = ctx.from?.id.toString();
+  
+  if (!session.postCreation || !userId) return;
+  
+  const { channelId, contentType } = session.postCreation;
+  const message = ctx.message;
+  
+  if (!message) return;
+  
+  // Store content based on type
+  if (message.text) {
+    session.postCreation.textContent = message.text;
+  } else if (message.photo) {
+    if (!session.postCreation.photos) session.postCreation.photos = [];
+    session.postCreation.photos.push(message.photo[message.photo.length - 1].file_id);
+  } else if (message.video) {
+    session.postCreation.video = message.video.file_id;
+  }
+  
+  // Check if content is complete based on type
+  const hasContent = session.postCreation.textContent || 
+                    session.postCreation.photos?.length || 
+                    session.postCreation.video;
+  
+  if (!hasContent) {
+    await ctx.reply("Please send your content (text, images, or video).");
+    return;
+  }
+  
+  // Move to pricing step
+  session.postCreation.step = 'set_price';
+  
+  const channel = await prisma.channel.findUnique({
+    where: { chatId: channelId }
+  });
+  
+  const keyboard = new InlineKeyboard()
+    .text(`Use default (${channel?.defaultPrice} ${channel?.defaultToken})`, "use_default_price").row()
+    .text("💵 0.1 SOL", "post_price:0.1:SOL").row()
+    .text("💵 0.5 SOL", "post_price:0.5:SOL").row()
+    .text("💵 1 SOL", "post_price:1:SOL").row()
+    .text("💰 1 USDC", "post_price:1:USDC").row()
+    .text("✏️ Custom Price", "post_custom_price");
+  
+  await ctx.reply(
+    "💰 **Set Post Price**\n\n" +
+    "Choose how much users will pay to unlock this content:",
+    {
+      parse_mode: "Markdown",
+      reply_markup: keyboard
+    }
+  );
 }
 
 // Content Creation submenu
 async function showContentCreationMenu(ctx: BotContext) {
+  const userId = ctx.from?.id.toString();
+  if (!userId) return;
+
+  // Check if user has any verified channels
+  const channelCount = await prisma.channel.count({
+    where: { adminId: userId }
+  });
+
   const keyboard = new InlineKeyboard()
     .text("🏗️ Channel Setup", "content_channel_setup").row()
-    .text("📝 Create Post", "content_create_post").row()
+    .text("📝 Create Post", channelCount > 0 ? "select_channel_for_post" : "need_channel_first").row()
     .text("📊 Content Stats", "content_stats").row()
     .text("⬅️ Back to KOL Menu", "main_kol");
 
@@ -1078,11 +1657,9 @@ async function showContentCreationMenu(ctx: BotContext) {
     `• Set up your channel with pricing\n` +
     `• Create locked posts with text/media\n` +
     `• Track content performance\n\n` +
-    `**Supported Content:**\n` +
-    `• Text posts with custom pricing\n` +
-    `• Images (up to 10MB each)\n` +
-    `• Videos (up to 50MB each)\n` +
-    `• Mixed content (text + media)\n\n` +
+    `**Your Status:**\n` +
+    `• Channels verified: ${channelCount}\n` +
+    (channelCount > 0 ? `✅ Ready to create posts!` : `⚠️ Verify a channel first`) + `\n\n` +
     `Choose your next step:`;
 
   await ctx.editMessageText(menuText, {

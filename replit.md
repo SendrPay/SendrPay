@@ -3,7 +3,17 @@
 ## Overview
 A robust multi-platform blockchain payment bot integrating Telegram and Discord for seamless crypto transactions on the Solana devnet, with advanced cross-platform user management, wallet linking, and KOL (Key Opinion Leader) monetization features.
 
-## Recent Changes (August 16, 2025)
+## Recent Changes (August 17, 2025)
+
+### Bot Functionality Restored
+- **Fixed Critical Issues**: Resolved bot startup and command processing problems
+- **Markdown Formatting**: Fixed MarkdownV2 parsing errors in /start command that prevented bot responses
+- **Bot Initialization**: Corrected bot initialization sequence and message handling
+- **Database Connection**: Confirmed PostgreSQL database connectivity and user management working
+- **Polling Mode Verified**: All KOL features confirmed working in polling mode
+- **Webhook Setup**: Webhook configured but may need additional debugging for production
+
+### Previous Changes (August 16, 2025)
 
 ### KOL Monetization Features Added
 - **Inline Payment Buttons**: Replaced text commands with interactive buttons for tipping and group joining

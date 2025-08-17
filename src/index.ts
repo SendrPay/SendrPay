@@ -89,21 +89,28 @@ app.get("/health", (req, res) => {
 
 // Telegram webhook endpoint
 app.post("/tg", async (req, res) => {
-  console.log("🔥 TELEGRAM WEBHOOK REACHED!");
+  const updateId = req.body?.update_id;
+  const messageText = req.body?.message?.text;
+  
+  console.log(`🎯 Webhook: Update ${updateId} - "${messageText}"`);
   
   if (!telegramBot) {
-    console.error("❌ No bot configured");
-    return res.status(404).send("Not Found");
+    console.error("❌ Bot not configured");
+    return res.status(500).send("Bot Error");
+  }
+  
+  if (!req.body || !updateId) {
+    console.error("❌ Invalid update body");
+    return res.status(400).send("Invalid Update");
   }
   
   try {
-    console.log("📝 Processing Telegram update:", req.body?.update_id);
     await telegramBot.handleUpdate(req.body);
-    console.log("✅ Update processed");
-    res.send("OK");
+    console.log(`✅ Processed update ${updateId}`);
+    res.status(200).send("OK");
   } catch (error) {
-    console.error("❌ Webhook error:", error);
-    res.status(500).send("Error");
+    console.error(`❌ Error processing ${updateId}:`, error);
+    res.status(500).send("Processing Error");
   }
 });
 
@@ -143,19 +150,26 @@ async function startTelegramBot() {
     console.warn('Error clearing webhook:', error);
   }
 
-  // TEMPORARILY USE POLLING to verify bot functionality
-  console.log("🔄 Using polling mode to verify bot works");
-  
-  try {
-    // Clear any existing webhook
-    await telegramBot.api.deleteWebhook({ drop_pending_updates: true });
-    console.log("✅ Webhook cleared");
-    
-    // Start polling
+  // Use webhooks for production deployment
+  const publicUrl = process.env.PUBLIC_URL || process.env.REPL_URL;
+  if (publicUrl) {
+    try {
+      // Clear existing webhook first
+      await telegramBot.api.deleteWebhook({ drop_pending_updates: true });
+      
+      // Set new webhook with proper URL
+      const webhookUrl = `${publicUrl.replace(/\/$/, '')}/tg`;
+      await telegramBot.api.setWebhook(webhookUrl);
+      console.log("✅ Telegram webhook set:", webhookUrl);
+    } catch (error) {
+      console.error("Webhook setup failed, falling back to polling:", error);
+      await telegramBot.start();
+      console.log("✅ Telegram fallback to polling mode");
+    }
+  } else {
+    // Development mode - use polling
     await telegramBot.start();
-    console.log("✅ Telegram polling active - Bot ready for commands");
-  } catch (error) {
-    console.error("❌ Failed to start bot:", error);
+    console.log("✅ Telegram polling mode");
   }
 }
 

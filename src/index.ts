@@ -151,14 +151,29 @@ async function startTelegramBot() {
   }
 
   // Use webhooks for production deployment
-  const publicUrl = process.env.PUBLIC_URL || process.env.REPL_URL;
-  if (publicUrl) {
+  const publicUrl = process.env.PUBLIC_URL || process.env.REPL_URL || process.env.REPLIT_DEV_DOMAIN;
+  
+  // For deployment, also check if we're on a deployed domain
+  const isDeployment = process.env.NODE_ENV === 'production' || 
+                       process.env.REPLIT_DEPLOYMENT === 'true' ||
+                       (publicUrl && !publicUrl.includes('replit.dev'));
+  
+  console.log(`🔗 Environment check: URL=${publicUrl}, IsDeployment=${isDeployment}`);
+  
+  if (publicUrl || isDeployment) {
     try {
       // Clear existing webhook first
       await telegramBot.api.deleteWebhook({ drop_pending_updates: true });
       
       // Set new webhook with proper URL
-      const webhookUrl = `${publicUrl.replace(/\/$/, '')}/tg`;
+      let webhookUrl;
+      if (publicUrl) {
+        webhookUrl = `${publicUrl.replace(/\/$/, '')}/tg`;
+      } else {
+        // Fallback for deployment without explicit URL
+        webhookUrl = `https://${process.env.REPLIT_DEV_DOMAIN || 'localhost'}/tg`;
+      }
+      
       await telegramBot.api.setWebhook(webhookUrl);
       console.log("✅ Telegram webhook set:", webhookUrl);
     } catch (error) {

@@ -1,5 +1,5 @@
 import { BotContext } from "../bot";
-import { db } from "../infra/prisma";
+import { prisma } from "../infra/prisma";
 import { logger } from "../infra/logger";
 import { InlineKeyboard } from "grammy";
 
@@ -12,7 +12,7 @@ export async function commandPostLocked(ctx: BotContext) {
   const userId = String(ctx.from!.id);
 
   // Check if user has any configured channels
-  const channels = await db.kolChannel.findMany({
+  const channels = await prisma.kolChannel.findMany({
     where: { 
       ownerTgId: userId,
       isActive: true
@@ -78,7 +78,7 @@ export async function commandPostLocked(ctx: BotContext) {
 export async function handlePostChannelSelection(ctx: BotContext, channelId: string) {
   await ctx.answerCallbackQuery();
   
-  const channel = await db.kolChannel.findUnique({
+  const channel = await prisma.kolChannel.findUnique({
     where: { id: channelId }
   });
 
@@ -305,7 +305,7 @@ export async function handlePostTokenSelection(ctx: BotContext, token: string) {
 
   // Create the locked post
   try {
-    const post = await db.lockedPost.create({
+    const post = await prisma.lockedPost.create({
       data: {
         tgChatId: session.postCreation.channelId,
         channelMsgId: "", // Will be updated after posting
@@ -340,7 +340,7 @@ export async function handlePostTokenSelection(ctx: BotContext, token: string) {
     );
 
     // Update post with message ID
-    await db.lockedPost.update({
+    await prisma.lockedPost.update({
       where: { id: post.id },
       data: { channelMsgId: String(channelMessage.message_id) }
     });

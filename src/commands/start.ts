@@ -46,36 +46,36 @@ export async function commandStart(ctx: BotContext) {
     .row()
     .text("🔗 Link Discord Account", "link_discord");
 
-  const welcomeText = `✨ **Welcome to SendrPay**
+  const welcomeText = `✨ *Welcome to SendrPay*
 
 Send crypto payments instantly on Telegram
 
-**💰 Payment Features:**
+*💰 Payment Features:*
 • Send payments to any user
 • Tip users in group chats  
 • Track all transactions
 • Secure wallet management
-• Cross-platform payments with Discord
+• Cross\\-platform payments with Discord
 
-**🎯 KOL Monetization Features:**
+*🎯 KOL Monetization Features:*
 • Set up paid group access
 • Create paywalled content
 • Receive tips with buttons
 • Configure accepted tokens
-• 2-5% platform fees only
+• 2\\-5% platform fees only
 
-**📚 Quick Commands:**
-• /setup - Configure KOL settings
-• /channel_init - Set up paywalled content
-• /linkgroup - Link paid group
-• /kol - View KOL profile
-• /help - Full command list
+*📚 Quick Commands:*
+• /setup \\- Configure KOL settings
+• /channel\\_init \\- Set up paywalled content
+• /linkgroup \\- Link paid group
+• /kol \\- View KOL profile
+• /help \\- Full command list
 
-**Getting started:**
+*Getting started:*
 Choose how to set up your wallet`;
 
   await ctx.reply(welcomeText, { 
     reply_markup: keyboard,
-    parse_mode: "Markdown" 
+    parse_mode: "MarkdownV2" 
   });
 }

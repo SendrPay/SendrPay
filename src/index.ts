@@ -12,6 +12,15 @@ console.log("🚀 SENDPAY TELEGRAM BOT - SIMPLIFIED");
 const app = express();
 app.use(express.json({ limit: "1mb" }));
 
+// Log all incoming requests
+app.use((req, res, next) => {
+  console.log(`📥 ${new Date().toISOString()} - ${req.method} ${req.url} - Headers:`, JSON.stringify(req.headers, null, 2));
+  if (req.method === 'POST') {
+    console.log('POST Body:', req.body ? JSON.stringify(req.body, null, 2) : 'empty');
+  }
+  next();
+});
+
 // Serve static files for miniapp FIRST
 app.use(express.static('public'));
 
@@ -74,17 +83,47 @@ app.get("/health", (req, res) => {
 
 app.post("/webhooks/helius", heliusWebhook);
 
+// Test endpoint to simulate Telegram webhook
+app.post("/test", async (req, res) => {
+  console.log("🧪 TEST endpoint called with body:", JSON.stringify(req.body, null, 2));
+  res.send("Test OK");
+});
+
 // Telegram webhook endpoint
 app.post("/tg", async (req, res) => {
+  console.log("🔄 Telegram webhook received:", JSON.stringify(req.body, null, 2));
+  
   if (!telegramBot) {
+    console.error("❌ Telegram bot not configured");
     return res.status(404).json({ error: "Telegram bot not configured" });
   }
   
+  // Validate we have a proper update object
+  if (!req.body || typeof req.body !== 'object') {
+    console.error("❌ Invalid webhook body - not an object");
+    return res.status(400).json({ error: "Invalid webhook body" });
+  }
+  
+  if (!req.body.update_id && req.body.update_id !== 0) {
+    console.error("❌ Missing update_id in webhook body");
+    return res.status(400).json({ error: "Missing update_id" });
+  }
+  
   try {
+    console.log("🤖 Processing update with bot...");
+    console.log("Bot object exists:", !!telegramBot);
+    console.log("Bot handleUpdate function exists:", typeof telegramBot.handleUpdate === 'function');
+    
     await telegramBot.handleUpdate(req.body);
+    console.log("✅ Update processed successfully");
     res.status(200).send("OK");
   } catch (error) {
-    console.error("Telegram webhook error:", error);
+    console.error("❌ Telegram webhook error:", error);
+    if (error instanceof Error) {
+      console.error("Error name:", error.name);
+      console.error("Error message:", error.message);
+      console.error("Error stack:", error.stack);
+    }
     res.status(500).json({ error: "Webhook failed" });
   }
 });

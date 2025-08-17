@@ -15,6 +15,7 @@ import { commandStart, showMainMenu } from "./start";
 import { commandHelp } from "./help";
 import { commandDeposit } from "./deposit";
 import { commandHistory } from "./history";
+import { prisma } from "../infra/prisma";
 import { commandDebugReply, commandDebugReset, commandDebugMessage } from "./debug";
 import { commandLinkcode } from "./linkcode";
 import { commandSetup, handleSetupCallbacks, handleGroupPriceInput } from "./setup";
@@ -360,6 +361,376 @@ Send private key now:`, { parse_mode: "Markdown" });
     await ctx.answerCallbackQuery();
     await showMainMenu(ctx);
   });
+
+  // KOL submenu callbacks
+  bot.callbackQuery("kol_setup", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const { commandSetup } = await import("./setup");
+    await commandSetup(ctx);
+  });
+
+  bot.callbackQuery("kol_profile", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const username = ctx.from?.username;
+    if (username) {
+      const { commandKolProfile } = await import("./kol-inline");
+      // Set up the context to show their own profile
+      ctx.match = username;
+      await commandKolProfile(ctx);
+    } else {
+      await ctx.editMessageText(
+        "❌ You need a Telegram username to use KOL features.\n\n" +
+        "Please set a username in Telegram settings first.",
+        { 
+          parse_mode: "Markdown",
+          reply_markup: new InlineKeyboard().text("⬅️ Back", "main_kol")
+        }
+      );
+    }
+  });
+
+  bot.callbackQuery("kol_content", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    await showContentCreationMenu(ctx);
+  });
+
+  bot.callbackQuery("kol_group", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    await showGroupLinkingMenu(ctx);
+  });
+
+  bot.callbackQuery("kol_stats", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    await showKolStatsMenu(ctx);
+  });
+
+  // Content creation submenu callbacks
+  bot.callbackQuery("content_channel_setup", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const { commandChannelInit } = await import("./channel");
+    await commandChannelInit(ctx);
+  });
+
+  bot.callbackQuery("content_create_post", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const { commandPostLocked } = await import("./post-locked");
+    await commandPostLocked(ctx);
+  });
+
+  bot.callbackQuery("content_stats", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    await ctx.editMessageText(
+      "📊 **Content Statistics**\n\n" +
+      "This feature shows detailed analytics for your paywalled content.\n\n" +
+      "**Coming Soon:**\n" +
+      "• Posts performance metrics\n" +
+      "• Revenue by content type\n" +
+      "• Audience engagement data\n" +
+      "• Content optimization tips\n\n" +
+      "_This feature is being developed and will be available in a future update._",
+      { 
+        parse_mode: "Markdown",
+        reply_markup: new InlineKeyboard().text("⬅️ Back", "kol_content")
+      }
+    );
+  });
+
+  // Group management submenu callbacks
+  bot.callbackQuery("group_link_new", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    await ctx.editMessageText(
+      "🔗 **Link New Group**\n\n" +
+      "**Step-by-Step Guide:**\n\n" +
+      "1. **Create/Prepare Your Group:**\n" +
+      "   • Make sure it's a private group\n" +
+      "   • You must be an admin\n\n" +
+      "2. **Add the Bot:**\n" +
+      "   • Add @" + ctx.me.username + " to your group\n" +
+      "   • Give it admin permissions (for invite links)\n\n" +
+      "3. **Link the Group:**\n" +
+      "   • Go to your group\n" +
+      "   • Type `/linkgroup` in the group\n" +
+      "   • Follow the confirmation steps\n\n" +
+      "4. **Set Pricing:**\n" +
+      "   • Use `/setup` to configure group access pricing\n" +
+      "   • Choose your preferred token (SOL, USDC, etc.)\n\n" +
+      "**Ready?** Head to your group and use `/linkgroup`",
+      { 
+        parse_mode: "Markdown",
+        reply_markup: new InlineKeyboard().text("⬅️ Back", "kol_group")
+      }
+    );
+  });
+
+  bot.callbackQuery("group_settings", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const { commandSetup } = await import("./setup");
+    await commandSetup(ctx);
+  });
+
+  bot.callbackQuery("group_info", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const userId = ctx.from?.id.toString();
+    if (!userId) return;
+
+    const user = await prisma.user.findUnique({
+      where: { telegramId: userId },
+      include: { kolSettings: true }
+    });
+
+    const settings = user?.kolSettings;
+    if (!settings?.privateGroupChatId) {
+      await ctx.editMessageText(
+        "❌ **No Group Linked**\n\n" +
+        "You haven't linked any group yet.\n\n" +
+        "Use the \"Link New Group\" option to get started.",
+        { 
+          reply_markup: new InlineKeyboard().text("⬅️ Back", "kol_group")
+        }
+      );
+      return;
+    }
+
+    const groupAccess = await prisma.groupAccess.count({
+      where: { groupOwnerId: user?.id }
+    });
+
+    const menuText = 
+      `📋 **Your Linked Group Info**\n\n` +
+      `**Group Details:**\n` +
+      `• Group ID: \`${settings.privateGroupChatId}\`\n` +
+      `• Access Price: ${settings.groupAccessPrice ? `${Number(settings.groupAccessPrice) / 1e9} ${settings.groupAccessToken}` : "Not set"}\n` +
+      `• Total Members: ${groupAccess} paid members\n\n` +
+      `**Revenue:**\n` +
+      `• Group access is ${settings.groupAccessEnabled ? "enabled" : "disabled"}\n` +
+      `• Platform fee: 5% (deducted from recipient)\n\n` +
+      `**Share Your Group:**\n` +
+      `Use \`/kol @${ctx.from?.username}\` to show your profile with join button.`;
+
+    await ctx.editMessageText(menuText, {
+      parse_mode: "Markdown",
+      reply_markup: new InlineKeyboard().text("⬅️ Back", "kol_group")
+    });
+  });
+
+  // Stats submenu callbacks
+  bot.callbackQuery("stats_earnings", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    await ctx.editMessageText(
+      "💰 **Detailed Earnings**\n\n" +
+      "This section will show comprehensive earnings breakdown including:\n\n" +
+      "**Features Coming Soon:**\n" +
+      "• Daily/weekly/monthly revenue charts\n" +
+      "• Earnings by token type (SOL, USDC, etc.)\n" +
+      "• Platform fee breakdowns\n" +
+      "• Projected earnings based on trends\n" +
+      "• Export data for tax purposes\n\n" +
+      "_Advanced analytics are being developed._",
+      { 
+        parse_mode: "Markdown",
+        reply_markup: new InlineKeyboard().text("⬅️ Back", "kol_stats")
+      }
+    );
+  });
+
+  bot.callbackQuery("stats_supporters", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    await ctx.editMessageText(
+      "👥 **Top Supporters**\n\n" +
+      "This feature will display your most generous supporters and community insights.\n\n" +
+      "**Coming Soon:**\n" +
+      "• Top tippers leaderboard\n" +
+      "• Most active content purchasers\n" +
+      "• Community growth metrics\n" +
+      "• Engagement analytics\n" +
+      "• Supporter appreciation tools\n\n" +
+      "_Privacy-focused supporter analytics in development._",
+      { 
+        parse_mode: "Markdown",
+        reply_markup: new InlineKeyboard().text("⬅️ Back", "kol_stats")
+      }
+    );
+  });
+
+  bot.callbackQuery("stats_content", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    await ctx.editMessageText(
+      "📈 **Content Performance**\n\n" +
+      "Analyze how your paywalled content performs across different channels.\n\n" +
+      "**Planned Metrics:**\n" +
+      "• Post unlock rates by content type\n" +
+      "• Most popular posts and topics\n" +
+      "• Optimal pricing analysis\n" +
+      "• Content engagement patterns\n" +
+      "• Revenue per post insights\n\n" +
+      "_Content analytics dashboard coming soon._",
+      { 
+        parse_mode: "Markdown",
+        reply_markup: new InlineKeyboard().text("⬅️ Back", "kol_stats")
+      }
+    );
+  });
+
+  // Back navigation for submenus
+  bot.callbackQuery("kol_content", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    await showContentCreationMenu(ctx);
+  });
+
+  bot.callbackQuery("kol_group", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    await showGroupLinkingMenu(ctx);
+  });
+
+  bot.callbackQuery("kol_stats", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    await showKolStatsMenu(ctx);
+  });
+}
+
+// Content Creation submenu
+async function showContentCreationMenu(ctx: BotContext) {
+  const keyboard = new InlineKeyboard()
+    .text("🏗️ Channel Setup", "content_channel_setup").row()
+    .text("📝 Create Post", "content_create_post").row()
+    .text("📊 Content Stats", "content_stats").row()
+    .text("⬅️ Back to KOL Menu", "main_kol");
+
+  const menuText = 
+    `📝 **Create Paywalled Content**\n\n` +
+    `**Content Creation Workflow:**\n` +
+    `• Set up your channel with pricing\n` +
+    `• Create locked posts with text/media\n` +
+    `• Track content performance\n\n` +
+    `**Supported Content:**\n` +
+    `• Text posts with custom pricing\n` +
+    `• Images (up to 10MB each)\n` +
+    `• Videos (up to 50MB each)\n` +
+    `• Mixed content (text + media)\n\n` +
+    `Choose your next step:`;
+
+  await ctx.editMessageText(menuText, {
+    parse_mode: "Markdown",
+    reply_markup: keyboard
+  });
+}
+
+// Group Linking submenu
+async function showGroupLinkingMenu(ctx: BotContext) {
+  const userId = ctx.from?.id.toString();
+  if (!userId) return;
+
+  // Check if user has KOL settings
+  const user = await prisma.user.findUnique({
+    where: { telegramId: userId },
+    include: { kolSettings: true }
+  });
+
+  const hasSettings = user?.kolSettings;
+  const hasLinkedGroup = user?.kolSettings?.privateGroupChatId;
+
+  const keyboard = new InlineKeyboard()
+    .text("🔗 Link New Group", "group_link_new").row()
+    .text("⚙️ Group Settings", "group_settings").row()
+    .text("📋 Group Info", "group_info").row()
+    .text("⬅️ Back to KOL Menu", "main_kol");
+
+  const menuText = 
+    `🔗 **Paid Group Management**\n\n` +
+    `**Current Status:**\n` +
+    `• KOL Settings: ${hasSettings ? "✅ Configured" : "❌ Not set up"}\n` +
+    `• Linked Group: ${hasLinkedGroup ? "✅ Connected" : "❌ No group linked"}\n\n` +
+    `**Setup Requirements:**\n` +
+    `1. Configure KOL settings first (/setup)\n` +
+    `2. Add bot as admin to your private group\n` +
+    `3. Use /linkgroup command in the group\n` +
+    `4. Set group access pricing\n\n` +
+    `**Group Features:**\n` +
+    `• One-time payment for permanent access\n` +
+    `• Automatic invite link generation\n` +
+    `• Member tracking and management\n\n` +
+    `Choose an option:`;
+
+  await ctx.editMessageText(menuText, {
+    parse_mode: "Markdown",
+    reply_markup: keyboard
+  });
+}
+
+// KOL Stats submenu
+async function showKolStatsMenu(ctx: BotContext) {
+  const userId = ctx.from?.id.toString();
+  if (!userId) return;
+
+  // Get user's payment statistics
+  const user = await prisma.user.findUnique({
+    where: { telegramId: userId }
+  });
+
+  if (!user) {
+    await ctx.editMessageText(
+      "❌ User not found. Please use /start to set up your account.",
+      { 
+        reply_markup: new InlineKeyboard().text("⬅️ Back", "main_kol")
+      }
+    );
+    return;
+  }
+
+  // Get payment statistics  
+  const tipStats = await prisma.payment.aggregate({
+    where: {
+      toUserId: user.id,
+      paymentType: "tip",
+      status: { in: ["sent", "confirmed"] }
+    },
+    _sum: { amount: true },
+    _count: true
+  });
+
+  const groupStats = await prisma.payment.aggregate({
+    where: {
+      toUserId: user.id,
+      paymentType: "group_access", 
+      status: { in: ["sent", "confirmed"] }
+    },
+    _sum: { amount: true },
+    _count: true
+  });
+
+  const contentStats = await prisma.postAccess.count({
+    where: {
+      post: {
+        authorTelegramId: userId
+      }
+    }
+  });
+
+  const keyboard = new InlineKeyboard()
+    .text("📈 Earnings Details", "stats_earnings").row()
+    .text("👥 Top Supporters", "stats_supporters").row()
+    .text("📊 Content Performance", "stats_content").row()
+    .text("⬅️ Back to KOL Menu", "main_kol");
+
+  const menuText = 
+    `📊 **Your KOL Statistics**\n\n` +
+    `**Earnings Summary:**\n` +
+    `• Tips Received: ${tipStats._count || 0} payments\n` +
+    `• Group Access Sales: ${groupStats._count || 0} memberships\n` +
+    `• Content Unlocks: ${contentStats} purchases\n\n` +
+    `**Recent Performance:**\n` +
+    `• Active since account creation\n` +
+    `• Platform fees: 2% tips, 5% content/groups\n\n` +
+    `**Next Steps:**\n` +
+    `• Share your profile: /kol @${ctx.from?.username || "yourusername"}\n` +
+    `• Create more content to increase earnings\n` +
+    `• Engage with your community\n\n` +
+    `Choose a section to explore:`;
+
+  await ctx.editMessageText(menuText, {
+    parse_mode: "Markdown",
+    reply_markup: keyboard
+  });
 }
 
 // KOL Features submenu
@@ -385,87 +756,5 @@ async function showKolMenu(ctx: BotContext) {
   await ctx.editMessageText(menuText, {
     parse_mode: "Markdown",
     reply_markup: keyboard
-  });
-
-  
-  // Add KOL submenu callbacks to main callback system
-  bot.callbackQuery("kol_setup", async (ctx) => {
-    await ctx.answerCallbackQuery();
-    const { commandSetup } = await import("./setup");
-    await commandSetup(ctx);
-  });
-
-  bot.callbackQuery("kol_profile", async (ctx) => {
-    await ctx.answerCallbackQuery();
-    const username = ctx.from?.username;
-    if (username) {
-      const { commandKolProfile } = await import("./kol-inline");
-      await commandKolProfile(ctx);
-    } else {
-      await ctx.editMessageText(
-        "❌ You need a Telegram username to use KOL features.\n\n" +
-        "Please set a username in Telegram settings first.",
-        { reply_markup: new InlineKeyboard().text("⬅️ Back", "main_kol") }
-      );
-    }
-  });
-
-  bot.callbackQuery("kol_content", async (ctx) => {
-    await ctx.answerCallbackQuery();
-    await ctx.editMessageText(
-      "📝 **Create Paywalled Content**\n\n" +
-      "**Setup Steps:**\n" +
-      "1. First run `/channel_init` in your channel to set it up\n" +
-      "2. Use `/post_locked` to create paywalled posts\n\n" +
-      "**Content Types:**\n" +
-      "• Text posts with pricing\n" +
-      "• Mixed content (text + images/video)\n" +
-      "• Flexible pricing in any supported token\n\n" +
-      "_Make sure you're an admin in the channel first!_",
-      { 
-        parse_mode: "Markdown",
-        reply_markup: new InlineKeyboard().text("⬅️ Back", "main_kol")
-      }
-    );
-  });
-
-  bot.callbackQuery("kol_group", async (ctx) => {
-    await ctx.answerCallbackQuery();
-    await ctx.editMessageText(
-      "🔗 **Link Paid Group**\n\n" +
-      "**Setup Steps:**\n" +
-      "1. Add the bot as admin to your private group\n" +
-      "2. Use `/linkgroup` in the group to connect it\n" +
-      "3. Configure pricing with `/setup`\n" +
-      "4. Share your profile with `/kol @yourusername`\n\n" +
-      "**Group Features:**\n" +
-      "• One-time payment for access\n" +
-      "• Automatic invite link generation\n" +
-      "• Member management and tracking\n\n" +
-      "_Bot needs admin permissions to manage invites_",
-      { 
-        parse_mode: "Markdown",
-        reply_markup: new InlineKeyboard().text("⬅️ Back", "main_kol")
-      }
-    );
-  });
-
-  bot.callbackQuery("kol_stats", async (ctx) => {
-    await ctx.answerCallbackQuery();
-    await ctx.editMessageText(
-      "📊 **KOL Statistics**\n\n" +
-      "This feature is coming soon!\n\n" +
-      "**Planned Stats:**\n" +
-      "• Total tips received\n" +
-      "• Content unlock earnings\n" +
-      "• Group access revenue\n" +
-      "• Top supporters\n" +
-      "• Monthly breakdowns\n\n" +
-      "_Check back in future updates_",
-      { 
-        parse_mode: "Markdown",
-        reply_markup: new InlineKeyboard().text("⬅️ Back", "main_kol")
-      }
-    );
   });
 }

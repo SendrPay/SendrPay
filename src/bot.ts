@@ -104,12 +104,20 @@ if (bot) {
           }
         }
         
+        // Channel posting workflow for KOL messages
+        if (session.awaitingChannelInput) {
+          const { handleKolPostChannelInput } = await import("./commands/kol-post");
+          await handleKolPostChannelInput(ctx);
+          return;
+        }
+        
         // Check if user is in any active workflow before showing default message
         const inWorkflow = session.awaitingPrivateKey || 
                           session.expectingGroupPrice || 
                           session.linkingGroup || 
                           session.channelSetup || 
                           session.postCreation || 
+                          session.awaitingChannelInput ||
                           session.tipIntent?.step === 'custom_amount';
         
         if (!inWorkflow) {

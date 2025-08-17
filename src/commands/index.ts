@@ -121,6 +121,10 @@ Send private key now:`, { parse_mode: "Markdown" });
   // KOL commands (completely separate from paywalled content)
   bot.command("kol_setup", commandSetup);  // KOL private group setup - renamed to avoid conflicts
   bot.command("kol", commandKolProfile);
+  bot.command("kol_post", async (ctx) => {
+    const { commandKolPost } = await import("./kol-post");
+    await commandKolPost(ctx);
+  });
   bot.command("linkgroup", commandLinkGroup);
   bot.command("unlinkgroup", commandUnlinkGroup);
   

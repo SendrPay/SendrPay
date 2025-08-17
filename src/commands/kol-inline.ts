@@ -140,6 +140,7 @@ async function showKolSetupMenu(ctx: BotContext, user: any) {
   const keyboard = new InlineKeyboard()
     .text("💖 Tip Settings", `setup_tips:${user.telegramId}`).row()
     .text("🎭 Group Settings", `setup_group:${user.telegramId}`).row()
+    .text("📢 Post Group Message", "post_group_message")
     .text("📊 View Profile", `view_profile:${user.telegramId}`).row();
 
   const setupText = 
@@ -213,6 +214,8 @@ export async function handleKolCallbacks(ctx: BotContext) {
         include: { kolSettings: true }
       });
       if (user) await showKolSetupMenu(ctx, user);
+    } else if (data === "post_group_message") {
+      await handlePostGroupMessage(ctx);
     } else if (data.startsWith("confirm_tip_payment:")) {
       const [, targetUserId, amount, token] = data.split(":");
       await executeInlineTip(ctx, targetUserId, amount, token);
@@ -223,6 +226,17 @@ export async function handleKolCallbacks(ctx: BotContext) {
       await executeGroupJoin(ctx, targetUserId);
     } else if (data === "cancel_group_join") {
       await ctx.editMessageText("❌ Group join cancelled", { parse_mode: "Markdown" });
+    } else if (data.startsWith("post_to_channel:")) {
+      const userId = data.split(":")[1];
+      await handlePostToChannel(ctx, userId);
+    } else if (data.startsWith("post_to_group:")) {
+      const userId = data.split(":")[1];
+      await handlePostToGroup(ctx, userId);
+    } else if (data.startsWith("copy_message:")) {
+      const userId = data.split(":")[1];
+      await handleCopyMessage(ctx, userId);
+    } else if (data === "cancel_post") {
+      await ctx.editMessageText("❌ Posting cancelled", { parse_mode: "Markdown" });
     }
     
     await ctx.answerCallbackQuery();
@@ -585,25 +599,351 @@ function convertToRawUnits(amount: number, token: string): string {
 
 // Execute inline tip payment
 async function executeInlineTip(ctx: BotContext, targetUserId: string, amount: string, token: string) {
-  await ctx.editMessageText(
-    `⏳ Processing tip payment...\n\n` +
-    `Amount: ${amount} ${token}\n` +
-    `This will integrate with the existing transfer system.`,
-    { parse_mode: "Markdown" }
-  );
-  
-  // TODO: Integrate with existing tip/transfer system
-  // Call the existing tip processing function here
+  try {
+    const senderId = ctx.from?.id;
+    if (!senderId) return;
+
+    await ctx.editMessageText(`⏳ Processing tip payment...`, { parse_mode: "Markdown" });
+
+    const { executePaymentWithPlatformFee } = await import("../core/platform-fees");
+    
+    const result = await executePaymentWithPlatformFee({
+      senderId: String(senderId),
+      recipientId: targetUserId,
+      tokenTicker: token,
+      amount: parseFloat(amount),
+      paymentType: 'tip',
+      platformFeePercent: 0.02
+    });
+
+    if (result.success) {
+      const recipient = await prisma.user.findUnique({
+        where: { telegramId: targetUserId }
+      });
+
+      await ctx.editMessageText(
+        `✅ **Tip Sent!**\n\n` +
+        `**Amount:** ${amount} ${token}\n` +
+        `**To:** @${recipient?.handle || 'Anonymous'}\n` +
+        `**Transaction:** [View on Explorer](${result.explorerLink})\n\n` +
+        `You sent: ${amount} ${token}\n` +
+        `They received: ${(parseFloat(amount) * 0.98).toFixed(4)} ${token} (after 2% platform fee)`,
+        { 
+          parse_mode: "Markdown",
+          disable_web_page_preview: true
+        }
+      );
+
+      // Notify recipient
+      if (result.recipientTelegramId) {
+        const sender = await prisma.user.findUnique({
+          where: { telegramId: String(senderId) }
+        });
+
+        await ctx.api.sendMessage(
+          result.recipientTelegramId,
+          `💖 **Tip Received!**\n\n` +
+          `**From:** @${sender?.handle || 'Anonymous'}\n` +
+          `**Amount:** ${(parseFloat(amount) * 0.98).toFixed(4)} ${token}\n` +
+          `**Transaction:** [View on Explorer](${result.explorerLink})`,
+          { 
+            parse_mode: "Markdown",
+            disable_web_page_preview: true
+          }
+        );
+      }
+    } else {
+      await ctx.editMessageText(`❌ Tip failed: ${result.error}`);
+    }
+  } catch (error) {
+    logger.error("Error executing inline tip:", error);
+    await ctx.editMessageText("❌ Error processing tip. Please try again.");
+  }
 }
 
 // Execute group join payment
 async function executeGroupJoin(ctx: BotContext, targetUserId: string) {
-  await ctx.editMessageText(
-    `⏳ Processing group access purchase...\n\n` +
-    `This will integrate with the existing group access system.`,
-    { parse_mode: "Markdown" }
-  );
-  
-  // TODO: Integrate with existing group access system
-  // Call the existing group join processing function here
+  try {
+    const buyerId = ctx.from?.id;
+    if (!buyerId) return;
+
+    await ctx.editMessageText(`⏳ Processing group access purchase...`, { parse_mode: "Markdown" });
+
+    // Find KOL user with group settings
+    const kolUser = await prisma.user.findUnique({
+      where: { telegramId: targetUserId },
+      include: { kolSettings: true, wallets: { where: { isActive: true } } }
+    });
+
+    if (!kolUser?.kolSettings?.groupAccessEnabled || !kolUser.kolSettings.privateGroupChatId) {
+      return ctx.editMessageText("❌ Group access not available");
+    }
+
+    // Find buyer
+    const buyer = await prisma.user.findUnique({
+      where: { telegramId: String(buyerId) },
+      include: { wallets: { where: { isActive: true } } }
+    });
+
+    if (!buyer?.wallets?.[0]) {
+      return ctx.editMessageText("❌ You need to create a wallet first using /start");
+    }
+
+    if (!kolUser.wallets?.[0]) {
+      return ctx.editMessageText("❌ KOL wallet not found");
+    }
+
+    const price = convertFromRawUnits(kolUser.kolSettings.groupAccessPrice!, kolUser.kolSettings.groupAccessToken!);
+    
+    // Use the platform fee system from core
+    const { executePaymentWithPlatformFee } = await import("../core/platform-fees");
+    
+    const result = await executePaymentWithPlatformFee({
+      senderId: String(buyerId),
+      recipientId: targetUserId,
+      tokenTicker: kolUser.kolSettings.groupAccessToken!,
+      amount: price,
+      paymentType: 'group_access',
+      platformFeePercent: 0.05
+    });
+
+    if (result.success) {
+      // Create group access record
+      await prisma.groupAccess.create({
+        data: {
+          memberId: buyer.id,
+          groupOwnerId: kolUser.id,
+          groupChatId: kolUser.kolSettings.privateGroupChatId,
+          paymentId: result.paymentId!
+        }
+      });
+
+      // Generate invite link
+      try {
+        const inviteLink = await ctx.api.createChatInviteLink(
+          parseInt(kolUser.kolSettings.privateGroupChatId),
+          {
+            member_limit: 1,
+            name: `Access for @${buyer.handle || String(buyerId)}`
+          }
+        );
+
+        await ctx.editMessageText(
+          `✅ **Group Access Granted!**\n\n` +
+          `**Payment:** ${price} ${kolUser.kolSettings.groupAccessToken}\n` +
+          `**Transaction:** [View on Explorer](${result.explorerLink})\n\n` +
+          `**Your Invite Link:**\n${inviteLink.invite_link}\n\n` +
+          `_This is a single-use link. Click it to join the group!_`,
+          { 
+            parse_mode: "Markdown",
+            disable_web_page_preview: true
+          }
+        );
+
+        // Notify KOL
+        if (kolUser.telegramId) {
+          await ctx.api.sendMessage(
+            kolUser.telegramId,
+            `👥 **New Group Member!**\n\n` +
+            `@${buyer.handle || 'User'} has paid ${price} ${kolUser.kolSettings.groupAccessToken} to join your private group.\n\n` +
+            `You received: ${(price * 0.95).toFixed(4)} ${kolUser.kolSettings.groupAccessToken} (after 5% platform fee)`,
+            { parse_mode: "Markdown" }
+          );
+        }
+      } catch (inviteError) {
+        logger.error("Error creating invite link:", inviteError);
+        await ctx.editMessageText(
+          `✅ **Payment Successful!**\n\n` +
+          `However, there was an issue creating the invite link. Please contact the KOL directly.\n\n` +
+          `**Transaction:** [View on Explorer](${result.explorerLink})`,
+          { 
+            parse_mode: "Markdown",
+            disable_web_page_preview: true
+          }
+        );
+      }
+    } else {
+      await ctx.editMessageText(`❌ Payment failed: ${result.error}`);
+    }
+  } catch (error) {
+    logger.error("Error executing group join:", error);
+    await ctx.editMessageText("❌ Error processing group access. Please try again.");
+  }
+}
+
+// Handle posting group messages to channels
+async function handlePostGroupMessage(ctx: BotContext) {
+  try {
+    const userId = ctx.from?.id?.toString();
+    if (!userId) return;
+
+    // Get KOL user and settings
+    const user = await prisma.user.findUnique({
+      where: { telegramId: userId },
+      include: { kolSettings: true }
+    });
+
+    if (!user?.kolSettings?.groupAccessEnabled || !user.kolSettings.privateGroupChatId) {
+      await ctx.editMessageText(
+        "❌ **Group Access Not Configured**\n\n" +
+        "You need to set up group access first:\n" +
+        "1. Enable group access in settings\n" +
+        "2. Set a price and token\n" +
+        "3. Link your private group using /linkgroup",
+        { parse_mode: "Markdown" }
+      );
+      return;
+    }
+
+    const price = convertFromRawUnits(user.kolSettings.groupAccessPrice!, user.kolSettings.groupAccessToken!);
+    
+    // Create the join group message with inline button
+    const keyboard = new InlineKeyboard()
+      .text(`💎 Join for ${price} ${user.kolSettings.groupAccessToken}`, `group_join:${userId}`)
+      .row()
+      .text(`💖 Tip @${user.handle}`, `tip_select:${userId}`);
+
+    const groupMessageText = 
+      `🎭 **Exclusive Private Group Access**\n\n` +
+      `Join @${user.handle || 'this KOL'}'s exclusive private community!\n\n` +
+      `✨ **What you get:**\n` +
+      `• Direct access to premium content\n` +
+      `• Interact with the community\n` +
+      `• Exclusive discussions and insights\n` +
+      `• Early access to announcements\n\n` +
+      `💰 **Price:** ${price} ${user.kolSettings.groupAccessToken}\n` +
+      `🔒 **Private & Exclusive** - Limited access\n\n` +
+      `Click below to join instantly!`;
+
+    // Ask where to post
+    const postKeyboard = new InlineKeyboard()
+      .text("📢 Post to Channel", `post_to_channel:${userId}`)
+      .text("👥 Post to Group", `post_to_group:${userId}`)
+      .row()
+      .text("📋 Copy Message", `copy_message:${userId}`)
+      .text("❌ Cancel", "cancel_post");
+
+    await ctx.editMessageText(
+      `📢 **Post Group Join Message**\n\n` +
+      `Your join message is ready! Where would you like to post it?\n\n` +
+      `**Preview:**\n${groupMessageText.substring(0, 200)}...\n\n` +
+      `Choose posting option:`,
+      {
+        parse_mode: "Markdown",
+        reply_markup: postKeyboard
+      }
+    );
+
+    // Store the message for posting
+    ctx.session = ctx.session || {};
+    (ctx.session as any).groupMessage = {
+      text: groupMessageText,
+      keyboard: keyboard,
+      userId: userId
+    };
+
+  } catch (error) {
+    logger.error("Error handling post group message:", error);
+    await ctx.editMessageText("❌ Error creating group message. Please try again.");
+  }
+}
+
+// Handle posting to channel
+async function handlePostToChannel(ctx: BotContext, userId: string) {
+  try {
+    const session = ctx.session as any;
+    const groupMessage = session?.groupMessage;
+    
+    if (!groupMessage) {
+      await ctx.editMessageText("❌ Message session expired. Please try again.");
+      return;
+    }
+
+    await ctx.editMessageText(
+      `📢 **Post to Channel**\n\n` +
+      `To post this message to a channel:\n\n` +
+      `1. Add me (@${ctx.me.username}) as an admin to your channel\n` +
+      `2. Reply with the channel username (e.g., @mychannel)\n` +
+      `3. I'll post the group join message there\n\n` +
+      `Or use the copy option to post manually.`,
+      { parse_mode: "Markdown" }
+    );
+
+    // Set up session for channel input
+    session.awaitingChannelInput = {
+      type: 'post_group_message',
+      message: groupMessage,
+      userId: userId
+    };
+
+  } catch (error) {
+    logger.error("Error handling post to channel:", error);
+    await ctx.editMessageText("❌ Error preparing channel post. Please try again.");
+  }
+}
+
+// Handle posting to group
+async function handlePostToGroup(ctx: BotContext, userId: string) {
+  try {
+    const session = ctx.session as any;
+    const groupMessage = session?.groupMessage;
+    
+    if (!groupMessage) {
+      await ctx.editMessageText("❌ Message session expired. Please try again.");
+      return;
+    }
+
+    await ctx.editMessageText(
+      `👥 **Post to Group**\n\n` +
+      `To post this message to a group:\n\n` +
+      `1. Add me to your group as an admin\n` +
+      `2. Reply with the group username or ID\n` +
+      `3. I'll post the group join message there\n\n` +
+      `Or use the copy option to post manually.`,
+      { parse_mode: "Markdown" }
+    );
+
+    // Set up session for group input
+    session.awaitingChannelInput = {
+      type: 'post_group_message',
+      message: groupMessage,
+      userId: userId
+    };
+
+  } catch (error) {
+    logger.error("Error handling post to group:", error);
+    await ctx.editMessageText("❌ Error preparing group post. Please try again.");
+  }
+}
+
+// Handle copying message
+async function handleCopyMessage(ctx: BotContext, userId: string) {
+  try {
+    const session = ctx.session as any;
+    const groupMessage = session?.groupMessage;
+    
+    if (!groupMessage) {
+      await ctx.editMessageText("❌ Message session expired. Please try again.");
+      return;
+    }
+
+    // Create a copy button that will work in any chat
+    const copyKeyboard = new InlineKeyboard()
+      .text("📋 Copy to Clipboard", "copy_text_to_clipboard");
+
+    await ctx.editMessageText(
+      `📋 **Copy Message**\n\n` +
+      `Here's your group join message. Copy and paste it anywhere:\n\n` +
+      `\`\`\`\n${groupMessage.text}\n\`\`\`\n\n` +
+      `_Note: The payment buttons will only work when posted by the bot._`,
+      { 
+        parse_mode: "Markdown",
+        reply_markup: copyKeyboard
+      }
+    );
+
+  } catch (error) {
+    logger.error("Error handling copy message:", error);
+    await ctx.editMessageText("❌ Error copying message. Please try again.");
+  }
 }

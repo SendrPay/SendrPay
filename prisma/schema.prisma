@@ -400,10 +400,10 @@ model LockedPost {
   id             Int      @id @default(autoincrement())
   tgChatId       String   // Foreign key to KolChannel
   channelMsgId   String   // Message ID of the teaser in channel
-  contentType    String   // "text" | "image" | "video"
+  contentType    String   // "mixed" for text + optional media
   priceAmount    String   // Price in raw units
   priceToken     String   // "USDC" | "SOL" | "BONK" | "JUP"
-  payloadRef     String   @db.Text // Text content, video file_id, or JSON array of image file_ids
+  payloadRef     String   @db.Text // JSON object with textContent and attachments array
   title          String?  // Optional display title
   teaserText     String?  @db.Text // Preview/teaser text
   createdAt      DateTime @default(now())

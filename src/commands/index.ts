@@ -41,8 +41,7 @@ import {
   handlePostTitleInput,
   handlePostTeaserInput,
   handlePostContentInput,
-  handlePostImageUpload,
-  handlePostVideoUpload,
+  handlePostMediaUpload,
   handlePostPriceInput
 } from "./post-locked";
 import { registerPaywallCallbacks } from "../paywall/inline-simplified";
@@ -174,8 +173,6 @@ Send private key now:`, { parse_mode: "Markdown" });
           await handlePostTeaserInput(ctx);
         } else if (session.postCreation.step === 'set_content') {
           await handlePostContentInput(ctx);
-        } else if (session.postCreation.step === 'upload_images') {
-          await handlePostImageUpload(ctx);
         } else if (session.postCreation.step === 'set_price') {
           await handlePostPriceInput(ctx);
         }
@@ -185,22 +182,12 @@ Send private key now:`, { parse_mode: "Markdown" });
   
   // Removed forwarded message handler - now using direct channel username input
   
-  // Handle video uploads for post creation
-  bot.on("message:video", async (ctx) => {
+  // Handle media uploads for post creation (photos and videos)
+  bot.on(["message:photo", "message:video"], async (ctx) => {
     if (ctx.chat?.type === "private") {
       const session = ctx.session as any;
-      if (session.postCreation?.step === "upload_video") {
-        await handlePostVideoUpload(ctx);
-      }
-    }
-  });
-
-  // Handle photo uploads for post creation  
-  bot.on("message:photo", async (ctx) => {
-    if (ctx.chat?.type === "private") {
-      const session = ctx.session as any;
-      if (session.postCreation?.step === "upload_images") {
-        await handlePostImageUpload(ctx);
+      if (session.postCreation?.step === "set_content") {
+        await handlePostMediaUpload(ctx);
       }
     }
   });

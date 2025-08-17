@@ -251,56 +251,63 @@ export async function handleUnlockPayCallback(ctx: BotContext) {
     const watermark = wmString(ctx.from!, post.channel.tgChatId, result.signature);
     
     try {
-      if (post.contentType === "text") {
+      // Parse the new mixed content format
+      const content = JSON.parse(post.payloadRef);
+      const { textContent, attachments } = content;
+      
+      // Send text content first if exists
+      if (textContent && textContent.trim()) {
         await ctx.api.sendMessage(
           ctx.from!.id,
           `${post.title ? `📝 **${post.title}**\n\n` : ""}` +
-          `${post.payloadRef}\n\n` +
+          `${textContent}\n\n` +
           `━━━━━━━━━━━━━━━\n` +
           `_${watermark}_`,
           { parse_mode: "Markdown" }
         );
-      } else if (post.contentType === "image") {
-        // Parse image file IDs from JSON
-        const imageFileIds = JSON.parse(post.payloadRef);
-        
-        // Send first image with caption
-        if (imageFileIds.length > 0) {
-          await ctx.api.sendPhoto(
-            ctx.from!.id,
-            imageFileIds[0],
-            {
-              caption: `${post.title ? `🖼️ **${post.title}**\n\n` : ""}` +
-                      `${imageFileIds.length > 1 ? `Image 1 of ${imageFileIds.length}\n\n` : ""}` +
-                      `━━━━━━━━━━━━━━━\n` +
-                      `_${watermark}_`,
-              parse_mode: "Markdown"
-            }
-          );
+      }
+      
+      // Send media attachments
+      if (attachments && attachments.length > 0) {
+        for (let i = 0; i < attachments.length; i++) {
+          const attachment = attachments[i];
           
-          // Send remaining images without caption (to avoid repetition)
-          for (let i = 1; i < imageFileIds.length; i++) {
+          if (attachment.type === "photo") {
             await ctx.api.sendPhoto(
               ctx.from!.id,
-              imageFileIds[i],
+              attachment.file_id,
               {
-                caption: `Image ${i + 1} of ${imageFileIds.length}\n_${watermark}_`,
+                caption: `${post.title && !textContent ? `🖼️ **${post.title}**\n\n` : ""}` +
+                        `${attachments.length > 1 ? `Image ${i + 1} of ${attachments.length}\n` : ""}` +
+                        `━━━━━━━━━━━━━━━\n` +
+                        `_${watermark}_`,
+                parse_mode: "Markdown"
+              }
+            );
+          } else if (attachment.type === "video") {
+            await ctx.api.sendVideo(
+              ctx.from!.id,
+              attachment.file_id,
+              {
+                caption: `${post.title && !textContent ? `🎥 **${post.title}**\n\n` : ""}` +
+                        `━━━━━━━━━━━━━━━\n` +
+                        `_${watermark}_`,
                 parse_mode: "Markdown"
               }
             );
           }
         }
-      } else {
-        // Send video with watermark caption
-        await ctx.api.sendVideo(
+      }
+      
+      // If no content at all, send title only
+      if ((!textContent || !textContent.trim()) && (!attachments || attachments.length === 0)) {
+        await ctx.api.sendMessage(
           ctx.from!.id,
-          post.payloadRef,
-          {
-            caption: `${post.title ? `🎥 **${post.title}**\n\n` : ""}` +
-                    `━━━━━━━━━━━━━━━\n` +
-                    `_${watermark}_`,
-            parse_mode: "Markdown"
-          }
+          `${post.title ? `📝 **${post.title}**\n\n` : ""}` +
+          `[Content unavailable]\n\n` +
+          `━━━━━━━━━━━━━━━\n` +
+          `_${watermark}_`,
+          { parse_mode: "Markdown" }
         );
       }
     } catch (dmError) {

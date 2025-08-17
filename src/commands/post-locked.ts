@@ -59,19 +59,23 @@ export async function commandPostLocked(ctx: BotContext) {
     defaultPrice: channel.defaultPrice
   };
 
-  const keyboard = new InlineKeyboard()
-    .text("📝 Text Post", "post_type_text")
-    .text("🖼️ Image Post", "post_type_image").row()
-    .text("🎥 Video Post", "post_type_video");
+  // Skip content type selection - go directly to post creation
+  (ctx.session as any).postCreation = {
+    step: "set_title",
+    channelId: channel.tgChatId,
+    channelTitle: channel.channelTitle,
+    defaultToken: channel.defaultToken,
+    defaultPrice: channel.defaultPrice,
+    contentType: "mixed", // New type for text + optional media
+    attachments: [] // Array to store image/video file IDs
+  };
 
   await ctx.reply(
     `📝 **Create Locked Post**\n` +
     `Channel: **${channel.channelTitle}**\n\n` +
-    `Select content type:`,
-    { 
-      parse_mode: "Markdown",
-      reply_markup: keyboard
-    }
+    `Enter a title for your post (optional).\n` +
+    `Type "skip" to continue without a title:`,
+    { parse_mode: "Markdown" }
   );
 }
 
@@ -95,43 +99,29 @@ export async function handlePostChannelSelection(ctx: BotContext, channelId: str
     defaultPrice: channel.defaultPrice
   };
 
-  const keyboard = new InlineKeyboard()
-    .text("📝 Text Post", "post_type_text").row()
-    .text("🖼️ Image Post", "post_type_image")
-    .text("🎥 Video Post", "post_type_video");
+  // Skip content type selection - go directly to post creation
+  (ctx.session as any).postCreation = {
+    step: "set_title",
+    channelId: channel.tgChatId,
+    channelTitle: channel.channelTitle,
+    defaultToken: channel.defaultToken,
+    defaultPrice: channel.defaultPrice,
+    contentType: "mixed", // New type for text + optional media
+    attachments: [] // Array to store image/video file IDs
+  };
 
   await ctx.editMessageText(
     `📝 **Create Locked Post**\n` +
     `Channel: **${channel.channelTitle}**\n\n` +
-    `Select content type:`,
+    `Enter a title for your post (optional).\n` +
+    `Type "skip" to continue without a title:`,
     { 
-      parse_mode: "Markdown",
-      reply_markup: keyboard
+      parse_mode: "Markdown"
     }
   );
 }
 
-// Handle content type selection
-export async function handlePostTypeSelection(ctx: BotContext, type: string) {
-  await ctx.answerCallbackQuery();
-  
-  const session = ctx.session as any;
-  if (!session.postCreation) {
-    return ctx.editMessageText("❌ Session expired. Please use /post_locked to start over.");
-  }
-
-  session.postCreation.contentType = type;
-  session.postCreation.step = "set_title";
-
-  const typeLabel = type === "text" ? "Text" : type === "image" ? "Image" : "Video";
-  
-  await ctx.editMessageText(
-    `📝 **Create ${typeLabel} Post**\n\n` +
-    `Enter a title for your post (optional).\n` +
-    `Type "skip" to continue without a title:`,
-    { parse_mode: "Markdown" }
-  );
-}
+// Content type selection is removed - posts are now mixed content
 
 // Handle title input
 export async function handlePostTitleInput(ctx: BotContext) {
@@ -170,36 +160,21 @@ export async function handlePostTeaserInput(ctx: BotContext) {
   if (!teaser) return;
 
   session.postCreation.teaserText = teaser;
-
-  if (session.postCreation.contentType === "text") {
-    session.postCreation.step = "set_content";
-    await ctx.reply(
-      `✅ Teaser set!\n\n` +
-      `Now send the **full text content** that will be unlocked.\n` +
-      `This will only be sent via DM after payment:`,
-      { parse_mode: "Markdown" }
-    );
-  } else if (session.postCreation.contentType === "image") {
-    session.postCreation.step = "upload_images";
-    await ctx.reply(
-      `✅ Teaser set!\n\n` +
-      `Now **upload the image(s)** that will be unlocked.\n` +
-      `You can send multiple images one by one.\n` +
-      `Type "done" when finished uploading:`,
-      { parse_mode: "Markdown" }
-    );
-  } else {
-    session.postCreation.step = "upload_video";
-    await ctx.reply(
-      `✅ Teaser set!\n\n` +
-      `Now **upload the video** that will be unlocked.\n` +
-      `This will only be sent via DM after payment:`,
-      { parse_mode: "Markdown" }
-    );
-  }
+  session.postCreation.step = "set_content";
+  
+  await ctx.reply(
+    `✅ Teaser set!\n\n` +
+    `Now send the **full content** that will be unlocked:\n\n` +
+    `• **Text**: Type your message\n` +
+    `• **Images**: Upload photos (max 10MB each)\n` +
+    `• **Video**: Upload video (max 50MB)\n\n` +
+    `You can combine text with images/video.\n` +
+    `Type "done" when finished:`,
+    { parse_mode: "Markdown" }
+  );
 }
 
-// Handle text content input
+// Handle mixed content input (text, images, video)
 export async function handlePostContentInput(ctx: BotContext) {
   const session = ctx.session as any;
   
@@ -207,95 +182,113 @@ export async function handlePostContentInput(ctx: BotContext) {
     return;
   }
 
-  const content = ctx.message?.text;
-  if (!content) return;
-
-  session.postCreation.payloadRef = content;
-  session.postCreation.step = "set_price";
-
-  // Ask for price with default suggestion
-  const defaultPrice = convertFromRawUnits(session.postCreation.defaultPrice, session.postCreation.defaultToken);
-  
-  await ctx.reply(
-    `✅ Content saved!\n\n` +
-    `Set the unlock price (default: ${defaultPrice} ${session.postCreation.defaultToken}).\n` +
-    `Enter amount or type "default":`,
-    { parse_mode: "Markdown" }
-  );
-}
-
-// Handle image uploads
-export async function handlePostImageUpload(ctx: BotContext) {
-  const session = ctx.session as any;
-  
-  if (!session.postCreation || session.postCreation.step !== "upload_images") {
-    return;
-  }
-
-  // Check if user typed "done"
+  // Handle "done" command to finish content creation
   if (ctx.message?.text?.toLowerCase() === "done") {
-    if (!session.postCreation.imageFileIds || session.postCreation.imageFileIds.length === 0) {
-      return ctx.reply("❌ Please upload at least one image before typing 'done'.");
+    if (!session.postCreation.textContent && (!session.postCreation.attachments || session.postCreation.attachments.length === 0)) {
+      return ctx.reply("❌ Please add some content (text, images, or video) before typing 'done'.");
     }
     
     session.postCreation.step = "set_price";
     const defaultPrice = convertFromRawUnits(session.postCreation.defaultPrice, session.postCreation.defaultToken);
     
     return ctx.reply(
-      `✅ ${session.postCreation.imageFileIds.length} image(s) uploaded!\n\n` +
+      `✅ Content ready!\n\n` +
+      `**Content summary:**\n` +
+      `${session.postCreation.textContent ? "• Text content ✓\n" : ""}` +
+      `${session.postCreation.attachments && session.postCreation.attachments.length > 0 ? `• ${session.postCreation.attachments.length} attachment(s) ✓\n` : ""}\n` +
       `Set the unlock price (default: ${defaultPrice} ${session.postCreation.defaultToken}).\n` +
       `Enter amount or type "default":`,
       { parse_mode: "Markdown" }
     );
   }
 
-  const photo = ctx.message?.photo;
-  if (!photo) {
-    return ctx.reply("❌ Please upload an image file or type 'done' when finished.");
+  // Handle text content
+  const text = ctx.message?.text;
+  if (text) {
+    session.postCreation.textContent = text;
+    await ctx.reply(
+      `✅ Text content added!\n\n` +
+      `You can now:\n` +
+      `• Add more text (will replace current)\n` +
+      `• Upload images or video\n` +
+      `• Type "done" when finished`,
+      { parse_mode: "Markdown" }
+    );
   }
-
-  // Initialize image array if not exists
-  if (!session.postCreation.imageFileIds) {
-    session.postCreation.imageFileIds = [];
-  }
-
-  // Get the highest resolution photo
-  const largestPhoto = photo[photo.length - 1];
-  session.postCreation.imageFileIds.push(largestPhoto.file_id);
-
-  await ctx.reply(
-    `✅ Image ${session.postCreation.imageFileIds.length} uploaded!\n\n` +
-    `Upload more images or type "done" to continue.`,
-    { parse_mode: "Markdown" }
-  );
 }
 
-// Handle video upload
-export async function handlePostVideoUpload(ctx: BotContext) {
+// Handle media uploads (images and video) for mixed content
+export async function handlePostMediaUpload(ctx: BotContext) {
   const session = ctx.session as any;
   
-  if (!session.postCreation || session.postCreation.step !== "upload_video") {
+  if (!session.postCreation || session.postCreation.step !== "set_content") {
     return;
   }
 
-  const video = ctx.message?.video;
-  if (!video) {
-    return ctx.reply("❌ Please upload a video file.");
+  // Initialize attachments array if not exists
+  if (!session.postCreation.attachments) {
+    session.postCreation.attachments = [];
   }
 
-  session.postCreation.payloadRef = video.file_id;
-  session.postCreation.step = "set_price";
+  // Handle photo uploads
+  if (ctx.message?.photo) {
+    const photo = ctx.message.photo;
+    const largestPhoto = photo[photo.length - 1];
+    
+    // Check file size (Telegram API provides file_size)
+    if (largestPhoto.file_size && largestPhoto.file_size > 10 * 1024 * 1024) { // 10MB limit
+      return ctx.reply("❌ Image too large! Maximum size is 10MB per image.");
+    }
+    
+    session.postCreation.attachments.push({
+      type: "photo",
+      file_id: largestPhoto.file_id,
+      file_size: largestPhoto.file_size || 0
+    });
 
-  // Ask for price with default suggestion
-  const defaultPrice = convertFromRawUnits(session.postCreation.defaultPrice, session.postCreation.defaultToken);
+    await ctx.reply(
+      `✅ Image ${session.postCreation.attachments.filter(a => a.type === "photo").length} added!\n\n` +
+      `Current content:\n` +
+      `${session.postCreation.textContent ? "• Text content ✓\n" : ""}` +
+      `• ${session.postCreation.attachments.length} attachment(s)\n\n` +
+      `Continue adding content or type "done" when finished.`,
+      { parse_mode: "Markdown" }
+    );
+  }
   
-  await ctx.reply(
-    `✅ Video uploaded!\n\n` +
-    `Set the unlock price (default: ${defaultPrice} ${session.postCreation.defaultToken}).\n` +
-    `Enter amount or type "default":`,
-    { parse_mode: "Markdown" }
-  );
+  // Handle video uploads
+  if (ctx.message?.video) {
+    const video = ctx.message.video;
+    
+    // Check file size (50MB limit for video)
+    if (video.file_size && video.file_size > 50 * 1024 * 1024) {
+      return ctx.reply("❌ Video too large! Maximum size is 50MB.");
+    }
+    
+    // Only allow one video per post
+    const hasVideo = session.postCreation.attachments.some(a => a.type === "video");
+    if (hasVideo) {
+      return ctx.reply("❌ Only one video allowed per post. Remove existing video first.");
+    }
+    
+    session.postCreation.attachments.push({
+      type: "video",
+      file_id: video.file_id,
+      file_size: video.file_size || 0
+    });
+
+    await ctx.reply(
+      `✅ Video added!\n\n` +
+      `Current content:\n` +
+      `${session.postCreation.textContent ? "• Text content ✓\n" : ""}` +
+      `• ${session.postCreation.attachments.length} attachment(s)\n\n` +
+      `Continue adding content or type "done" when finished.`,
+      { parse_mode: "Markdown" }
+    );
+  }
 }
+
+// Video upload is now handled by handlePostMediaUpload
 
 // Handle price input for post
 export async function handlePostPriceInput(ctx: BotContext) {
@@ -371,9 +364,10 @@ export async function handlePostTokenSelection(ctx: BotContext, token: string) {
         contentType: session.postCreation.contentType,
         priceAmount: session.postCreation.priceAmount,
         priceToken: token,
-        payloadRef: session.postCreation.contentType === "image" 
-          ? JSON.stringify(session.postCreation.imageFileIds) 
-          : session.postCreation.payloadRef,
+        payloadRef: JSON.stringify({
+          textContent: session.postCreation.textContent || "",
+          attachments: session.postCreation.attachments || []
+        }),
         title: session.postCreation.title || null,
         teaserText: session.postCreation.teaserText
       }
@@ -384,11 +378,31 @@ export async function handlePostTokenSelection(ctx: BotContext, token: string) {
       .text(`🔓 Unlock (${session.postCreation.displayPrice} ${token})`, `unlock:${post.id}`).row()
       .text("💖 Tip Creator", `tip_channel:${session.postCreation.channelId}`);
 
+    const hasAttachments = session.postCreation.attachments && session.postCreation.attachments.length > 0;
+    const hasText = session.postCreation.textContent && session.postCreation.textContent.trim();
+    
+    let contentDescription = "content";
+    if (hasText && hasAttachments) {
+      contentDescription = "content with media";
+    } else if (hasAttachments) {
+      const photos = session.postCreation.attachments.filter(a => a.type === "photo").length;
+      const videos = session.postCreation.attachments.filter(a => a.type === "video").length;
+      if (photos > 0 && videos > 0) {
+        contentDescription = `${photos} image(s) and ${videos} video(s)`;
+      } else if (photos > 0) {
+        contentDescription = photos === 1 ? "image" : `${photos} images`;
+      } else if (videos > 0) {
+        contentDescription = "video";
+      }
+    } else if (hasText) {
+      contentDescription = "text content";
+    }
+
     const messageText = 
       `${session.postCreation.title ? `**${session.postCreation.title}**\n\n` : ""}` +
       `${session.postCreation.teaserText}\n\n` +
       `━━━━━━━━━━━━━━━\n` +
-      `🔒 Unlock to view full ${session.postCreation.contentType}`;
+      `🔒 Unlock to view full ${contentDescription}`;
 
     // Post to channel
     const channelMessage = await ctx.api.sendMessage(
@@ -415,7 +429,7 @@ export async function handlePostTokenSelection(ctx: BotContext, token: string) {
 
     await ctx.editMessageText(
       `✅ **Post Published!**\n\n` +
-      `Your locked ${contentType} post has been published to the channel.\n\n` +
+      `Your locked content has been published to the channel.\n\n` +
       `• Price: **${displayPrice} ${token}**\n` +
       `• Platform fee: **5%** (paid by you)\n` +
       `• Buyers will receive content via DM\n` +
@@ -462,9 +476,7 @@ export async function handlePostCallbacks(ctx: BotContext) {
   if (data.startsWith("post_channel_")) {
     const channelId = data.replace("post_channel_", "");
     await handlePostChannelSelection(ctx, channelId);
-  } else if (data.startsWith("post_type_")) {
-    const type = data.replace("post_type_", "");
-    await handlePostTypeSelection(ctx, type);
+  // Post type selection removed - using mixed content now
   } else if (data.startsWith("post_token_")) {
     const token = data.replace("post_token_", "");
     await handlePostTokenSelection(ctx, token);

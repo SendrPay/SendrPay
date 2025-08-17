@@ -127,6 +127,36 @@ app.post("/webhook-debug", (req, res) => {
   res.send("Debug webhook working");
 });
 
+// Manual payment test endpoint
+app.post("/test-payment", async (req, res) => {
+  try {
+    console.log("🧪 MANUAL PAYMENT TEST");
+    const { handleUnlockPayCallback } = await import("./paywall/inline-simplified");
+    
+    // Mock callback context
+    const mockCtx = {
+      from: { id: 6912444681 },
+      callbackQuery: { data: 'unlock_pay:1:6488099035:25000000:SOL' },
+      answerCallbackQuery: async (msg: string) => console.log('Answer:', msg),
+      editMessageText: async (text: string) => console.log('Edit:', text),
+      api: {
+        sendMessage: async (chatId: number, text: string, opts?: any) => {
+          console.log('DM to', chatId, ':', text.substring(0, 50) + '...');
+          return { message_id: 999 };
+        }
+      },
+      me: { username: 'disstestbot' }
+    };
+
+    console.log('Testing payment callback handler...');
+    await handleUnlockPayCallback(mockCtx as any);
+    res.json({ status: 'success', message: 'Payment test completed' });
+  } catch (error: any) {
+    console.error('Manual payment test error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 async function startTelegramBot() {
   if (!telegramBot) {
     console.warn("Telegram bot not configured");
@@ -180,13 +210,50 @@ async function startTelegramBot() {
       // Use a timeout for polling start
       const startTimeout = setTimeout(() => {
         console.log("⚠️ Polling start taking longer than expected...");
-      }, 5000);
+      }, 3000);
       
-      await telegramBot.start();
+      // Force start with a timeout
+      const pollingPromise = telegramBot.start();
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Polling timeout')), 10000)
+      );
+      
+      await Promise.race([pollingPromise, timeoutPromise]);
       clearTimeout(startTimeout);
       console.log("✅ Development mode - polling active and running");
     } catch (error) {
       console.error("❌ Polling failed to start:", error);
+      // Start bot in non-blocking mode  
+      telegramBot.start().catch(err => {
+        console.error("❌ Background polling error:", err);
+      });
+      console.log("✅ Bot started in background mode");
+      
+      // Manual polling fallback
+      console.log("🔄 Starting manual polling fallback...");
+      let lastUpdateId = 0;
+      const manualPoll = async () => {
+        try {
+          const response = await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN}/getUpdates?offset=${lastUpdateId + 1}&limit=10&timeout=30`);
+          const data = await response.json();
+          
+          if (data.ok && data.result.length > 0) {
+            for (const update of data.result) {
+              lastUpdateId = update.update_id;
+              console.log(`📥 Manual poll update: ${update.update_id}`);
+              await telegramBot!.handleUpdate(update);
+            }
+          }
+        } catch (pollError) {
+          console.warn("Manual polling error:", pollError);
+        }
+        
+        // Poll again after 2 seconds
+        setTimeout(manualPoll, 2000);
+      };
+      
+      // Start manual polling after 5 seconds
+      setTimeout(manualPoll, 5000);
     }
   }
 }

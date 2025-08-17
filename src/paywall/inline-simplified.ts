@@ -147,7 +147,7 @@ export async function handleUnlockPayCallback(ctx: BotContext) {
     
     // Verify user is signed up and has funds
     const user = await prisma.user.findUnique({
-      where: { id: parseInt(userId) },
+      where: { telegramId: userId },
       include: { wallets: { where: { isActive: true } } }
     });
     
@@ -513,7 +513,7 @@ export async function handleCancelCallback(ctx: BotContext) {
 // Register all paywall callbacks
 export function registerPaywallCallbacks(bot: any) {
   bot.callbackQuery(/^unlock:\d+$/, handleUnlockCallback);
-  bot.callbackQuery(/^unlock_pay:\d+$/, handleUnlockPayCallback);
+  bot.callbackQuery(/^unlock_pay:\d+:\d+:\d+:[A-Z]+$/, handleUnlockPayCallback);
   bot.callbackQuery(/^resend:\d+$/, handleResendCallback);
   bot.callbackQuery(/^tip_channel:.+$/, handleChannelTipCallback);
   bot.callbackQuery(/^channel_tip_amount:/, handleChannelTipAmountCallback);

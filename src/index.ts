@@ -12,12 +12,18 @@ console.log("🚀 SENDPAY TELEGRAM BOT - SIMPLIFIED");
 const app = express();
 app.use(express.json({ limit: "1mb" }));
 
-// Log all incoming requests
+// Log all incoming requests BEFORE any other middleware
 app.use((req, res, next) => {
-  console.log(`📥 ${new Date().toISOString()} - ${req.method} ${req.url} - Headers:`, JSON.stringify(req.headers, null, 2));
-  if (req.method === 'POST') {
-    console.log('POST Body:', req.body ? JSON.stringify(req.body, null, 2) : 'empty');
+  const timestamp = new Date().toISOString();
+  console.log(`📥 [${timestamp}] ${req.method} ${req.url}`);
+  
+  if (req.method === 'POST' && req.url === '/tg') {
+    console.log('🔔 WEBHOOK REQUEST DETECTED');
+    console.log('Content-Type:', req.headers['content-type']);
+    console.log('User-Agent:', req.headers['user-agent']);
+    console.log('Body size:', req.headers['content-length']);
   }
+  
   next();
 });
 
@@ -81,51 +87,37 @@ app.get("/health", (req, res) => {
   }
 });
 
-app.post("/webhooks/helius", heliusWebhook);
-
-// Test endpoint to simulate Telegram webhook
-app.post("/test", async (req, res) => {
-  console.log("🧪 TEST endpoint called with body:", JSON.stringify(req.body, null, 2));
-  res.send("Test OK");
-});
-
 // Telegram webhook endpoint
 app.post("/tg", async (req, res) => {
-  console.log("🔄 Telegram webhook received:", JSON.stringify(req.body, null, 2));
+  console.log("🔥 TELEGRAM WEBHOOK REACHED!");
   
   if (!telegramBot) {
-    console.error("❌ Telegram bot not configured");
-    return res.status(404).json({ error: "Telegram bot not configured" });
-  }
-  
-  // Validate we have a proper update object
-  if (!req.body || typeof req.body !== 'object') {
-    console.error("❌ Invalid webhook body - not an object");
-    return res.status(400).json({ error: "Invalid webhook body" });
-  }
-  
-  if (!req.body.update_id && req.body.update_id !== 0) {
-    console.error("❌ Missing update_id in webhook body");
-    return res.status(400).json({ error: "Missing update_id" });
+    console.error("❌ No bot configured");
+    return res.status(404).send("Not Found");
   }
   
   try {
-    console.log("🤖 Processing update with bot...");
-    console.log("Bot object exists:", !!telegramBot);
-    console.log("Bot handleUpdate function exists:", typeof telegramBot.handleUpdate === 'function');
-    
+    console.log("📝 Processing Telegram update:", req.body?.update_id);
     await telegramBot.handleUpdate(req.body);
-    console.log("✅ Update processed successfully");
-    res.status(200).send("OK");
+    console.log("✅ Update processed");
+    res.send("OK");
   } catch (error) {
-    console.error("❌ Telegram webhook error:", error);
-    if (error instanceof Error) {
-      console.error("Error name:", error.name);
-      console.error("Error message:", error.message);
-      console.error("Error stack:", error.stack);
-    }
-    res.status(500).json({ error: "Webhook failed" });
+    console.error("❌ Webhook error:", error);
+    res.status(500).send("Error");
   }
+});
+
+app.post("/webhooks/helius", heliusWebhook);
+
+// Test routes for debugging
+app.post("/test", async (req, res) => {
+  console.log("🧪 TEST endpoint called");
+  res.send("Test OK");
+});
+
+app.post("/webhook-debug", (req, res) => {
+  console.log("🚨 DEBUG WEBHOOK HIT");
+  res.send("Debug webhook working");
 });
 
 async function startTelegramBot() {
@@ -151,26 +143,19 @@ async function startTelegramBot() {
     console.warn('Error clearing webhook:', error);
   }
 
-  // Use webhooks for deployment (more efficient)
-  const publicUrl = process.env.PUBLIC_URL || process.env.REPL_URL;
-  if (publicUrl) {
-    try {
-      // Clear existing webhook
-      await telegramBot.api.deleteWebhook({ drop_pending_updates: true });
-      
-      // Set new webhook
-      const webhookUrl = `${publicUrl.replace(/\/$/, '')}/tg`;
-      await telegramBot.api.setWebhook(webhookUrl);
-      console.log("✅ Telegram webhook set:", webhookUrl);
-    } catch (error) {
-      console.error("Webhook setup failed, using polling:", error);
-      await telegramBot.start();
-      console.log("✅ Telegram fallback to polling");
-    }
-  } else {
-    // Development mode - use polling
+  // TEMPORARILY USE POLLING to verify bot functionality
+  console.log("🔄 Using polling mode to verify bot works");
+  
+  try {
+    // Clear any existing webhook
+    await telegramBot.api.deleteWebhook({ drop_pending_updates: true });
+    console.log("✅ Webhook cleared");
+    
+    // Start polling
     await telegramBot.start();
-    console.log("✅ Telegram polling mode");
+    console.log("✅ Telegram polling active - Bot ready for commands");
+  } catch (error) {
+    console.error("❌ Failed to start bot:", error);
   }
 }
 

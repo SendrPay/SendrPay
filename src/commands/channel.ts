@@ -14,47 +14,56 @@ export async function commandChannelInit(ctx: BotContext) {
 
   // Set up session state for channel setup
   (ctx.session as any).channelSetup = {
-    step: "forward_message",
+    step: "enter_channel_username",
     ownerTgId: telegramId
   };
 
   await ctx.reply(
     `🎬 **Channel Setup**\n\n` +
     `To set up your channel for paywalled content:\n\n` +
-    `1. Go to your channel\n` +
-    `2. Forward ANY message from your channel to me\n` +
-    `3. I'll verify you're an admin and configure the channel\n\n` +
-    `Please forward a message from your channel now.`,
+    `1. Add me as an admin to your channel\n` +
+    `2. Grant me "Post Messages" permission\n` +
+    `3. Send me your channel username (e.g., @yourchannel)\n\n` +
+    `**Enter your channel username:**`,
     { parse_mode: "Markdown" }
   );
 }
 
-// Handle forwarded messages for channel setup
-export async function handleChannelForward(ctx: BotContext) {
+// Handle channel username input for setup
+export async function handleChannelUsernameInput(ctx: BotContext) {
   const session = ctx.session as any;
   
-  if (!session.channelSetup || session.channelSetup.step !== "forward_message") {
+  if (!session.channelSetup || session.channelSetup.step !== "enter_channel_username") {
     return;
   }
 
-  const forwardedFrom = ctx.message?.forward_from_chat;
-  if (!forwardedFrom || forwardedFrom.type !== "channel") {
-    return ctx.reply("❌ Please forward a message from a channel, not a group or user.");
-  }
+  const text = ctx.message?.text?.trim();
+  if (!text) return;
 
-  const channelId = String(forwardedFrom.id);
-  const channelTitle = forwardedFrom.title || "Unknown Channel";
+  // Clean up channel username (remove @ if present)
+  const channelUsername = text.startsWith('@') ? text : `@${text}`;
   
-  // Verify bot is admin in the channel
+  // Verify channel exists and bot is admin
   try {
+    const chat = await ctx.api.getChat(channelUsername);
+    
+    if (chat.type !== "channel") {
+      return ctx.reply("❌ This is not a channel. Please provide a channel username.");
+    }
+
+    const channelId = String(chat.id);
+    const channelTitle = chat.title || "Unknown Channel";
+    
+    // Verify bot is admin in the channel
     const member = await ctx.api.getChatMember(channelId, ctx.me.id);
+    
     if (member.status !== "administrator") {
       return ctx.reply(
         `❌ I'm not an admin in **${channelTitle}**.\n\n` +
         `Please:\n` +
         `1. Add me as an admin to the channel\n` +
         `2. Grant me "Post Messages" permission\n` +
-        `3. Then forward a message again`,
+        `3. Then enter the channel username again`,
         { parse_mode: "Markdown" }
       );
     }
@@ -67,10 +76,35 @@ export async function handleChannelForward(ctx: BotContext) {
         { parse_mode: "Markdown" }
       );
     }
-  } catch (error) {
+
+    // Verify the user is an admin in the channel
+    const userMember = await ctx.api.getChatMember(channelId, ctx.from!.id);
+    
+    if (userMember.status !== "administrator" && userMember.status !== "creator") {
+      return ctx.reply(
+        `❌ You're not an admin in **${channelTitle}**.\n\n` +
+        `Only channel admins can set up paywalled content.`,
+        { parse_mode: "Markdown" }
+      );
+    }
+  } catch (error: any) {
+    if (error.error_code === 400 && error.description?.includes("not found")) {
+      return ctx.reply(
+        `❌ Channel not found.\n\n` +
+        `Make sure you:\n` +
+        `1. Added me as an admin first\n` +
+        `2. Used the correct username (e.g., @yourchannel)`,
+        { parse_mode: "Markdown" }
+      );
+    }
     logger.error("Error checking channel permissions:", error);
-    return ctx.reply("❌ Could not verify channel permissions. Make sure I'm added as an admin.");
+    return ctx.reply("❌ Could not verify channel. Make sure I'm added as an admin first.");
   }
+
+  // Get channel info
+  const chat = await ctx.api.getChat(channelUsername);
+  const channelId = String(chat.id);
+  const channelTitle = chat.title || "Unknown Channel";
 
   // Store channel info in session
   session.channelSetup = {

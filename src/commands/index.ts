@@ -17,7 +17,7 @@ import { commandHistory } from "./history";
 import { commandDebugReply, commandDebugReset, commandDebugMessage } from "./debug";
 import { commandLinkcode } from "./linkcode";
 import { commandSetup, handleSetupCallbacks, handleGroupPriceInput } from "./setup";
-import { commandLinkGroup, commandUnlinkGroup } from "./linkgroup";
+import { commandLinkGroup, commandUnlinkGroup, handleGroupLinkInput } from "./linkgroup";
 import { 
   commandKolProfile, 
   handleTipCallback, 
@@ -30,7 +30,7 @@ import {
 } from "./kol";
 import { 
   commandChannelInit, 
-  handleChannelForward, 
+  handleChannelUsernameInput, 
   handleChannelCallbacks,
   handleChannelPriceInput,
   handleChannelPresetsInput
@@ -151,9 +151,15 @@ Send private key now:`, { parse_mode: "Markdown" });
       else if (session.tipIntent?.step === 'custom_amount') {
         await handleCustomTipAmount(ctx);
       }
+      // Handle group linking input
+      else if (session.linkingGroup) {
+        await handleGroupLinkInput(ctx);
+      }
       // Handle channel setup inputs
       else if (session.channelSetup) {
-        if (session.channelSetup.step === 'set_price') {
+        if (session.channelSetup.step === 'enter_channel_username') {
+          await handleChannelUsernameInput(ctx);
+        } else if (session.channelSetup.step === 'set_price') {
           await handleChannelPriceInput(ctx);
         } else if (session.channelSetup.step === 'set_presets') {
           await handleChannelPresetsInput(ctx);
@@ -174,15 +180,7 @@ Send private key now:`, { parse_mode: "Markdown" });
     }
   });
   
-  // Handle forwarded messages for channel setup
-  bot.on("message:forward_origin", async (ctx) => {
-    if (ctx.chat?.type === "private") {
-      const session = ctx.session as any;
-      if (session.channelSetup?.step === "forward_message") {
-        await handleChannelForward(ctx);
-      }
-    }
-  });
+  // Removed forwarded message handler - now using direct channel username input
   
   // Handle video uploads for post creation
   bot.on("message:video", async (ctx) => {

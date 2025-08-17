@@ -50,12 +50,26 @@ export async function commandStart(ctx: BotContext) {
 
 Send crypto payments instantly on Telegram
 
-**What you can do:**
+**💰 Payment Features:**
 • Send payments to any user
-• Tip users in group chats
+• Tip users in group chats  
 • Track all transactions
 • Secure wallet management
 • Cross-platform payments with Discord
+
+**🎯 KOL Monetization Features:**
+• Set up paid group access
+• Create paywalled content
+• Receive tips with buttons
+• Configure accepted tokens
+• 2-5% platform fees only
+
+**📚 Quick Commands:**
+• /setup - Configure KOL settings
+• /channel_init - Set up paywalled content
+• /linkgroup - Link paid group
+• /kol - View KOL profile
+• /help - Full command list
 
 **Getting started:**
 Choose how to set up your wallet`;

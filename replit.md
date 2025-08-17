@@ -12,6 +12,9 @@ A robust multi-platform blockchain payment bot integrating Telegram and Discord 
 - **Private Group Access**: KOLs can charge for access to private Telegram groups
 - **Dynamic Button Generation**: Buttons are generated based on each KOL's configuration
 - **Group Linking**: `/linkgroup` command to connect private groups to KOL accounts
+- **Paywalled Content**: Added `/channel_init` and `/post_locked` for channel monetization
+- **Admin-Based Verification**: Changed from message forwarding to bot admin status verification
+- **Comprehensive Help**: Updated `/start` and `/help` with full KOL feature documentation
 
 ## Key Technologies
 - TypeScript-powered cross-platform bot infrastructure

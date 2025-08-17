@@ -55,18 +55,23 @@ export async function handleUnlockCallback(ctx: BotContext) {
     });
     
     if (existingAccess) {
-      const keyboard = new InlineKeyboard()
-        .text("📥 Resend to DM", `resend:${postId}`)
-        .text("✖️ Cancel", "cancel");
-      
-      return ctx.editMessageText(
-        `✅ You already unlocked this post!\n\n` +
-        `Want me to resend it to your DM?`,
-        { 
-          parse_mode: "Markdown",
-          reply_markup: keyboard
-        }
-      );
+      // Send DM instead of editing channel message
+      try {
+        await ctx.api.sendMessage(
+          ctx.from!.id,
+          `✅ **You already unlocked this post!**\n\n` +
+          `Want me to resend the content to you?`,
+          { 
+            parse_mode: "Markdown",
+            reply_markup: new InlineKeyboard()
+              .text("📥 Resend Content", `resend:${postId}`)
+              .text("✖️ Cancel", "cancel")
+          }
+        );
+        return ctx.answerCallbackQuery("Check your DM for options!");
+      } catch (dmError) {
+        return ctx.answerCallbackQuery("Please start a chat with me first: @" + ctx.me.username);
+      }
     }
     
     // Get post details
@@ -89,21 +94,32 @@ export async function handleUnlockCallback(ctx: BotContext) {
       title: post.title
     };
     
-    const keyboard = new InlineKeyboard()
-      .text(`✅ Pay ${fmtPrice(post)}`, `unlock_pay:${postId}`)
-      .text("✖️ Cancel", "cancel");
-    
-    await ctx.editMessageText(
-      `You're unlocking **${post.title ?? `Post #${postId}`}** for **${fmtPrice(post)}**.\n\n` +
-      `_Creator covers a small platform fee (5%)._`,
-      { 
-        parse_mode: "Markdown",
-        reply_markup: keyboard
-      }
-    );
+    // Send payment confirmation in DM instead of editing channel message
+    try {
+      const keyboard = new InlineKeyboard()
+        .text(`✅ Pay ${fmtPrice(post)}`, `unlock_pay:${postId}`)
+        .text("✖️ Cancel", "cancel");
+      
+      await ctx.api.sendMessage(
+        ctx.from!.id,
+        `🔓 **Unlock Content**\n\n` +
+        `**${post.title ?? `Post #${postId}`}**\n` +
+        `Price: **${fmtPrice(post)}**\n\n` +
+        `_Platform fee (5%) covered by creator_\n\n` +
+        `Ready to unlock this content?`,
+        { 
+          parse_mode: "Markdown",
+          reply_markup: keyboard
+        }
+      );
+      
+      return ctx.answerCallbackQuery("Check your DM to complete payment!");
+    } catch (dmError) {
+      return ctx.answerCallbackQuery("Please start a chat with me first: @" + ctx.me.username);
+    }
   } catch (error) {
     logger.error("Error in handleUnlockCallback:", error);
-    await ctx.editMessageText("❌ An error occurred. Please try again.");
+    return ctx.answerCallbackQuery("❌ An error occurred. Please try again.");
   }
 }
 
@@ -121,7 +137,9 @@ export async function handleUnlockPayCallback(ctx: BotContext) {
     const session = ctx.session as any;
     
     if (!session.unlockIntent || session.unlockIntent.postId !== postId) {
-      return ctx.editMessageText("❌ Session expired. Please try again.");
+      return ctx.editMessageText("❌ Session expired. Please try again.", {
+        reply_markup: new InlineKeyboard().text("🔓 Start Over", `unlock:${postId}`)
+      });
     }
     
     // Get post and check again
@@ -140,18 +158,18 @@ export async function handleUnlockPayCallback(ctx: BotContext) {
     });
     
     if (!user) {
-      // Send DM instead of editing public message
+      // User needs to create account first
       try {
         await ctx.api.sendMessage(
           ctx.from!.id,
           `❌ **Account Required**\n\n` +
-          `You need to create an account first. Send me /start in a private message to get started.\n\n` +
+          `You need to create an account first. Send me /start to get started.\n\n` +
           `[Start here](https://t.me/${ctx.me.username})`,
           { parse_mode: "Markdown" }
         );
-        return ctx.editMessageText("🔒 Payment processing moved to DM for privacy.");
+        return ctx.answerCallbackQuery("Check your DM to create an account!");
       } catch (dmError) {
-        return ctx.editMessageText("❌ Please start a private chat with me first to process payments.");
+        return ctx.answerCallbackQuery("Please start a chat with me first: @" + ctx.me.username);
       }
     }
 
@@ -175,24 +193,16 @@ export async function handleUnlockPayCallback(ctx: BotContext) {
     });
     
     if (!result.success) {
-      // Send failure notification via DM for privacy
-      try {
-        await ctx.api.sendMessage(
-          ctx.from!.id,
-          `❌ **Payment Failed**\n\n` +
-          `${result.error}\n\n` +
-          `Please check your balance and try again.\n\n` +
-          `Use /balance to check your wallet.`,
-          { parse_mode: "Markdown" }
-        );
-        return ctx.editMessageText("🔒 Payment details sent to your DM.");
-      } catch (dmError) {
-        return ctx.editMessageText(
-          `❌ Payment failed: ${result.error}\n\n` +
-          `Please check your balance and try again.`,
-          { parse_mode: "Markdown" }
-        );
-      }
+      return ctx.editMessageText(
+        `❌ **Payment Failed**\n\n` +
+        `${result.error}\n\n` +
+        `Please check your balance and try again.\n\n` +
+        `Use /balance to check your wallet.`,
+        { 
+          parse_mode: "Markdown",
+          reply_markup: new InlineKeyboard().text("🔓 Try Again", `unlock:${postId}`)
+        }
+      );
     }
     
     // Grant access
@@ -259,11 +269,11 @@ export async function handleUnlockPayCallback(ctx: BotContext) {
       logger.error("Error sending payment confirmation DM:", dmError);
     }
     
-    // Update public message to show completion without details
+    // Update DM message to show completion
     await ctx.editMessageText(
-      `🔓 **Unlocked!**\n\n` +
-      `Content has been sent to your DM.\n\n` +
-      `_Privacy protected - details in your DM_`,
+      `✅ **Content Unlocked!**\n\n` +
+      `**${post.title || `Post #${postId}`}** has been unlocked and delivered.\n\n` +
+      `Content is now available above. ⬆️`,
       { parse_mode: "Markdown" }
     );
     

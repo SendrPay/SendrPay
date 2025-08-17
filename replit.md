@@ -3,9 +3,17 @@
 ## Overview
 A robust multi-platform blockchain payment bot integrating Telegram and Discord for seamless crypto transactions on the Solana devnet, with advanced cross-platform user management, wallet linking, and KOL (Key Opinion Leader) monetization features.
 
-## Recent Changes (August 17, 2025)
+## Recent Changes (August 17, 2025) - Critical Workflow Separation Fix
 
-### Complete Inline Button Workflow for KOL Functionality
+### CRITICAL WORKFLOW CONFLICT RESOLVED
+- **FIXED: Command Hijacking Bug**: The `/setup` command was being used by both KOL private group setup AND paywalled content workflows causing major user confusion
+- **Message Handler Priority System**: Reorganized text message handlers with clear priority order to prevent session conflicts
+- **Workflow Isolation**: KOL group setup (expectingGroupPrice, linkingGroup) now has priority over paywalled content workflows (channelSetup, postCreation)
+- **Session State Validation**: Added robust session state checking to prevent workflow hijacking between different features
+- **User Experience Fixed**: Users can now properly set group prices without paywall content setup interfering with the flow
+- **Command Separation**: `/setup` command now exclusively handles KOL private group configuration, completely separate from `/channel_init` for paywalled content
+
+### Previous Inline Button Workflow Features
 - **Redesigned KOL Profile System**: `/kol @username` now shows interactive profile with tip and group join buttons
 - **KOL Setup Interface**: `/setup` provides comprehensive inline button configuration for tip tokens and group settings
 - **Interactive Tip System**: Dynamic tip buttons with amount selection and confirmation workflow

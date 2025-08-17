@@ -117,13 +117,13 @@ Send private key now:`, { parse_mode: "Markdown" });
   bot.command("history", commandHistory);
   bot.command("linkcode", commandLinkcode);
   
-  // KOL commands (new inline versions)
-  bot.command("setup", commandKolSetupInline);
-  bot.command("kol", commandKolProfileInline);
+  // KOL commands (separated from paywalled content)
+  bot.command("setup", commandSetup);  // KOL private group setup only - SEPARATE from paywall
+  bot.command("kol", commandKolProfile);
   bot.command("linkgroup", commandLinkGroup);
   bot.command("unlinkgroup", commandUnlinkGroup);
   
-  // Channel paywall commands
+  // Channel paywall commands (completely separate from KOL setup)
   bot.command("channel_init", commandChannelInit);
   bot.command("post_locked", commandPostLocked);
   
@@ -150,19 +150,16 @@ Send private key now:`, { parse_mode: "Markdown" });
           logger.error("Could not delete private key message:", error);
         }
       }
-      // Handle KOL group price input
+      // Handle message inputs based on session state (order matters for workflow separation!)
+      // 1. KOL group setup workflows (PRIORITY 1 - prevents conflicts with paywall setup)
       else if (session.expectingGroupPrice) {
         await handleGroupPriceInput(ctx);
       }
-      // Handle custom tip amount input
-      else if (session.tipIntent?.step === 'custom_amount') {
-        await handleCustomTipAmount(ctx);
-      }
-      // Handle group linking input
       else if (session.linkingGroup) {
         await handleGroupLinkInput(ctx);
       }
-      // Handle channel setup inputs
+      // Note: setupState handling is done by setup command callbacks, not text input
+      // 2. Channel paywalled content workflows (PRIORITY 2 - separate from KOL setup)
       else if (session.channelSetup) {
         if (session.channelSetup.step === 'enter_channel_username') {
           await handleChannelUsernameInput(ctx);
@@ -172,7 +169,6 @@ Send private key now:`, { parse_mode: "Markdown" });
           await handleChannelPresetsInput(ctx);
         }
       }
-      // Handle post creation inputs
       else if (session.postCreation) {
         if (session.postCreation.step === 'set_title') {
           await handlePostTitleInput(ctx);
@@ -183,6 +179,10 @@ Send private key now:`, { parse_mode: "Markdown" });
         } else if (session.postCreation.step === 'set_price') {
           await handlePostPriceInput(ctx);
         }
+      }
+      // 3. Other workflows (PRIORITY 3)
+      else if (session.tipIntent?.step === 'custom_amount') {
+        await handleCustomTipAmount(ctx);
       }
     }
   });

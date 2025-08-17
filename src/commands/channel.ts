@@ -1,5 +1,5 @@
 import { BotContext } from "../bot";
-import { db } from "../infra/prisma";
+import { prisma } from "../infra/prisma";
 import { logger } from "../infra/logger";
 import { InlineKeyboard } from "grammy";
 
@@ -207,7 +207,7 @@ export async function handleChannelPresetsInput(ctx: BotContext) {
 
   // Save channel configuration to database
   try {
-    await db.kolChannel.upsert({
+    await prisma.kolChannel.upsert({
       where: { tgChatId: session.channelSetup.channelId },
       update: {
         ownerTgId: session.channelSetup.ownerTgId,

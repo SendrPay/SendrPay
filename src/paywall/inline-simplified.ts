@@ -1,5 +1,5 @@
 import { BotContext } from "../bot";
-import { db } from "../infra/prisma";
+import { prisma } from "../infra/prisma";
 import { logger } from "../infra/logger";
 import { InlineKeyboard } from "grammy";
 import { resolveToken } from "../core/tokens";
@@ -45,7 +45,7 @@ export async function handleUnlockCallback(ctx: BotContext) {
     const userId = String(ctx.from!.id);
     
     // Check if user already has access
-    const existingAccess = await db.postAccess.findUnique({
+    const existingAccess = await prisma.postAccess.findUnique({
       where: {
         postId_userTgId: {
           postId,
@@ -70,7 +70,7 @@ export async function handleUnlockCallback(ctx: BotContext) {
     }
     
     // Get post details
-    const post = await db.lockedPost.findUnique({
+    const post = await prisma.lockedPost.findUnique({
       where: { id: postId },
       include: { channel: true }
     });
@@ -125,7 +125,7 @@ export async function handleUnlockPayCallback(ctx: BotContext) {
     }
     
     // Get post and check again
-    const post = await db.lockedPost.findUnique({
+    const post = await prisma.lockedPost.findUnique({
       where: { id: postId },
       include: { channel: true }
     });
@@ -156,7 +156,7 @@ export async function handleUnlockPayCallback(ctx: BotContext) {
     }
     
     // Grant access
-    await db.postAccess.create({
+    await prisma.postAccess.create({
       data: {
         postId,
         userTgId: userId,
@@ -252,7 +252,7 @@ export async function handleResendCallback(ctx: BotContext) {
     const userId = String(ctx.from!.id);
     
     // Verify access
-    const access = await db.postAccess.findUnique({
+    const access = await prisma.postAccess.findUnique({
       where: {
         postId_userTgId: {
           postId,
@@ -266,7 +266,7 @@ export async function handleResendCallback(ctx: BotContext) {
     }
     
     // Get post content
-    const post = await db.lockedPost.findUnique({
+    const post = await prisma.lockedPost.findUnique({
       where: { id: postId },
       include: { channel: true }
     });
@@ -332,7 +332,7 @@ export async function handleChannelTipCallback(ctx: BotContext) {
     const channelId = match[1];
     
     // Get channel details
-    const channel = await db.kolChannel.findUnique({
+    const channel = await prisma.kolChannel.findUnique({
       where: { tgChatId: channelId }
     });
     

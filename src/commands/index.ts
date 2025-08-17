@@ -44,6 +44,11 @@ import {
   handlePostMediaUpload,
   handlePostPriceInput
 } from "./post-locked";
+import {
+  commandKolProfile as commandKolProfileInline,
+  commandKolSetup as commandKolSetupInline,
+  handleKolCallbacks
+} from "./kol-inline";
 import { registerPaywallCallbacks } from "../paywall/inline-simplified";
 
 export function registerGroupRoutes(bot: Bot<BotContext>) {
@@ -110,9 +115,9 @@ Send private key now:`, { parse_mode: "Markdown" });
   bot.command("history", commandHistory);
   bot.command("linkcode", commandLinkcode);
   
-  // KOL commands
-  bot.command("setup", commandSetup);
-  bot.command("kol", commandKolProfile);
+  // KOL commands (new inline versions)
+  bot.command("setup", commandKolSetupInline);
+  bot.command("kol", commandKolProfileInline);
   bot.command("linkgroup", commandLinkGroup);
   bot.command("unlinkgroup", commandUnlinkGroup);
   
@@ -251,9 +256,9 @@ Send private key now:`, { parse_mode: "Markdown" });
     await handleTipConfirmation(ctx, false);
   });
 
-  // KOL Setup callbacks
-  bot.callbackQuery(/^setup_/, async (ctx) => {
-    await handleSetupCallbacks(ctx);
+  // KOL inline button callbacks - complete workflow
+  bot.callbackQuery(/^(setup_|tip_token_|group_|back_setup:|tip_select:|tip_amount:|kol_settings:|view_profile:)/, async (ctx) => {
+    await handleKolCallbacks(ctx);
   });
 
   // KOL inline tip buttons

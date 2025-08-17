@@ -41,6 +41,7 @@ import {
   handlePostTitleInput,
   handlePostTeaserInput,
   handlePostContentInput,
+  handlePostImageUpload,
   handlePostVideoUpload,
   handlePostPriceInput
 } from "./post-locked";
@@ -173,6 +174,8 @@ Send private key now:`, { parse_mode: "Markdown" });
           await handlePostTeaserInput(ctx);
         } else if (session.postCreation.step === 'set_content') {
           await handlePostContentInput(ctx);
+        } else if (session.postCreation.step === 'upload_images') {
+          await handlePostImageUpload(ctx);
         } else if (session.postCreation.step === 'set_price') {
           await handlePostPriceInput(ctx);
         }
@@ -188,6 +191,16 @@ Send private key now:`, { parse_mode: "Markdown" });
       const session = ctx.session as any;
       if (session.postCreation?.step === "upload_video") {
         await handlePostVideoUpload(ctx);
+      }
+    }
+  });
+
+  // Handle photo uploads for post creation  
+  bot.on("message:photo", async (ctx) => {
+    if (ctx.chat?.type === "private") {
+      const session = ctx.session as any;
+      if (session.postCreation?.step === "upload_images") {
+        await handlePostImageUpload(ctx);
       }
     }
   });

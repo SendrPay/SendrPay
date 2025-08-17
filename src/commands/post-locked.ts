@@ -61,6 +61,7 @@ export async function commandPostLocked(ctx: BotContext) {
 
   const keyboard = new InlineKeyboard()
     .text("📝 Text Post", "post_type_text")
+    .text("🖼️ Image Post", "post_type_image").row()
     .text("🎥 Video Post", "post_type_video");
 
   await ctx.reply(
@@ -95,7 +96,8 @@ export async function handlePostChannelSelection(ctx: BotContext, channelId: str
   };
 
   const keyboard = new InlineKeyboard()
-    .text("📝 Text Post", "post_type_text")
+    .text("📝 Text Post", "post_type_text").row()
+    .text("🖼️ Image Post", "post_type_image")
     .text("🎥 Video Post", "post_type_video");
 
   await ctx.editMessageText(
@@ -121,8 +123,10 @@ export async function handlePostTypeSelection(ctx: BotContext, type: string) {
   session.postCreation.contentType = type;
   session.postCreation.step = "set_title";
 
+  const typeLabel = type === "text" ? "Text" : type === "image" ? "Image" : "Video";
+  
   await ctx.editMessageText(
-    `📝 **Create ${type === "text" ? "Text" : "Video"} Post**\n\n` +
+    `📝 **Create ${typeLabel} Post**\n\n` +
     `Enter a title for your post (optional).\n` +
     `Type "skip" to continue without a title:`,
     { parse_mode: "Markdown" }
@@ -175,6 +179,15 @@ export async function handlePostTeaserInput(ctx: BotContext) {
       `This will only be sent via DM after payment:`,
       { parse_mode: "Markdown" }
     );
+  } else if (session.postCreation.contentType === "image") {
+    session.postCreation.step = "upload_images";
+    await ctx.reply(
+      `✅ Teaser set!\n\n` +
+      `Now **upload the image(s)** that will be unlocked.\n` +
+      `You can send multiple images one by one.\n` +
+      `Type "done" when finished uploading:`,
+      { parse_mode: "Markdown" }
+    );
   } else {
     session.postCreation.step = "upload_video";
     await ctx.reply(
@@ -207,6 +220,52 @@ export async function handlePostContentInput(ctx: BotContext) {
     `✅ Content saved!\n\n` +
     `Set the unlock price (default: ${defaultPrice} ${session.postCreation.defaultToken}).\n` +
     `Enter amount or type "default":`,
+    { parse_mode: "Markdown" }
+  );
+}
+
+// Handle image uploads
+export async function handlePostImageUpload(ctx: BotContext) {
+  const session = ctx.session as any;
+  
+  if (!session.postCreation || session.postCreation.step !== "upload_images") {
+    return;
+  }
+
+  // Check if user typed "done"
+  if (ctx.message?.text?.toLowerCase() === "done") {
+    if (!session.postCreation.imageFileIds || session.postCreation.imageFileIds.length === 0) {
+      return ctx.reply("❌ Please upload at least one image before typing 'done'.");
+    }
+    
+    session.postCreation.step = "set_price";
+    const defaultPrice = convertFromRawUnits(session.postCreation.defaultPrice, session.postCreation.defaultToken);
+    
+    return ctx.reply(
+      `✅ ${session.postCreation.imageFileIds.length} image(s) uploaded!\n\n` +
+      `Set the unlock price (default: ${defaultPrice} ${session.postCreation.defaultToken}).\n` +
+      `Enter amount or type "default":`,
+      { parse_mode: "Markdown" }
+    );
+  }
+
+  const photo = ctx.message?.photo;
+  if (!photo) {
+    return ctx.reply("❌ Please upload an image file or type 'done' when finished.");
+  }
+
+  // Initialize image array if not exists
+  if (!session.postCreation.imageFileIds) {
+    session.postCreation.imageFileIds = [];
+  }
+
+  // Get the highest resolution photo
+  const largestPhoto = photo[photo.length - 1];
+  session.postCreation.imageFileIds.push(largestPhoto.file_id);
+
+  await ctx.reply(
+    `✅ Image ${session.postCreation.imageFileIds.length} uploaded!\n\n` +
+    `Upload more images or type "done" to continue.`,
     { parse_mode: "Markdown" }
   );
 }
@@ -312,7 +371,9 @@ export async function handlePostTokenSelection(ctx: BotContext, token: string) {
         contentType: session.postCreation.contentType,
         priceAmount: session.postCreation.priceAmount,
         priceToken: token,
-        payloadRef: session.postCreation.payloadRef,
+        payloadRef: session.postCreation.contentType === "image" 
+          ? JSON.stringify(session.postCreation.imageFileIds) 
+          : session.postCreation.payloadRef,
         title: session.postCreation.title || null,
         teaserText: session.postCreation.teaserText
       }
@@ -345,13 +406,17 @@ export async function handlePostTokenSelection(ctx: BotContext, token: string) {
       data: { channelMsgId: String(channelMessage.message_id) }
     });
 
+    // Save session data before clearing
+    const contentType = session.postCreation.contentType;
+    const displayPrice = session.postCreation.displayPrice;
+    
     // Clear session
     delete session.postCreation;
 
     await ctx.editMessageText(
       `✅ **Post Published!**\n\n` +
-      `Your locked ${session.postCreation?.contentType} post has been published to the channel.\n\n` +
-      `• Price: **${session.postCreation?.displayPrice} ${token}**\n` +
+      `Your locked ${contentType} post has been published to the channel.\n\n` +
+      `• Price: **${displayPrice} ${token}**\n` +
       `• Platform fee: **5%** (paid by you)\n` +
       `• Buyers will receive content via DM\n` +
       `• Content is watermarked with buyer info\n\n` +

@@ -260,6 +260,36 @@ export async function handleUnlockPayCallback(ctx: BotContext) {
           `_${watermark}_`,
           { parse_mode: "Markdown" }
         );
+      } else if (post.contentType === "image") {
+        // Parse image file IDs from JSON
+        const imageFileIds = JSON.parse(post.payloadRef);
+        
+        // Send first image with caption
+        if (imageFileIds.length > 0) {
+          await ctx.api.sendPhoto(
+            ctx.from!.id,
+            imageFileIds[0],
+            {
+              caption: `${post.title ? `🖼️ **${post.title}**\n\n` : ""}` +
+                      `${imageFileIds.length > 1 ? `Image 1 of ${imageFileIds.length}\n\n` : ""}` +
+                      `━━━━━━━━━━━━━━━\n` +
+                      `_${watermark}_`,
+              parse_mode: "Markdown"
+            }
+          );
+          
+          // Send remaining images without caption (to avoid repetition)
+          for (let i = 1; i < imageFileIds.length; i++) {
+            await ctx.api.sendPhoto(
+              ctx.from!.id,
+              imageFileIds[i],
+              {
+                caption: `Image ${i + 1} of ${imageFileIds.length}\n_${watermark}_`,
+                parse_mode: "Markdown"
+              }
+            );
+          }
+        }
       } else {
         // Send video with watermark caption
         await ctx.api.sendVideo(

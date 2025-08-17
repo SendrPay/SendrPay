@@ -205,7 +205,9 @@ export async function handleUnlockPayCallback(ctx: BotContext) {
     const serviceFeeRaw = amountRaw * 5n / 100n; // 5% platform fee
     const netAmountRaw = amountRaw - serviceFeeRaw;
     
-    logger.info(`Executing transfer: amount=${priceAmount} raw units ${priceToken}, serviceFee=${serviceFeeRaw}`);
+    logger.info(`PAYMENT DEBUG: amount=${priceAmount} raw units ${priceToken}, serviceFee=${serviceFeeRaw}`);
+    logger.info(`PAYMENT DEBUG: from=${user.wallets[0].address}, to=${recipient.wallets[0].address}`);
+    logger.info(`PAYMENT DEBUG: sender TG=${userId}, recipient TG=${ownerTgId}`);
     
     const result = await executeTransfer({
       fromWallet: { address: user.wallets[0].address },
@@ -310,7 +312,7 @@ export async function handleUnlockPayCallback(ctx: BotContext) {
     // Notify creator
     try {
       const creatorTgId = parseInt(post.channel.ownerTgId);
-      const netAmount = amount * 0.95; // After 5% fee
+      const netAmount = (Number(amountRaw) / Math.pow(10, tokenInfo.decimals)) * 0.95; // After 5% fee
       
       await ctx.api.sendMessage(
         creatorTgId,

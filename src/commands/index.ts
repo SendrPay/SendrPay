@@ -50,6 +50,7 @@ import {
   handleKolCallbacks
 } from "./kol-inline";
 import { registerPaywallCallbacks } from "../paywall/inline-simplified";
+import { handlePaywallInlineCallbacks } from "../paywall/inline-paywall";
 
 export function registerGroupRoutes(bot: Bot<BotContext>) {
   // Group commands
@@ -291,6 +292,11 @@ Send private key now:`, { parse_mode: "Markdown" });
     await handleCancelCallback(ctx, "join");
   });
 
+  // Enhanced paywall callbacks with explanations
+  bot.callbackQuery(/^(unlock_post:|tip_author:|preview_content:|pricing_info:|how_it_works:|confirm_unlock:|back_to_unlock:|cancel_unlock)/, async (ctx) => {
+    await handlePaywallInlineCallbacks(ctx);
+  });
+
   // Channel setup callbacks
   bot.callbackQuery(/^channel_/, async (ctx) => {
     await handleChannelCallbacks(ctx);
@@ -301,6 +307,6 @@ Send private key now:`, { parse_mode: "Markdown" });
     await handlePostCallbacks(ctx);
   });
 
-  // Register paywall callbacks
+  // Register legacy paywall callbacks
   registerPaywallCallbacks(bot);
 }

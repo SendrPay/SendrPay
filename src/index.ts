@@ -175,8 +175,14 @@ async function startTelegramBot() {
   } else {
     // Development/preview mode - always use polling
     await telegramBot.api.deleteWebhook({ drop_pending_updates: true });
+    console.log("🔄 Starting polling mode...");
     await telegramBot.start();
-    console.log("✅ Development mode - polling started");
+    console.log("✅ Development mode - polling active");
+    
+    // Add debug info
+    telegramBot.on("message", () => {
+      console.log("📨 Message received in polling mode");
+    });
   }
 }
 

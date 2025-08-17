@@ -256,18 +256,21 @@ export async function handleChannelPresetsInput(ctx: BotContext) {
     logger.error("Error saving channel configuration:", error);
     delete session.channelSetup;
     
-    // Check if the error is just a response sending issue
-    try {
-      const savedChannel = await prisma.kolChannel.findUnique({
-        where: { tgChatId: session.channelSetup?.channelId }
-      });
-      
-      if (savedChannel) {
-        await ctx.reply("✅ Channel setup complete! Configuration was saved successfully.");
-        return;
+    // Check if the data was actually saved despite the error
+    if (session.channelSetup?.channelId) {
+      try {
+        const savedChannel = await prisma.kolChannel.findUnique({
+          where: { tgChatId: session.channelSetup.channelId }
+        });
+        
+        if (savedChannel) {
+          logger.info("Channel was saved successfully despite error");
+          await ctx.reply("✅ Channel setup complete! The configuration was saved successfully.");
+          return;
+        }
+      } catch (checkError) {
+        logger.error("Error checking saved channel:", checkError);
       }
-    } catch (checkError) {
-      logger.error("Error checking saved channel:", checkError);
     }
     
     await ctx.reply("❌ Failed to save channel configuration. Please try again.");

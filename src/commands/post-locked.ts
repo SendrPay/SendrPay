@@ -51,14 +51,46 @@ export async function commandPostLocked(ctx: BotContext) {
 
   // Single channel - proceed directly to post creation
   const channel = channels[0];
+
+  // Create or update draft post in database
+  const existingDraft = await prisma.draftPost.findFirst({
+    where: { 
+      authorTgId: userId,
+      channelId: channel.tgChatId
+    }
+  });
+
+  const draftPost = existingDraft ? await prisma.draftPost.update({
+    where: { id: existingDraft.id },
+    data: {
+      currentStep: "set_title",
+      channelTitle: channel.channelTitle,
+      defaultToken: channel.defaultToken,
+      defaultPrice: channel.defaultPrice,
+      // Reset content for new post
+      title: null,
+      teaserText: null,
+      textContent: null,
+      attachments: null,
+      priceAmount: null,
+      priceToken: null,
+      displayPrice: null
+    }
+  }) : await prisma.draftPost.create({
+    data: {
+      authorTgId: userId,
+      channelId: channel.tgChatId,
+      channelTitle: channel.channelTitle,
+      defaultToken: channel.defaultToken,
+      defaultPrice: channel.defaultPrice,
+      currentStep: "set_title"
+    }
+  });
+
+  // Store draft ID in session for quick access
   (ctx.session as any).postCreation = {
-    step: "set_title",
-    channelId: channel.tgChatId,
-    channelTitle: channel.channelTitle,
-    defaultToken: channel.defaultToken,
-    defaultPrice: channel.defaultPrice,
-    contentType: "mixed", // New type for text + optional media
-    attachments: [] // Array to store image/video file IDs
+    draftId: draftPost.id,
+    step: "set_title"
   };
 
   await ctx.reply(
@@ -82,15 +114,46 @@ export async function handlePostChannelSelection(ctx: BotContext, channelId: str
     return ctx.editMessageText("❌ Channel not found. Please try again.");
   }
 
-  // Go directly to post creation
+  const userId = String(ctx.from!.id);
+
+  // Create or update draft post in database
+  const existingDraft = await prisma.draftPost.findFirst({
+    where: { 
+      authorTgId: userId,
+      channelId: channel.tgChatId
+    }
+  });
+
+  const draftPost = existingDraft ? await prisma.draftPost.update({
+    where: { id: existingDraft.id },
+    data: {
+      currentStep: "set_title",
+      channelTitle: channel.channelTitle,
+      defaultToken: channel.defaultToken,
+      defaultPrice: channel.defaultPrice,
+      // Reset content for new post
+      title: null,
+      teaserText: null,
+      textContent: null,
+      attachments: null,
+      priceAmount: null,
+      priceToken: null,
+      displayPrice: null
+    }
+  }) : await prisma.draftPost.create({
+    data: {
+      authorTgId: userId,
+      channelId: channel.tgChatId,
+      channelTitle: channel.channelTitle,
+      defaultToken: channel.defaultToken,
+      defaultPrice: channel.defaultPrice,
+      currentStep: "set_title"
+    }
+  });
+
   (ctx.session as any).postCreation = {
-    step: "set_title",
-    channelId: channel.tgChatId,
-    channelTitle: channel.channelTitle,
-    defaultToken: channel.defaultToken,
-    defaultPrice: channel.defaultPrice,
-    contentType: "mixed", // New type for text + optional media
-    attachments: [] // Array to store image/video file IDs
+    draftId: draftPost.id,
+    step: "set_title"
   };
 
   await ctx.editMessageText(
@@ -117,9 +180,14 @@ export async function handlePostTitleInput(ctx: BotContext) {
   const title = ctx.message?.text;
   if (!title) return;
 
-  if (title.toLowerCase() !== "skip") {
-    session.postCreation.title = title;
-  }
+  // Update draft in database
+  const draftPost = await prisma.draftPost.update({
+    where: { id: session.postCreation.draftId },
+    data: {
+      title: title.toLowerCase() !== "skip" ? title : null,
+      currentStep: "set_teaser"
+    }
+  });
 
   session.postCreation.step = "set_teaser";
 
@@ -142,7 +210,15 @@ export async function handlePostTeaserInput(ctx: BotContext) {
   const teaser = ctx.message?.text;
   if (!teaser) return;
 
-  session.postCreation.teaserText = teaser;
+  // Update draft in database
+  await prisma.draftPost.update({
+    where: { id: session.postCreation.draftId },
+    data: {
+      teaserText: teaser,
+      currentStep: "set_content"
+    }
+  });
+
   session.postCreation.step = "set_content";
   
   await ctx.reply(
@@ -165,21 +241,40 @@ export async function handlePostContentInput(ctx: BotContext) {
     return;
   }
 
+  // Get current draft from database
+  const draftPost = await prisma.draftPost.findUnique({
+    where: { id: session.postCreation.draftId }
+  });
+
+  if (!draftPost) {
+    return ctx.reply("❌ Session expired. Please use /post_locked to start over.");
+  }
+
   // Handle "done" command to finish content creation
   if (ctx.message?.text?.toLowerCase() === "done") {
-    if (!session.postCreation.textContent && (!session.postCreation.attachments || session.postCreation.attachments.length === 0)) {
+    const hasText = draftPost.textContent && draftPost.textContent.trim();
+    const attachments = draftPost.attachments ? JSON.parse(draftPost.attachments) : [];
+    const hasAttachments = attachments.length > 0;
+
+    if (!hasText && !hasAttachments) {
       return ctx.reply("❌ Please add some content (text, images, or video) before typing 'done'.");
     }
     
+    // Update step in database
+    await prisma.draftPost.update({
+      where: { id: draftPost.id },
+      data: { currentStep: "set_price" }
+    });
+
     session.postCreation.step = "set_price";
-    const defaultPrice = convertFromRawUnits(session.postCreation.defaultPrice, session.postCreation.defaultToken);
+    const defaultPrice = convertFromRawUnits(draftPost.defaultPrice!, draftPost.defaultToken!);
     
     return ctx.reply(
       `✅ Content ready!\n\n` +
       `**Content summary:**\n` +
-      `${session.postCreation.textContent ? "• Text content ✓\n" : ""}` +
-      `${session.postCreation.attachments && session.postCreation.attachments.length > 0 ? `• ${session.postCreation.attachments.length} attachment(s) ✓\n` : ""}\n` +
-      `Set the unlock price (default: ${defaultPrice} ${session.postCreation.defaultToken}).\n` +
+      `${hasText ? "• Text content ✓\n" : ""}` +
+      `${hasAttachments ? `• ${attachments.length} attachment(s) ✓\n` : ""}\n` +
+      `Set the unlock price (default: ${defaultPrice} ${draftPost.defaultToken}).\n` +
       `Enter amount or type "default":`,
       { parse_mode: "Markdown" }
     );
@@ -188,7 +283,11 @@ export async function handlePostContentInput(ctx: BotContext) {
   // Handle text content
   const text = ctx.message?.text;
   if (text) {
-    session.postCreation.textContent = text;
+    await prisma.draftPost.update({
+      where: { id: draftPost.id },
+      data: { textContent: text }
+    });
+
     await ctx.reply(
       `✅ Text content added!\n\n` +
       `You can now:\n` +
@@ -208,10 +307,17 @@ export async function handlePostMediaUpload(ctx: BotContext) {
     return;
   }
 
-  // Initialize attachments array if not exists
-  if (!session.postCreation.attachments) {
-    session.postCreation.attachments = [];
+  // Get current draft from database
+  const draftPost = await prisma.draftPost.findUnique({
+    where: { id: session.postCreation.draftId }
+  });
+
+  if (!draftPost) {
+    return ctx.reply("❌ Session expired. Please use /post_locked to start over.");
   }
+
+  // Parse existing attachments
+  let attachments = draftPost.attachments ? JSON.parse(draftPost.attachments) : [];
 
   // Handle photo uploads
   if (ctx.message?.photo) {
@@ -223,17 +329,23 @@ export async function handlePostMediaUpload(ctx: BotContext) {
       return ctx.reply("❌ Image too large! Maximum size is 10MB per image.");
     }
     
-    session.postCreation.attachments.push({
+    attachments.push({
       type: "photo",
       file_id: largestPhoto.file_id,
       file_size: largestPhoto.file_size || 0
     });
 
+    // Update database
+    await prisma.draftPost.update({
+      where: { id: draftPost.id },
+      data: { attachments: JSON.stringify(attachments) }
+    });
+
     await ctx.reply(
-      `✅ Image ${session.postCreation.attachments.filter(a => a.type === "photo").length} added!\n\n` +
+      `✅ Image ${attachments.filter(a => a.type === "photo").length} added!\n\n` +
       `Current content:\n` +
-      `${session.postCreation.textContent ? "• Text content ✓\n" : ""}` +
-      `• ${session.postCreation.attachments.length} attachment(s)\n\n` +
+      `${draftPost.textContent ? "• Text content ✓\n" : ""}` +
+      `• ${attachments.length} attachment(s)\n\n` +
       `Continue adding content or type "done" when finished.`,
       { parse_mode: "Markdown" }
     );
@@ -249,22 +361,28 @@ export async function handlePostMediaUpload(ctx: BotContext) {
     }
     
     // Only allow one video per post
-    const hasVideo = session.postCreation.attachments.some(a => a.type === "video");
+    const hasVideo = attachments.some(a => a.type === "video");
     if (hasVideo) {
       return ctx.reply("❌ Only one video allowed per post. Remove existing video first.");
     }
     
-    session.postCreation.attachments.push({
+    attachments.push({
       type: "video",
       file_id: video.file_id,
       file_size: video.file_size || 0
     });
 
+    // Update database
+    await prisma.draftPost.update({
+      where: { id: draftPost.id },
+      data: { attachments: JSON.stringify(attachments) }
+    });
+
     await ctx.reply(
       `✅ Video added!\n\n` +
       `Current content:\n` +
-      `${session.postCreation.textContent ? "• Text content ✓\n" : ""}` +
-      `• ${session.postCreation.attachments.length} attachment(s)\n\n` +
+      `${draftPost.textContent ? "• Text content ✓\n" : ""}` +
+      `• ${attachments.length} attachment(s)\n\n` +
       `Continue adding content or type "done" when finished.`,
       { parse_mode: "Markdown" }
     );
@@ -281,6 +399,15 @@ export async function handlePostPriceInput(ctx: BotContext) {
     return;
   }
 
+  // Get current draft from database
+  const draftPost = await prisma.draftPost.findUnique({
+    where: { id: session.postCreation.draftId }
+  });
+
+  if (!draftPost) {
+    return ctx.reply("❌ Session expired. Please use /post_locked to start over.");
+  }
+
   const input = ctx.message?.text?.toLowerCase();
   if (!input) return;
 
@@ -288,24 +415,32 @@ export async function handlePostPriceInput(ctx: BotContext) {
   let displayPrice: number;
 
   if (input === "default") {
-    rawPrice = session.postCreation.defaultPrice;
-    displayPrice = convertFromRawUnits(rawPrice, session.postCreation.defaultToken);
+    rawPrice = draftPost.defaultPrice!;
+    displayPrice = convertFromRawUnits(rawPrice, draftPost.defaultToken!);
   } else {
     const price = parseFloat(input);
     if (isNaN(price) || price <= 0) {
       return ctx.reply("❌ Please enter a valid positive number or type 'default'.");
     }
     displayPrice = price;
-    rawPrice = convertToRawUnits(price, session.postCreation.defaultToken);
+    rawPrice = convertToRawUnits(price, draftPost.defaultToken!);
   }
 
-  session.postCreation.priceAmount = rawPrice;
-  session.postCreation.displayPrice = displayPrice;
+  // Update draft in database
+  await prisma.draftPost.update({
+    where: { id: draftPost.id },
+    data: {
+      priceAmount: rawPrice,
+      displayPrice: displayPrice.toString(),
+      currentStep: "select_token"
+    }
+  });
+
   session.postCreation.step = "select_token";
 
   // Ask for token selection
   const keyboard = new InlineKeyboard()
-    .text(`Use ${session.postCreation.defaultToken}`, `post_token_${session.postCreation.defaultToken}`).row()
+    .text(`Use ${draftPost.defaultToken}`, `post_token_${draftPost.defaultToken}`).row()
     .text("USDC 💵", "post_token_USDC")
     .text("SOL ☀️", "post_token_SOL").row()
     .text("BONK 🐕", "post_token_BONK")
@@ -330,46 +465,66 @@ export async function handlePostTokenSelection(ctx: BotContext, token: string) {
     return ctx.editMessageText("❌ Session expired. Please use /post_locked to start over.");
   }
 
-  session.postCreation.priceToken = token;
+  // Get current draft from database
+  const draftPost = await prisma.draftPost.findUnique({
+    where: { id: session.postCreation.draftId }
+  });
+
+  if (!draftPost) {
+    return ctx.editMessageText("❌ Session expired. Please use /post_locked to start over.");
+  }
+
+  // Update draft with selected token
+  let finalPriceAmount = draftPost.priceAmount;
+  const displayPrice = parseFloat(draftPost.displayPrice!);
 
   // Recalculate price if token changed
-  if (token !== session.postCreation.defaultToken) {
-    const rawPrice = convertToRawUnits(session.postCreation.displayPrice, token);
-    session.postCreation.priceAmount = rawPrice;
+  if (token !== draftPost.defaultToken) {
+    finalPriceAmount = convertToRawUnits(displayPrice, token);
   }
+
+  await prisma.draftPost.update({
+    where: { id: draftPost.id },
+    data: {
+      priceToken: token,
+      priceAmount: finalPriceAmount
+    }
+  });
 
   // Create the locked post
   try {
+    const attachments = draftPost.attachments ? JSON.parse(draftPost.attachments) : [];
+    
     const post = await prisma.lockedPost.create({
       data: {
-        tgChatId: session.postCreation.channelId,
+        tgChatId: draftPost.channelId,
         channelMsgId: "", // Will be updated after posting
-        contentType: session.postCreation.contentType,
-        priceAmount: session.postCreation.priceAmount,
+        contentType: "mixed",
+        priceAmount: finalPriceAmount!,
         priceToken: token,
         payloadRef: JSON.stringify({
-          textContent: session.postCreation.textContent || "",
-          attachments: session.postCreation.attachments || []
+          textContent: draftPost.textContent || "",
+          attachments: attachments
         }),
-        title: session.postCreation.title || null,
-        teaserText: session.postCreation.teaserText
+        title: draftPost.title || null,
+        teaserText: draftPost.teaserText
       }
     });
 
     // Create the channel post with unlock button
     const keyboard = new InlineKeyboard()
-      .text(`🔓 Unlock (${session.postCreation.displayPrice} ${token})`, `unlock:${post.id}`).row()
-      .text("💖 Tip Creator", `tip_channel:${session.postCreation.channelId}`);
+      .text(`🔓 Unlock (${displayPrice} ${token})`, `unlock:${post.id}`).row()
+      .text("💖 Tip Creator", `tip_channel:${draftPost.channelId}`);
 
-    const hasAttachments = session.postCreation.attachments && session.postCreation.attachments.length > 0;
-    const hasText = session.postCreation.textContent && session.postCreation.textContent.trim();
+    const hasAttachments = attachments.length > 0;
+    const hasText = draftPost.textContent && draftPost.textContent.trim();
     
     let contentDescription = "content";
     if (hasText && hasAttachments) {
       contentDescription = "content with media";
     } else if (hasAttachments) {
-      const photos = session.postCreation.attachments.filter(a => a.type === "photo").length;
-      const videos = session.postCreation.attachments.filter(a => a.type === "video").length;
+      const photos = attachments.filter(a => a.type === "photo").length;
+      const videos = attachments.filter(a => a.type === "video").length;
       if (photos > 0 && videos > 0) {
         contentDescription = `${photos} image(s) and ${videos} video(s)`;
       } else if (photos > 0) {
@@ -382,14 +537,14 @@ export async function handlePostTokenSelection(ctx: BotContext, token: string) {
     }
 
     const messageText = 
-      `${session.postCreation.title ? `**${session.postCreation.title}**\n\n` : ""}` +
-      `${session.postCreation.teaserText}\n\n` +
+      `${draftPost.title ? `**${draftPost.title}**\n\n` : ""}` +
+      `${draftPost.teaserText}\n\n` +
       `━━━━━━━━━━━━━━━\n` +
       `🔒 Unlock to view full ${contentDescription}`;
 
     // Post to channel
     const channelMessage = await ctx.api.sendMessage(
-      session.postCreation.channelId,
+      draftPost.channelId,
       messageText,
       { 
         parse_mode: "Markdown",
@@ -403,9 +558,10 @@ export async function handlePostTokenSelection(ctx: BotContext, token: string) {
       data: { channelMsgId: String(channelMessage.message_id) }
     });
 
-    // Save session data before clearing
-    const contentType = session.postCreation.contentType;
-    const displayPrice = session.postCreation.displayPrice;
+    // Clean up draft post after successful creation
+    await prisma.draftPost.delete({
+      where: { id: draftPost.id }
+    });
     
     // Clear session
     delete session.postCreation;

@@ -434,4 +434,28 @@ model PostAccess {
   @@map("post_access")
 }
 
+model DraftPost {
+  id             String   @id @default(cuid())
+  authorTgId     String   // Telegram ID of the author
+  channelId      String   // Channel ID where this will be posted
+  channelTitle   String?  // Channel name for reference
+  title          String?  // Post title
+  teaserText     String?  @db.Text // Preview text
+  textContent    String?  @db.Text // Main text content
+  attachments    String?  @db.Text // JSON array of attachments
+  priceAmount    String?  // Price in raw units
+  priceToken     String?  // Token ticker
+  displayPrice   String?  // Human readable price
+  defaultToken   String?  // Default channel token
+  defaultPrice   String?  // Default channel price
+  currentStep    String   @default("set_title") // Current step in creation process
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  @@index([authorTgId])
+  @@index([channelId])
+  @@index([currentStep])
+  @@map("draft_posts")
+}
+
 

@@ -70,18 +70,64 @@ if (bot) {
     // Other callback handlers will be processed by command routers
   });
 
-  // Handle general messages (non-command)
+  // Handle general messages (non-command) - route to appropriate handlers
   bot.on("message", async (ctx) => {
     const chatType = ctx.chat?.type;
     const text = ctx.message?.text || "";
+    const session = ctx.session as any;
     
-    // Only handle non-command messages
+    // Only handle non-command messages when not in any active workflow
     if (!text.startsWith("/")) {
       if (chatType === "private") {
-        // Default private message handler - only respond to non-commands
-        await ctx.reply("Use /start to begin or /help for commands.");
+        // Post creation workflow handling
+        if (session.postCreation) {
+          const { 
+            handlePostTitleInput, 
+            handlePostTeaserInput, 
+            handlePostContentInput, 
+            handlePostPriceInput 
+          } = await import("./commands/post-locked");
+          
+          switch (session.postCreation.step) {
+            case "set_title":
+              await handlePostTitleInput(ctx);
+              return;
+            case "set_teaser":
+              await handlePostTeaserInput(ctx);
+              return;
+            case "set_content":
+              await handlePostContentInput(ctx);
+              return;
+            case "set_price":
+              await handlePostPriceInput(ctx);
+              return;
+          }
+        }
+        
+        // Check if user is in any active workflow before showing default message
+        const inWorkflow = session.awaitingPrivateKey || 
+                          session.expectingGroupPrice || 
+                          session.linkingGroup || 
+                          session.channelSetup || 
+                          session.postCreation || 
+                          session.tipIntent?.step === 'custom_amount';
+        
+        if (!inWorkflow) {
+          // Default private message handler - only respond when not in workflow
+          await ctx.reply("Use /start to begin or /help for commands.");
+        }
       }
       // Ignore other group messages without commands
+    }
+  });
+
+  // Handle media uploads in post creation
+  bot.on(["message:photo", "message:video"], async (ctx) => {
+    const session = ctx.session as any;
+    
+    if (ctx.chat?.type === "private" && session.postCreation?.step === "set_content") {
+      const { handlePostMediaUpload } = await import("./commands/post-locked");
+      await handlePostMediaUpload(ctx);
     }
   });
 }

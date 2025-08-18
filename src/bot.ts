@@ -52,6 +52,11 @@ if (bot) {
   // Register command routers
   registerGroupRoutes(bot);
   registerDMRoutes(bot);
+  
+  // Register KOL submenu callbacks
+  import("./commands").then(({ registerKolSubmenuCallbacks }) => {
+    registerKolSubmenuCallbacks(bot);
+  });
 
   // Handle notification callbacks (reactions only)
   bot.on("callback_query", async (ctx) => {

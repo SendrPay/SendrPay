@@ -408,8 +408,10 @@ async function showKolMenu(ctx: BotContext) {
     reply_markup: keyboard
   });
 
-  
-  // Add KOL submenu callbacks to main callback system
+}
+
+// Add KOL submenu callbacks to main callback system - these need to be registered with the bot instance
+export function registerKolSubmenuCallbacks(bot: Bot<BotContext>) {
   bot.callbackQuery("kol_setup", async (ctx) => {
     await ctx.answerCallbackQuery();
     // Use the inline KOL setup instead of the old setup.ts

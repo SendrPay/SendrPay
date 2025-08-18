@@ -73,12 +73,13 @@ export async function commandKolPost(ctx: BotContext) {
       }
     );
 
-    // Store the message for posting
+    // Store the message for posting with better session management
     ctx.session = ctx.session || {};
     (ctx.session as any).groupMessage = {
       text: groupMessageText,
       keyboard: keyboard,
-      userId: userId
+      userId: userId,
+      timestamp: Date.now() // Add timestamp for session validation
     };
 
   } catch (error) {

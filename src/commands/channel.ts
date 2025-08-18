@@ -12,6 +12,13 @@ export async function commandChannelInit(ctx: BotContext) {
   const userId = ctx.from!.id;
   const telegramId = String(userId);
 
+  // Clear any existing session state to prevent conflicts
+  const session = ctx.session as any;
+  delete session.expectingGroupPrice;
+  delete session.setupGroupToken;
+  delete session.postCreation;
+  delete session.linkingGroup;
+
   // Set up session state for channel setup
   (ctx.session as any).channelSetup = {
     step: "enter_channel_username",

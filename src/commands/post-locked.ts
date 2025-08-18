@@ -11,6 +11,13 @@ export async function commandPostLocked(ctx: BotContext) {
 
   const userId = String(ctx.from!.id);
 
+  // Clear any existing session state to prevent conflicts
+  const session = ctx.session as any;
+  delete session.expectingGroupPrice;
+  delete session.setupGroupToken;
+  delete session.channelSetup;
+  delete session.linkingGroup;
+
   // Check if user has any configured channels
   const channels = await prisma.kolChannel.findMany({
     where: { 

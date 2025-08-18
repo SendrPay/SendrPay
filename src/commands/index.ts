@@ -166,8 +166,37 @@ Send private key now:`, { parse_mode: "Markdown" });
         }
       }
       // Handle message inputs based on session state (order matters for workflow separation!)
-      // 1. KOL group setup workflows (PRIORITY 1 - prevents conflicts with paywall setup)
-      else if (session.expectingGroupPrice) {
+      // 1. Post creation workflows (PRIORITY 1 - most specific workflow)
+      else if (session.postCreation) {
+        if (session.postCreation.step === 'set_title') {
+          const { handlePostTitleInput } = await import("./post-locked");
+          await handlePostTitleInput(ctx);
+        } else if (session.postCreation.step === 'set_teaser') {
+          const { handlePostTeaserInput } = await import("./post-locked");
+          await handlePostTeaserInput(ctx);
+        } else if (session.postCreation.step === 'set_content') {
+          const { handlePostContentInput } = await import("./post-locked");
+          await handlePostContentInput(ctx);
+        } else if (session.postCreation.step === 'set_price') {
+          const { handlePostPriceInput } = await import("./post-locked");
+          await handlePostPriceInput(ctx);
+        }
+      }
+      // 2. Channel setup workflows (PRIORITY 2 - specific workflow)
+      else if (session.channelSetup) {
+        if (session.channelSetup.step === 'enter_channel_username') {
+          const { handleChannelUsernameInput } = await import("./channel");
+          await handleChannelUsernameInput(ctx);
+        } else if (session.channelSetup.step === 'set_price') {
+          const { handleChannelPriceInput } = await import("./channel");
+          await handleChannelPriceInput(ctx);
+        } else if (session.channelSetup.step === 'set_presets') {
+          const { handleChannelPresetsInput } = await import("./channel");
+          await handleChannelPresetsInput(ctx);
+        }
+      }
+      // 3. KOL group setup workflows (PRIORITY 3 - after more specific workflows)
+      else if (session.expectingGroupPrice && session.setupGroupToken) {
         const { handleGroupPriceInput } = await import("./setup");
         await handleGroupPriceInput(ctx);
       }
@@ -175,29 +204,7 @@ Send private key now:`, { parse_mode: "Markdown" });
         const { handleGroupLinkInput } = await import("./linkgroup");
         await handleGroupLinkInput(ctx);
       }
-      // Note: setupState handling is done by setup command callbacks, not text input
-      // 2. Channel paywalled content workflows (PRIORITY 2 - separate from KOL setup)
-      else if (session.channelSetup) {
-        if (session.channelSetup.step === 'enter_channel_username') {
-          await handleChannelUsernameInput(ctx);
-        } else if (session.channelSetup.step === 'set_price') {
-          await handleChannelPriceInput(ctx);
-        } else if (session.channelSetup.step === 'set_presets') {
-          await handleChannelPresetsInput(ctx);
-        }
-      }
-      else if (session.postCreation) {
-        if (session.postCreation.step === 'set_title') {
-          await handlePostTitleInput(ctx);
-        } else if (session.postCreation.step === 'set_teaser') {
-          await handlePostTeaserInput(ctx);
-        } else if (session.postCreation.step === 'set_content') {
-          await handlePostContentInput(ctx);
-        } else if (session.postCreation.step === 'set_price') {
-          await handlePostPriceInput(ctx);
-        }
-      }
-      // 3. Other workflows (PRIORITY 3)
+      // 4. Other workflows (PRIORITY 4)
       else if (session.tipIntent?.step === 'custom_amount') {
         await handleCustomTipAmount(ctx);
       }

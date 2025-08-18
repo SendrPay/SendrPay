@@ -1,7 +1,14 @@
 # SendrPay Telegram Bot
 
 ## Overview
-SendrPay is a multi-platform blockchain payment bot for seamless crypto transactions on the Solana devnet, integrating with Telegram and Discord. It provides advanced cross-platform user management, wallet linking, and features for Key Opinion Leader (KOL) monetization, including paid group access and content monetization. The project aims to enable easy crypto payments and monetization within messaging platforms.
+SendrPay is a multi-platform blockchain payment bot for seamless crypto transactions on the Solana devnet, integrating with Telegram and Discord. It provides advanced cross-platform user management, wallet linking, and features for Key Opinion Leader (KOL) monetization, including paid group access with subscription models and content monetization. The project aims to enable easy crypto payments and monetization within messaging platforms.
+
+## Recent Changes (August 18, 2025)
+- Fixed KOL setup inline button functionality - `/kol_setup` command now properly routes to the correct handler
+- Added recurring subscription system for KOL group access with weekly/monthly/quarterly/yearly billing cycles  
+- Enhanced database schema with KolSettings subscription fields and new Subscription model
+- Updated callback handler registration to support subscription management buttons
+- Improved KOL setup interface with subscription type selection and billing cycle configuration
 
 ## User Preferences
 - Clear, concise communication without technical jargon
@@ -19,7 +26,8 @@ The system emphasizes an intuitive, button-driven inline interface for all featu
 ### Technical Implementations
 - **Payment Processing**: Comprehensive payment flow with platform fee deduction (2% for tips, 5% for group access). Payments are sent to verified wallet addresses, not Telegram IDs, and handle rent exemption. Transaction details are embedded in callback buttons for session persistence.
 - **KOL Monetization**:
-    - **Group Join**: Secure processing of payments for group access, generating single-use invite links after confirmation.
+    - **Group Join**: Secure processing of payments for group access, generating single-use invite links after confirmation. Now supports both one-time payments and recurring subscriptions.
+    - **Recurring Subscriptions**: KOLs can set up subscription-based group access with billing cycles (weekly/monthly/quarterly/yearly). Database tracks subscription status, billing dates, and failed payments.
     - **Channel Posting**: `/kol_post` command allows KOLs to create and post interactive group join messages to channels or groups.
     - **Content Monetization**: Supports paywalled content (`/paywall_setup`, `/create_post`), including mixed media (text, images, video) with smart descriptions.
 - **Wallet Management**: Features include balance checks, sending, tipping, withdrawing, depositing, and transaction history.
@@ -27,7 +35,8 @@ The system emphasizes an intuitive, button-driven inline interface for all featu
 - **Command Structure**: Distinct commands (`/kol_setup`, `/kol_post`, `/paywall_setup`, `/create_post`, `/interface`) are used to prevent workflow conflicts, complemented by a full inline button interface.
 
 ### Feature Specifications
-- **KOL Settings**: KOLs can configure accepted tokens (SOL, USDC, BONK, JUP), set group access pricing, and link private groups.
+- **KOL Settings**: KOLs can configure accepted tokens (SOL, USDC, BONK, JUP), set group access pricing, choose between one-time or recurring subscription models, set billing cycles, and link private groups.
+- **Subscription Management**: Database models track user subscriptions, billing cycles, payment status, and automatic renewal handling for recurring group access.
 - **Platform Fees**: Automatically collected and sent to a designated treasury wallet.
 - **User Commands**: `/start`, `/pay`, `/tip`, `/balance`, `/withdraw`, `/deposit`, `/history`.
 - **KOL Commands**: `/kol_setup`, `/kol [@username]`, `/kol_post`, `/linkgroup`, `/unlinkgroup`.

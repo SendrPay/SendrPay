@@ -33,6 +33,8 @@ model User {
   kolSettings     KolSettings?
   groupAccess     GroupAccess[] @relation("GroupMember")
   ownedGroups     GroupAccess[] @relation("GroupOwner")
+  subscriptions   Subscription[] @relation("SubscriptionMember")
+  ownedSubscriptions Subscription[] @relation("SubscriptionOwner")
 
   @@map("users")
 }
@@ -351,6 +353,8 @@ model KolSettings {
   groupAccessToken    String?  // Token ticker for group access payment
   groupAccessPrice    String?  // Price in raw units for group access
   privateGroupChatId  String?  // Telegram chat ID of the private group
+  subscriptionType    String?  @default("one_time") // "one_time" | "recurring"
+  billingCycle        String?  // "weekly" | "monthly" | "quarterly" | "yearly" (only for recurring)
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
   
@@ -456,6 +460,34 @@ model DraftPost {
   @@index([channelId])
   @@index([currentStep])
   @@map("draft_posts")
+}
+
+model Subscription {
+  id              String   @id @default(cuid())
+  subscriberId    Int      // Member who subscribed
+  subscriber      User     @relation("SubscriptionMember", fields: [subscriberId], references: [id], onDelete: Cascade)
+  kolOwnerId      Int      // KOL who owns the group
+  kolOwner        User     @relation("SubscriptionOwner", fields: [kolOwnerId], references: [id], onDelete: Cascade)
+  groupChatId     String   // Telegram chat ID of the private group
+  subscriptionType String  // "one_time" | "recurring"
+  billingCycle    String?  // "weekly" | "monthly" | "quarterly" | "yearly"
+  paymentToken    String   // Token used for payment
+  pricePerPeriod  String   // Price in raw units per billing cycle
+  status          String   @default("active") // "active" | "paused" | "cancelled" | "expired"
+  startDate       DateTime @default(now())
+  nextBillingDate DateTime? // When next payment is due
+  lastPaidAt      DateTime @default(now())
+  failedPayments  Int      @default(0) // Counter for failed payments
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@unique([subscriberId, groupChatId])
+  @@index([subscriberId])
+  @@index([kolOwnerId])
+  @@index([groupChatId])
+  @@index([status])
+  @@index([nextBillingDate])
+  @@map("subscriptions")
 }
 
 

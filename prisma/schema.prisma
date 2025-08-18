@@ -366,6 +366,7 @@ model GroupAccess {
   groupOwner    User     @relation("GroupOwner", fields: [groupOwnerId], references: [id], onDelete: Cascade)
   groupChatId   String   // Telegram chat ID of the private group
   paymentId     String?  // Reference to the payment for this access
+  linkCode      String?  // Tracked single-use link code
   accessGranted DateTime @default(now())
   expiresAt     DateTime? // Optional expiration date for access
   
@@ -373,6 +374,7 @@ model GroupAccess {
   @@index([memberId])
   @@index([groupOwnerId])
   @@index([groupChatId])
+  @@index([linkCode])
   @@map("group_access")
 }
 

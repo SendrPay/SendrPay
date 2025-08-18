@@ -273,7 +273,8 @@ Send private key now:`, { parse_mode: "Markdown" });
   });
 
   // KOL inline button callbacks - complete workflow
-  bot.callbackQuery(/^(setup_|tip_token_|group_|back_setup:|tip_select:|tip_amount:|kol_settings:|view_profile:)/, async (ctx) => {
+  bot.callbackQuery(/^(setup_|tip_token_|group_|back_setup:|tip_select:|tip_amount:|kol_settings:|view_profile:|post_group_message|confirm_tip_payment:|confirm_group_join:|cancel_tip_payment|cancel_group_join|post_to_channel:|post_to_group:|copy_message:|cancel_post)/, async (ctx) => {
+    const { handleKolCallbacks } = await import("./kol-inline");
     await handleKolCallbacks(ctx);
   });
 

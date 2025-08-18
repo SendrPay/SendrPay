@@ -708,7 +708,7 @@ async function executeGroupJoin(ctx: BotContext, targetUserId: string) {
     });
 
     if (result.success) {
-      // Create group access record
+      // Create group access record using the correct user IDs
       await prisma.groupAccess.create({
         data: {
           memberId: buyer.id,

@@ -372,11 +372,19 @@ export async function handleJoinGroupCallback(ctx: BotContext) {
       return ctx.answerCallbackQuery("❌ Group access not available.");
     }
 
-    // Check if user already has access
+    // Check if user already has access by finding the user first
+    const user = await prisma.user.findUnique({
+      where: { telegramId: userId }
+    });
+
+    if (!user) {
+      return ctx.answerCallbackQuery("❌ Please create a wallet first using /start");
+    }
+
     const existingAccess = await prisma.groupAccess.findUnique({
       where: {
         memberId_groupChatId: {
-          memberId: parseInt(userId),
+          memberId: user.id,
           groupChatId: kol.kolSettings.privateGroupChatId!
         }
       }

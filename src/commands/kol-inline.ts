@@ -192,8 +192,8 @@ export async function handleKolCallbacks(ctx: BotContext) {
       const [, token, userId] = data.split(":");
       await setGroupToken(ctx, userId, token);
     } else if (data.startsWith("sub_type:")) {
-      const [, type, userId] = data.split(":");
-      await setSubscriptionType(ctx, userId, type);
+      const userId = data.split(":")[1];
+      await setSubscriptionType(ctx, userId);
     } else if (data.startsWith("billing_cycle:")) {
       const userId = data.split(":")[1];
       await showBillingCycleMenu(ctx, userId);
@@ -667,9 +667,15 @@ function convertToRawUnits(amount: number, token: string): string {
 }
 
 // Set subscription type
-async function setSubscriptionType(ctx: BotContext, userId: string, type?: string) {
+async function setSubscriptionType(ctx: BotContext, userId: string) {
   try {
-    logger.info(`Setting subscription type for user: ${userId}, type: ${type}`);
+    logger.info(`Toggling subscription type for user: ${userId}`);
+    
+    if (!userId) {
+      logger.error("User ID is undefined");
+      await ctx.answerCallbackQuery("❌ Invalid user");
+      return;
+    }
     
     const user = await prisma.user.findUnique({
       where: { telegramId: userId },
@@ -684,12 +690,12 @@ async function setSubscriptionType(ctx: BotContext, userId: string, type?: strin
 
     if (!user.kolSettings) {
       logger.error(`KOL settings not found for user: ${userId}`);
-      await ctx.answerCallbackQuery("❌ KOL settings not found");
+      await ctx.answerCallbackQuery("❌ Settings not found");
       return;
     }
     
     const currentType = user.kolSettings.subscriptionType || "one_time";
-    const newType = type || (currentType === "one_time" ? "recurring" : "one_time");
+    const newType = currentType === "one_time" ? "recurring" : "one_time";
     
     logger.info(`Updating subscription type from ${currentType} to ${newType} for user: ${userId}`);
     
@@ -711,17 +717,16 @@ async function setSubscriptionType(ctx: BotContext, userId: string, type?: strin
       data: updateData
     });
     
-    logger.info(`Successfully updated subscription type for user: ${userId}`);
+    logger.info(`Successfully updated subscription type to ${newType} for user: ${userId}`);
     await showGroupSetupMenu(ctx, userId);
     
   } catch (error) {
     logger.error(`Error setting subscription type for user ${userId}:`, {
       error: error instanceof Error ? error.message : error,
       stack: error instanceof Error ? error.stack : undefined,
-      userId: userId,
-      type: type
+      userId: userId
     });
-    await ctx.answerCallbackQuery(`❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    await ctx.answerCallbackQuery("❌ Database error");
   }
 }
 
@@ -839,7 +844,7 @@ async function setBillingCycle(ctx: BotContext, userId: string, cycle: string) {
       userId: userId,
       cycle: cycle
     });
-    await ctx.answerCallbackQuery(`❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    await ctx.answerCallbackQuery("❌ Billing cycle error");
   }
 }
 

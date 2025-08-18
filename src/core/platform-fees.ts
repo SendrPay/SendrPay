@@ -67,16 +67,51 @@ export async function executePaymentWithPlatformFee(params: {
     const platformFeeRaw = amountRaw * BigInt(Math.floor(platformFeePercent * 100)) / 100n;
     const netAmountRaw = amountRaw - platformFeeRaw;
 
-    // Check balance
-    const balance = await getWalletBalance(sender.wallets[0].address);
-    const tokenBalance = balance?.find(b => b.mint === token.mint);
-    
-    if (!tokenBalance || BigInt(tokenBalance.amount) < amountRaw) {
-      return { success: false, error: "Insufficient balance" };
-    }
-
-    // Get connection
+    // Get connection for balance checking and transaction execution
     const connection = new Connection(env.RPC_URL!);
+    
+    // Check balance using proper token identification and comprehensive cost calculation
+    const balance = await getWalletBalance(sender.wallets[0].address);
+    
+    // For SOL transfers, check SOL balance including transaction costs and rent exemption
+    if (token.mint === 'So11111111111111111111111111111111111111112') {
+      const solBalance = balance?.find(b => b.mint === "SOL");
+      
+      if (!solBalance) {
+        return { success: false, error: "No SOL balance found" };
+      }
+      
+      // Calculate total cost: amount + platform fee + transaction fee + potential rent exemption
+      const recipientPubkey = new PublicKey(recipient.wallets[0].address);
+      const recipientBalance = await connection.getBalance(recipientPubkey);
+      
+      const rentExemptMinimum = 890880; // ~0.00089 SOL
+      const estimatedTxFee = 10000; // ~0.00001 SOL for transaction fee
+      const recipientFunding = recipientBalance === 0 ? BigInt(rentExemptMinimum) : 0n;
+      
+      const totalRequired = amountRaw + recipientFunding + BigInt(estimatedTxFee);
+      
+      if (BigInt(solBalance.amount) < totalRequired) {
+        const requiredSol = Number(totalRequired) / 1e9;
+        const availableSol = solBalance.uiAmount;
+        return { 
+          success: false, 
+          error: `Insufficient SOL balance. Required: ${requiredSol.toFixed(6)} SOL (including fees and rent), Available: ${availableSol.toFixed(4)} SOL` 
+        };
+      }
+    } else {
+      // For SPL tokens, check token balance
+      const tokenBalance = balance?.find(b => b.mint === token.mint);
+      
+      if (!tokenBalance || BigInt(tokenBalance.amount) < amountRaw) {
+        const requiredTokens = Number(amountRaw) / (10 ** token.decimals);
+        const availableTokens = tokenBalance ? Number(tokenBalance.amount) / (10 ** token.decimals) : 0;
+        return { 
+          success: false, 
+          error: `Insufficient ${token.ticker} balance. Required: ${requiredTokens.toFixed(4)} ${token.ticker}, Available: ${availableTokens.toFixed(4)} ${token.ticker}` 
+        };
+      }
+    }
 
     // Get sender keypair
     const senderKeypair = await getWalletKeypair(sender.wallets[0].address);
@@ -93,14 +128,29 @@ export async function executePaymentWithPlatformFee(params: {
 
     if (token.mint === 'So11111111111111111111111111111111111111112') {
       // Native SOL transfers
-      // Transfer to recipient
-      transaction.add(
-        SystemProgram.transfer({
-          fromPubkey: senderKeypair.publicKey,
-          toPubkey: new PublicKey(recipient.wallets[0].address),
-          lamports: Number(netAmountRaw)
-        })
-      );
+      const recipientPubkey = new PublicKey(recipient.wallets[0].address);
+      const recipientBalance = await connection.getBalance(recipientPubkey);
+      
+      // If recipient has 0 balance, add rent exemption funding
+      if (recipientBalance === 0) {
+        const rentExemptMinimum = 890880; // ~0.00089 SOL
+        transaction.add(
+          SystemProgram.transfer({
+            fromPubkey: senderKeypair.publicKey,
+            toPubkey: recipientPubkey,
+            lamports: rentExemptMinimum + Number(netAmountRaw)
+          })
+        );
+      } else {
+        // Transfer to recipient (existing wallet)
+        transaction.add(
+          SystemProgram.transfer({
+            fromPubkey: senderKeypair.publicKey,
+            toPubkey: recipientPubkey,
+            lamports: Number(netAmountRaw)
+          })
+        );
+      }
 
       // Transfer platform fee
       if (platformFeeRaw > 0n && platformWallet.toString() !== senderKeypair.publicKey.toString()) {

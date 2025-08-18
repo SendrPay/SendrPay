@@ -19,12 +19,11 @@ The system emphasizes an intuitive, button-driven inline interface for all featu
 ### Technical Implementations
 - **Payment Processing**: Comprehensive payment flow with platform fee deduction (2% for tips, 5% for group access). Payments are sent to verified wallet addresses, not Telegram IDs, and handle rent exemption. Transaction details are embedded in callback buttons for session persistence.
 - **KOL Monetization**:
-    - **Group Join**: Secure processing of payments for group access, generating tracked single-use links that redirect to time-limited Telegram invites after verification.
+    - **Group Join**: Secure processing of payments for group access, generating single-use invite links after confirmation.
     - **Channel Posting**: `/kol_post` command allows KOLs to create and post interactive group join messages to channels or groups.
     - **Content Monetization**: Supports paywalled content (`/paywall_setup`, `/create_post`), including mixed media (text, images, video) with smart descriptions.
-    - **Single-Use Link System**: Custom `/group/:code` route validates tracked codes, consumes them on first use, and generates ephemeral Telegram invites (24-hour expiration) to prevent link sharing.
 - **Wallet Management**: Features include balance checks, sending, tipping, withdrawing, depositing, and transaction history.
-- **Security**: Custodial wallets with AES-GCM encrypted private keys, rate limiting, on-chain transaction validation, single-use tracked group access links (24-hour expiration), and DM-based private payment processing. User authentication is based on Telegram ID.
+- **Security**: Custodial wallets with AES-GCM encrypted private keys, rate limiting, on-chain transaction validation, single-use group invites, and DM-based private payment processing. User authentication is based on Telegram ID.
 - **Command Structure**: Distinct commands (`/kol_setup`, `/kol_post`, `/paywall_setup`, `/create_post`, `/interface`) are used to prevent workflow conflicts, complemented by a full inline button interface.
 
 ### Feature Specifications

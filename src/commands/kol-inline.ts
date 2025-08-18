@@ -1,7 +1,6 @@
 import { Bot, InlineKeyboard } from "grammy";
 import { BotContext } from "../bot";
 import { PrismaClient } from "@prisma/client";
-import { createLinkCode } from "../core/link.js";
 const logger = {
   error: (msg: string, error?: any) => console.error(msg, error),
   info: (msg: string, data?: any) => console.log(msg, data)
@@ -709,30 +708,32 @@ async function executeGroupJoin(ctx: BotContext, targetUserId: string) {
     });
 
     if (result.success) {
-      // Generate single-use tracked link
-      try {
-        // Create a tracked single-use code that expires in 24 hours
-        const linkCode = createLinkCode(buyer.id, "telegram", 24 * 60); // 24 hours in minutes
-        
-        // Create group access record using the correct user IDs
-        await prisma.groupAccess.create({
-          data: {
-            memberId: buyer.id,
-            groupOwnerId: kolUser.id,
-            groupChatId: kolUser.kolSettings.privateGroupChatId,
-            paymentId: result.paymentId!
-          }
-        });
+      // Create group access record using the correct user IDs
+      await prisma.groupAccess.create({
+        data: {
+          memberId: buyer.id,
+          groupOwnerId: kolUser.id,
+          groupChatId: kolUser.kolSettings.privateGroupChatId,
+          paymentId: result.paymentId!
+        }
+      });
 
-        const baseUrl = process.env.PUBLIC_URL || 'https://your-app.replit.app';
-        const secureLink = `${baseUrl}/group/${linkCode}`;
+      // Generate invite link
+      try {
+        const inviteLink = await ctx.api.createChatInviteLink(
+          parseInt(kolUser.kolSettings.privateGroupChatId),
+          {
+            member_limit: 1,
+            name: `Access for @${buyer.handle || String(buyerId)}`
+          }
+        );
 
         await ctx.editMessageText(
           `✅ **Group Access Granted!**\n\n` +
           `**Payment:** ${price} ${kolUser.kolSettings.groupAccessToken}\n` +
           `**Transaction:** [View on Explorer](${result.explorerLink})\n\n` +
-          `**Your Secure Access Link:**\n${secureLink}\n\n` +
-          `⚠️ _This is a single-use link that expires in 24 hours. Do not share it with others._`,
+          `**Your Invite Link:**\n${inviteLink.invite_link}\n\n` +
+          `_This is a single-use link. Click it to join the group!_`,
           { 
             parse_mode: "Markdown",
             link_preview_options: { is_disabled: true }

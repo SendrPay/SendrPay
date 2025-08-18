@@ -191,16 +191,15 @@ export async function handleKolCallbacks(ctx: BotContext) {
     } else if (data.startsWith("group_token:")) {
       const [, token, userId] = data.split(":");
       await setGroupToken(ctx, userId, token);
-    } else if (data.startsWith("group_subscription:")) {
-      const userId = data.split(":")[1];
-      await showSubscriptionTypeMenu(ctx, userId);
     } else if (data.startsWith("sub_type:")) {
       const [, type, userId] = data.split(":");
       await setSubscriptionType(ctx, userId, type);
     } else if (data.startsWith("billing_cycle:")) {
+      const userId = data.split(":")[1];
+      await showBillingCycleMenu(ctx, userId);
+    } else if (data.startsWith("set_billing:")) {
       const [, cycle, userId] = data.split(":");
-      // Billing cycle functionality removed - only one-time payments supported
-      await showGroupSetupMenu(ctx, userId);
+      await setBillingCycle(ctx, userId, cycle);
     } else if (data.startsWith("back_setup:")) {
       const userId = data.split(":")[1];
       const user = await prisma.user.findUnique({
@@ -311,8 +310,18 @@ async function showGroupSetupMenu(ctx: BotContext, userId: string) {
     ).row();
     
   if (settings?.groupAccessEnabled) {
-
+    // Subscription type selection
     keyboard.text("💰 Set Price", `group_price:${userId}`).row();
+    
+    keyboard.text(
+      `Payment Type: ${(settings as any).subscriptionType === "recurring" ? "🔄 Subscription" : "💸 One-time"}`,
+      `sub_type:${userId}`
+    ).row();
+    
+    // Show billing cycle only for recurring subscriptions
+    if ((settings as any).subscriptionType === "recurring") {
+      keyboard.text("📅 Billing Cycle", `billing_cycle:${userId}`).row();
+    }
     
     // Token selection
     const tokens = ["USDC", "SOL", "BONK", "JUP"];
@@ -332,9 +341,10 @@ async function showGroupSetupMenu(ctx: BotContext, userId: string) {
     `🎭 **Group Access Settings**\n\n` +
     `${settings?.groupAccessEnabled ? "✅ Group access is enabled" : "❌ Group access is disabled"}\n\n` +
     `${settings?.groupAccessEnabled ? 
-      `• Type: One-time payment\n` +
+      `• Type: ${(settings as any).subscriptionType === "recurring" ? "🔄 Recurring Subscription" : "💸 One-time Payment"}\n` +
+      `${(settings as any).subscriptionType === "recurring" ? `• Billing: ${(settings as any).billingCycle || "Not set"}\n` : ""}` +
       `• Token: ${settings.groupAccessToken || "Not set"}\n` +
-      `• Price: ${settings.groupAccessPrice ? convertFromRawUnits(settings.groupAccessPrice, settings.groupAccessToken || "USDC") : "Not set"}\n` +
+      `• Price: ${settings.groupAccessPrice ? convertFromRawUnits(settings.groupAccessPrice, settings.groupAccessToken || "USDC") : "Not set"}${(settings as any).subscriptionType === "recurring" ? ` per ${(settings as any).billingCycle || "period"}` : ""}\n` +
       `• Group: ${settings.privateGroupChatId ? "Linked" : "Not linked"}\n\n` +
       `Use /linkgroup in your private group to connect it.` :
       `Enable group access to monetize a private group.`}`;
@@ -634,6 +644,88 @@ function convertToRawUnits(amount: number, token: string): string {
   return String(Math.floor(amount * Math.pow(10, decimal)));
 }
 
+// Set subscription type
+async function setSubscriptionType(ctx: BotContext, userId: string, type?: string) {
+  const user = await prisma.user.findUnique({
+    where: { telegramId: userId },
+    include: { kolSettings: true }
+  });
+  
+  if (!user?.kolSettings) return;
+  
+  const currentType = (user.kolSettings as any).subscriptionType || "one_time";
+  const newType = type || (currentType === "one_time" ? "recurring" : "one_time");
+  
+  await prisma.kolSettings.update({
+    where: { id: user.kolSettings.id },
+    data: { 
+      subscriptionType: newType,
+      billingCycle: newType === "recurring" ? "monthly" : null // Default to monthly for recurring
+    } as any
+  });
+  
+  await showGroupSetupMenu(ctx, userId);
+}
+
+// Show billing cycle selection menu
+async function showBillingCycleMenu(ctx: BotContext, userId: string) {
+  const user = await prisma.user.findUnique({
+    where: { telegramId: userId },
+    include: { kolSettings: true }
+  });
+  
+  if (!user?.kolSettings) return;
+  
+  const currentCycle = (user.kolSettings as any).billingCycle || "monthly";
+  
+  const keyboard = new InlineKeyboard();
+  
+  const cycles = [
+    { label: "📅 Weekly", value: "weekly" },
+    { label: "📅 Monthly", value: "monthly" },
+    { label: "📅 Quarterly", value: "quarterly" },
+    { label: "📅 Yearly", value: "yearly" }
+  ];
+  
+  cycles.forEach(cycle => {
+    const isSelected = currentCycle === cycle.value;
+    keyboard.text(
+      `${cycle.label} ${isSelected ? "✅" : ""}`,
+      `set_billing:${cycle.value}:${userId}`
+    ).row();
+  });
+  
+  keyboard.text("⬅️ Back to Group Settings", `setup_group:${userId}`);
+  
+  const billingText = 
+    `📅 **Billing Cycle Selection**\n\n` +
+    `Choose how often members will be charged:\n\n` +
+    `Current: ${currentCycle.charAt(0).toUpperCase() + currentCycle.slice(1)}\n\n` +
+    `Select a billing cycle:`;
+  
+  await ctx.editMessageText(billingText, {
+    parse_mode: "Markdown",
+    reply_markup: keyboard
+  });
+}
+
+// Set billing cycle
+async function setBillingCycle(ctx: BotContext, userId: string, cycle: string) {
+  const user = await prisma.user.findUnique({
+    where: { telegramId: userId },
+    include: { kolSettings: true }
+  });
+  
+  if (!user?.kolSettings) return;
+  
+  await prisma.kolSettings.update({
+    where: { id: user.kolSettings.id },
+    data: { billingCycle: cycle } as any
+  });
+  
+  await showGroupSetupMenu(ctx, userId);
+}
+
 // Execute inline tip payment
 async function executeInlineTip(ctx: BotContext, targetUserId: string, amount: string, token: string) {
   try {
@@ -745,15 +837,15 @@ async function executeGroupJoin(ctx: BotContext, targetUserId: string) {
     });
 
     if (result.success) {
-      // Create group access record using the correct user IDs
-      await prisma.groupAccess.create({
-        data: {
-          memberId: buyer.id,
-          groupOwnerId: kolUser.id,
-          groupChatId: kolUser.kolSettings.privateGroupChatId,
-          paymentId: result.paymentId!
-        }
-      });
+      // Create subscription or group access using subscription manager
+      const { SubscriptionManager } = await import("../core/subscription-manager");
+      await SubscriptionManager.createSubscription(
+        buyer.id,
+        kolUser.id,
+        kolUser.kolSettings.privateGroupChatId,
+        kolUser.kolSettings,
+        result.paymentId!
+      );
 
       // Generate invite link
       try {
@@ -989,47 +1081,5 @@ async function handleCopyMessage(ctx: BotContext, userId: string) {
   }
 }
 
-// Show subscription type selection menu (simplified to one-time only)
-async function showSubscriptionTypeMenu(ctx: BotContext, userId: string) {
-  const user = await prisma.user.findUnique({
-    where: { telegramId: userId },
-    include: { kolSettings: true }
-  });
-  
-  if (!user) return;
 
-  const keyboard = new InlineKeyboard()
-    .text("✅ One-time Payment", `sub_type:one_time:${userId}`)
-    .row()
-    .text("⬅️ Back", `back_setup:${userId}`);
-
-  const subscriptionText = 
-    `💳 **Payment Type**\n\n` +
-    `Group access uses one-time payments for permanent access.\n\n` +
-    `• **Simple & Clear:** Single payment, permanent access\n` +
-    `• **No Recurring Charges:** Users pay once and keep access\n` +
-    `• **Easy Management:** No subscription tracking needed`;
-
-  await ctx.editMessageText(subscriptionText, { 
-    parse_mode: "Markdown",
-    reply_markup: keyboard 
-  });
-}
-
-// Set subscription type (simplified to one-time only)
-async function setSubscriptionType(ctx: BotContext, userId: string, type: string) {
-  const user = await prisma.user.findUnique({
-    where: { telegramId: userId },
-    include: { kolSettings: true }
-  });
-  
-  if (!user) return;
-  
-  // Always go back to group setup since we only support one-time payments
-  await showGroupSetupMenu(ctx, userId);
-}
-
-// Billing cycle menu removed - only one-time payments supported
-
-// Billing cycle function removed - only one-time payments supported
 

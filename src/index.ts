@@ -270,6 +270,10 @@ async function startApp() {
     
     logger.info("✅ SendrPay Telegram bot started successfully");
     
+    // Start subscription processor for recurring payments
+    const { SubscriptionManager } = await import("./core/subscription-manager");
+    SubscriptionManager.startSubscriptionProcessor();
+    
     // Add keep-alive mechanism to prevent server from sleeping
     setInterval(() => {
       // Self-ping to keep the server active

@@ -168,9 +168,11 @@ Send private key now:`, { parse_mode: "Markdown" });
       // Handle message inputs based on session state (order matters for workflow separation!)
       // 1. KOL group setup workflows (PRIORITY 1 - prevents conflicts with paywall setup)
       else if (session.expectingGroupPrice) {
+        const { handleGroupPriceInput } = await import("./setup");
         await handleGroupPriceInput(ctx);
       }
       else if (session.linkingGroup) {
+        const { handleGroupLinkInput } = await import("./linkgroup");
         await handleGroupLinkInput(ctx);
       }
       // Note: setupState handling is done by setup command callbacks, not text input

@@ -604,12 +604,13 @@ async function setGroupPrice(ctx: BotContext, userId: string) {
     session.expectingGroupPrice = true;
     session.setupGroupToken = currentToken;
     
+    // Use a new message instead of editing to avoid "message not modified" error
     await ctx.editMessageText(
       `💰 **Set Group Price**\n\n` +
       `Current token: ${currentToken}\n\n` +
-      `Please type the new price amount in chat.\n\n` +
+      `Please type the new price amount in the chat below.\n\n` +
       `Example: \`5.5\` for 5.5 ${currentToken}\n\n` +
-      `_Waiting for your input..._`,
+      `⏳ Waiting for your input...`,
       { parse_mode: "Markdown" }
     );
     

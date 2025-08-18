@@ -630,7 +630,7 @@ async function executeInlineTip(ctx: BotContext, targetUserId: string, amount: s
         `They received: ${(parseFloat(amount) * 0.98).toFixed(4)} ${token} (after 2% platform fee)`,
         { 
           parse_mode: "Markdown",
-          disable_web_page_preview: true
+          link_preview_options: { is_disabled: true }
         }
       );
 
@@ -648,7 +648,7 @@ async function executeInlineTip(ctx: BotContext, targetUserId: string, amount: s
           `**Transaction:** [View on Explorer](${result.explorerLink})`,
           { 
             parse_mode: "Markdown",
-            disable_web_page_preview: true
+            link_preview_options: { is_disabled: true }
           }
         );
       }
@@ -736,7 +736,7 @@ async function executeGroupJoin(ctx: BotContext, targetUserId: string) {
           `_This is a single-use link. Click it to join the group!_`,
           { 
             parse_mode: "Markdown",
-            disable_web_page_preview: true
+            link_preview_options: { is_disabled: true }
           }
         );
 
@@ -758,7 +758,7 @@ async function executeGroupJoin(ctx: BotContext, targetUserId: string) {
           `**Transaction:** [View on Explorer](${result.explorerLink})`,
           { 
             parse_mode: "Markdown",
-            disable_web_page_preview: true
+            link_preview_options: { is_disabled: true }
           }
         );
       }

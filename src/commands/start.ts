@@ -99,12 +99,23 @@ export async function showMainMenu(ctx: BotContext) {
     return ctx.reply("❌ No active wallet found. Use /start to set up.");
   }
 
-  // Get balance (simplified for now)
+  // Get balance (use same method as /balance command)
   let balanceText = "Loading...";
   try {
     const { getWalletBalance } = await import("../core/wallets");
-    const balance = await getWalletBalance(wallet.address);
-    balanceText = `${balance.toFixed(4)} SOL`;
+    const balances = await getWalletBalance(wallet.address);
+    
+    if (balances && balances.length > 0) {
+      // Find SOL balance
+      const solBalance = balances.find(b => b.mint === "SOL");
+      if (solBalance) {
+        balanceText = `${solBalance.uiAmount.toFixed(4)} SOL`;
+      } else {
+        balanceText = "0.0000 SOL";
+      }
+    } else {
+      balanceText = "0.0000 SOL";
+    }
   } catch (error) {
     balanceText = "0.0000 SOL";
   }

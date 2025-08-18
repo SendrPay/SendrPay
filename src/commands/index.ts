@@ -53,6 +53,7 @@ import {
 import { commandInlineInterface, handleInterfaceCallbacks } from "./inline-interface";
 import { registerPaywallCallbacks } from "../paywall/inline-simplified";
 import { handlePaywallInlineCallbacks } from "../paywall/inline-paywall";
+import { prisma } from "../infra/prisma";
 
 export function registerGroupRoutes(bot: Bot<BotContext>) {
   // Group commands
@@ -411,8 +412,44 @@ async function showKolMenu(ctx: BotContext) {
   // Add KOL submenu callbacks to main callback system
   bot.callbackQuery("kol_setup", async (ctx) => {
     await ctx.answerCallbackQuery();
-    const { commandSetup } = await import("./setup");
-    await commandSetup(ctx);
+    // Use the inline KOL setup instead of the old setup.ts
+    const userId = ctx.from?.id.toString();
+    if (!userId) return;
+    
+    const user = await prisma.user.findUnique({
+      where: { telegramId: userId },
+      include: { kolSettings: true }
+    });
+    
+    if (!user) {
+      return ctx.editMessageText("❌ Please start the bot first with /start");
+    }
+    
+    // Mark user as KOL if not already
+    if (!user.isKol) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { isKol: true }
+      });
+    }
+    
+    // Import the inline setup functions
+    const { handleKolCallbacks } = await import("./kol-inline");
+    
+    // Create or update KOL settings if needed
+    if (!user.kolSettings) {
+      await prisma.kolSettings.create({
+        data: {
+          userId: user.id,
+          acceptedTipTokens: [],
+          groupAccessEnabled: false
+        }
+      });
+    }
+    
+    // Show the KOL setup menu using the inline system
+    ctx.callbackQuery = { ...ctx.callbackQuery!, data: `kol_settings:${userId}` };
+    await handleKolCallbacks(ctx);
   });
 
   bot.callbackQuery("kol_profile", async (ctx) => {

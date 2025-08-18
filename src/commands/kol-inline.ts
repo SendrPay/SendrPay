@@ -570,21 +570,37 @@ async function processGroupJoin(ctx: BotContext, targetUserId: string) {
 // Set group price with proper session-based input handling
 async function setGroupPrice(ctx: BotContext, userId: string) {
   try {
+    logger.info(`Setting up group price input for user: ${userId}`);
+    
     const user = await prisma.user.findUnique({
       where: { telegramId: userId },
       include: { kolSettings: true }
     });
     
-    if (!user?.kolSettings) {
-      await ctx.editMessageText("❌ KOL settings not found. Please set up your account first.");
+    if (!user) {
+      logger.error(`User not found for telegramId: ${userId}`);
+      await ctx.editMessageText("❌ User not found. Please try again.");
+      return;
+    }
+
+    if (!user.kolSettings) {
+      logger.error(`KOL settings not found for user: ${userId}`);
+      await ctx.editMessageText("❌ KOL settings not found. Please set up your account first using /kol_setup.");
       return;
     }
 
     // Get current token or default to USDC
     const currentToken = user.kolSettings.groupAccessToken || "USDC";
+    logger.info(`Using token: ${currentToken} for user: ${userId}`);
     
     // Set up session for price input
     const session = ctx.session as any;
+    if (!session) {
+      logger.error(`Session not available for user: ${userId}`);
+      await ctx.editMessageText("❌ Session error. Please try the command again.");
+      return;
+    }
+    
     session.expectingGroupPrice = true;
     session.setupGroupToken = currentToken;
     
@@ -596,9 +612,15 @@ async function setGroupPrice(ctx: BotContext, userId: string) {
       `_Waiting for your input..._`,
       { parse_mode: "Markdown" }
     );
+    
+    logger.info(`Group price input setup completed for user: ${userId}`);
   } catch (error) {
-    logger.error("Error setting up group price input:", error);
-    await ctx.editMessageText("❌ Error setting up price input. Please try again.");
+    logger.error(`Detailed error setting up group price input for user ${userId}:`, {
+      error: error instanceof Error ? error.message : error,
+      stack: error instanceof Error ? error.stack : undefined,
+      userId: userId
+    });
+    await ctx.editMessageText(`❌ Error setting up price input: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`);
   }
 }
 
@@ -646,84 +668,179 @@ function convertToRawUnits(amount: number, token: string): string {
 
 // Set subscription type
 async function setSubscriptionType(ctx: BotContext, userId: string, type?: string) {
-  const user = await prisma.user.findUnique({
-    where: { telegramId: userId },
-    include: { kolSettings: true }
-  });
-  
-  if (!user?.kolSettings) return;
-  
-  const currentType = (user.kolSettings as any).subscriptionType || "one_time";
-  const newType = type || (currentType === "one_time" ? "recurring" : "one_time");
-  
-  await prisma.kolSettings.update({
-    where: { id: user.kolSettings.id },
-    data: { 
-      subscriptionType: newType,
-      billingCycle: newType === "recurring" ? "monthly" : null // Default to monthly for recurring
-    } as any
-  });
-  
-  await showGroupSetupMenu(ctx, userId);
+  try {
+    logger.info(`Setting subscription type for user: ${userId}, type: ${type}`);
+    
+    const user = await prisma.user.findUnique({
+      where: { telegramId: userId },
+      include: { kolSettings: true }
+    });
+    
+    if (!user) {
+      logger.error(`User not found for telegramId: ${userId}`);
+      await ctx.answerCallbackQuery("❌ User not found");
+      return;
+    }
+
+    if (!user.kolSettings) {
+      logger.error(`KOL settings not found for user: ${userId}`);
+      await ctx.answerCallbackQuery("❌ KOL settings not found");
+      return;
+    }
+    
+    const currentType = user.kolSettings.subscriptionType || "one_time";
+    const newType = type || (currentType === "one_time" ? "recurring" : "one_time");
+    
+    logger.info(`Updating subscription type from ${currentType} to ${newType} for user: ${userId}`);
+    
+    await ctx.answerCallbackQuery("⏳ Updating...");
+    
+    const updateData: any = {
+      subscriptionType: newType
+    };
+    
+    // Set billing cycle for recurring subscriptions
+    if (newType === "recurring") {
+      updateData.billingCycle = user.kolSettings.billingCycle || "monthly";
+    } else {
+      updateData.billingCycle = null;
+    }
+    
+    await prisma.kolSettings.update({
+      where: { id: user.kolSettings.id },
+      data: updateData
+    });
+    
+    logger.info(`Successfully updated subscription type for user: ${userId}`);
+    await showGroupSetupMenu(ctx, userId);
+    
+  } catch (error) {
+    logger.error(`Error setting subscription type for user ${userId}:`, {
+      error: error instanceof Error ? error.message : error,
+      stack: error instanceof Error ? error.stack : undefined,
+      userId: userId,
+      type: type
+    });
+    await ctx.answerCallbackQuery(`❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
 }
 
 // Show billing cycle selection menu
 async function showBillingCycleMenu(ctx: BotContext, userId: string) {
-  const user = await prisma.user.findUnique({
-    where: { telegramId: userId },
-    include: { kolSettings: true }
-  });
-  
-  if (!user?.kolSettings) return;
-  
-  const currentCycle = (user.kolSettings as any).billingCycle || "monthly";
-  
-  const keyboard = new InlineKeyboard();
-  
-  const cycles = [
-    { label: "📅 Weekly", value: "weekly" },
-    { label: "📅 Monthly", value: "monthly" },
-    { label: "📅 Quarterly", value: "quarterly" },
-    { label: "📅 Yearly", value: "yearly" }
-  ];
-  
-  cycles.forEach(cycle => {
-    const isSelected = currentCycle === cycle.value;
-    keyboard.text(
-      `${cycle.label} ${isSelected ? "✅" : ""}`,
-      `set_billing:${cycle.value}:${userId}`
-    ).row();
-  });
-  
-  keyboard.text("⬅️ Back to Group Settings", `setup_group:${userId}`);
-  
-  const billingText = 
-    `📅 **Billing Cycle Selection**\n\n` +
-    `Choose how often members will be charged:\n\n` +
-    `Current: ${currentCycle.charAt(0).toUpperCase() + currentCycle.slice(1)}\n\n` +
-    `Select a billing cycle:`;
-  
-  await ctx.editMessageText(billingText, {
-    parse_mode: "Markdown",
-    reply_markup: keyboard
-  });
+  try {
+    logger.info(`Showing billing cycle menu for user: ${userId}`);
+    
+    const user = await prisma.user.findUnique({
+      where: { telegramId: userId },
+      include: { kolSettings: true }
+    });
+    
+    if (!user) {
+      logger.error(`User not found for telegramId: ${userId}`);
+      await ctx.editMessageText("❌ User not found");
+      return;
+    }
+
+    if (!user.kolSettings) {
+      logger.error(`KOL settings not found for user: ${userId}`);
+      await ctx.editMessageText("❌ KOL settings not found");
+      return;
+    }
+    
+    const currentCycle = user.kolSettings.billingCycle || "monthly";
+    logger.info(`Current billing cycle for user ${userId}: ${currentCycle}`);
+    
+    const keyboard = new InlineKeyboard();
+    
+    const cycles = [
+      { label: "📅 Weekly", value: "weekly" },
+      { label: "📅 Monthly", value: "monthly" },
+      { label: "📅 Quarterly", value: "quarterly" },
+      { label: "📅 Yearly", value: "yearly" }
+    ];
+    
+    cycles.forEach(cycle => {
+      const isSelected = currentCycle === cycle.value;
+      keyboard.text(
+        `${cycle.label} ${isSelected ? "✅" : ""}`,
+        `set_billing:${cycle.value}:${userId}`
+      ).row();
+    });
+    
+    keyboard.text("⬅️ Back to Group Settings", `setup_group:${userId}`);
+    
+    const billingText = 
+      `📅 **Billing Cycle Selection**\n\n` +
+      `Choose how often members will be charged:\n\n` +
+      `Current: ${currentCycle.charAt(0).toUpperCase() + currentCycle.slice(1)}\n\n` +
+      `Select a billing cycle:`;
+    
+    await ctx.editMessageText(billingText, {
+      parse_mode: "Markdown",
+      reply_markup: keyboard
+    });
+    
+    logger.info(`Successfully showed billing cycle menu for user: ${userId}`);
+    
+  } catch (error) {
+    logger.error(`Error showing billing cycle menu for user ${userId}:`, {
+      error: error instanceof Error ? error.message : error,
+      stack: error instanceof Error ? error.stack : undefined,
+      userId: userId
+    });
+    await ctx.editMessageText(`❌ Error loading billing cycle menu: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
 }
 
 // Set billing cycle
 async function setBillingCycle(ctx: BotContext, userId: string, cycle: string) {
-  const user = await prisma.user.findUnique({
-    where: { telegramId: userId },
-    include: { kolSettings: true }
-  });
-  
-  if (!user?.kolSettings) return;
-  
-  await prisma.kolSettings.update({
-    where: { id: user.kolSettings.id },
-    data: { billingCycle: cycle } as any
-  });
-  
-  await showGroupSetupMenu(ctx, userId);
+  try {
+    logger.info(`Setting billing cycle for user: ${userId}, cycle: ${cycle}`);
+    
+    const user = await prisma.user.findUnique({
+      where: { telegramId: userId },
+      include: { kolSettings: true }
+    });
+    
+    if (!user) {
+      logger.error(`User not found for telegramId: ${userId}`);
+      await ctx.answerCallbackQuery("❌ User not found");
+      return;
+    }
+
+    if (!user.kolSettings) {
+      logger.error(`KOL settings not found for user: ${userId}`);
+      await ctx.answerCallbackQuery("❌ KOL settings not found");
+      return;
+    }
+
+    // Validate billing cycle
+    const validCycles = ["weekly", "monthly", "quarterly", "yearly"];
+    if (!validCycles.includes(cycle)) {
+      logger.error(`Invalid billing cycle: ${cycle} for user: ${userId}`);
+      await ctx.answerCallbackQuery("❌ Invalid billing cycle");
+      return;
+    }
+    
+    await ctx.answerCallbackQuery("⏳ Updating billing cycle...");
+    
+    await prisma.kolSettings.update({
+      where: { id: user.kolSettings.id },
+      data: { billingCycle: cycle }
+    });
+    
+    logger.info(`Successfully updated billing cycle to ${cycle} for user: ${userId}`);
+    await showGroupSetupMenu(ctx, userId);
+    
+  } catch (error) {
+    logger.error(`Error setting billing cycle for user ${userId}:`, {
+      error: error instanceof Error ? error.message : error,
+      stack: error instanceof Error ? error.stack : undefined,
+      userId: userId,
+      cycle: cycle
+    });
+    await ctx.answerCallbackQuery(`❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
 }
 
 // Execute inline tip payment

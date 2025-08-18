@@ -14,6 +14,12 @@ SendrPay is a multi-platform blockchain payment bot for seamless crypto transact
 - ✅ **Database & Schema**: Enhanced with KolSettings subscription fields and new Subscription model
 - ✅ **UI/UX**: Added subscription type and billing cycle selection buttons with proper callback handling
 - ✅ **Background Processing**: Subscription processor runs hourly to handle due payments automatically
+- ✅ **Bug Fixes - KOL Pricing & Subscription Issues**: 
+  - Enhanced error handling for group price input with detailed logging and user feedback
+  - Fixed subscription type change functionality with proper database validation
+  - Improved billing cycle selection with timeout handling and error recovery
+  - Added comprehensive logging for debugging subscription-related issues
+  - Resolved 15-second loading timeouts by implementing proper callback query responses
 
 ## User Preferences
 - Clear, concise communication without technical jargon

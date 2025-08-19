@@ -119,7 +119,7 @@ export async function handleChannelUsernameInput(ctx: BotContext) {
 
   // Store channel info in session
   session.channelSetup = {
-    step: "configure_defaults",
+    step: "select_token",
     channelId,
     channelTitle,
     ownerTgId: session.channelSetup.ownerTgId
@@ -148,7 +148,7 @@ export async function handleChannelTokenSelection(ctx: BotContext, token: string
   await ctx.answerCallbackQuery();
   
   const session = ctx.session as any;
-  if (!session.channelSetup || session.channelSetup.step !== "configure_defaults") {
+  if (!session.channelSetup || session.channelSetup.step !== "select_token") {
     return ctx.editMessageText("❌ Session expired. Please use /channel_init to start over.");
   }
 
@@ -305,6 +305,8 @@ function convertToRawUnits(amount: number, token: string): string {
   const decimal = decimals[token] || 6;
   return String(Math.floor(amount * Math.pow(10, decimal)));
 }
+
+
 
 // Export callback handlers
 export async function handleChannelCallbacks(ctx: BotContext) {

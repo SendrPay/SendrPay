@@ -288,6 +288,12 @@ Send private key now:`, { parse_mode: "Markdown" });
     await handleKolCallbacks(ctx);
   });
 
+  // Channel setup callbacks 
+  bot.callbackQuery(/^channel_token_/, async (ctx) => {
+    const { handleChannelCallbacks } = await import("./channel");
+    await handleChannelCallbacks(ctx);
+  });
+
   // KOL inline tip buttons
   bot.callbackQuery(/^tip_\d+_[A-Z]+$/, async (ctx) => {
     await handleTipCallback(ctx);

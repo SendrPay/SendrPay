@@ -139,12 +139,15 @@ async function showKolSetupMenu(ctx: BotContext, user: any) {
   
   const keyboard = new InlineKeyboard()
     .text("💖 Tip Settings", `setup_tips:${user.telegramId}`).row()
-    .text("🎭 Group Settings", `setup_group:${user.telegramId}`).row()
+    .text("🎭 Private Group Access", `setup_group:${user.telegramId}`).row()
     .text("📢 Post Group Message", "post_group_message")
     .text("📊 View Profile", `view_profile:${user.telegramId}`).row();
 
   const setupText = 
     `⚙️ **KOL Setup Menu**\n\n` +
+    `📺 **Two Types of Monetization:**\n` +
+    `• Private Group Access = Users pay to join your group\n` +
+    `• Channel Paywalls = Users pay to unlock posts (use /channel_init)\n\n` +
     `**Current Status:**\n` +
     `• Tips: ${settings?.acceptedTipTokens?.length > 0 ? "✅ Enabled" : "❌ Disabled"}\n` +
     `• Group Access: ${settings?.groupAccessEnabled ? "✅ Enabled" : "❌ Disabled"}\n\n` +
@@ -338,7 +341,10 @@ async function showGroupSetupMenu(ctx: BotContext, userId: string) {
   keyboard.text("⬅️ Back", `back_setup:${userId}`);
 
   const groupText = 
-    `🎭 **Group Access Settings**\n\n` +
+    `🎭 **Private Group Access Settings**\n\n` +
+    `💡 **What is Group Access?**\n` +
+    `Users pay to join your private Telegram group.\n` +
+    `Different from channel paywalls (use /channel_init for that).\n\n` +
     `${settings?.groupAccessEnabled ? "✅ Group access is enabled" : "❌ Group access is disabled"}\n\n` +
     `${settings?.groupAccessEnabled ? 
       `• Type: ${(settings as any).subscriptionType === "recurring" ? "🔄 Recurring Subscription" : "💸 One-time Payment"}\n` +

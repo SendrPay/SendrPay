@@ -26,8 +26,12 @@ export async function commandChannelInit(ctx: BotContext) {
   };
 
   await ctx.reply(
-    `🎬 **Channel Setup**\n\n` +
-    `To set up your channel for paywalled content:\n\n` +
+    `🎬 **Channel Setup for Paywalled Content**\n\n` +
+    `This sets up a channel where you can post content that users pay to unlock.\n\n` +
+    `📺 **Different from Group Access:**\n` +
+    `• Channel = Post paywalled content (like blog posts)\n` +
+    `• Group Settings = Paid access to private groups\n\n` +
+    `**Setup Steps:**\n` +
     `1. Add me as an admin to your channel\n` +
     `2. Grant me "Post Messages" permission\n` +
     `3. Send me your channel username (e.g., @yourchannel)\n\n` +
@@ -261,17 +265,21 @@ export async function handleChannelPresetsInput(ctx: BotContext) {
     );
   } catch (error) {
     logger.error("Error saving channel configuration:", error);
-    delete session.channelSetup;
+    
+    // Store channel data before clearing session
+    const channelId = session.channelSetup?.channelId;
+    const channelTitle = session.channelSetup?.channelTitle;
     
     // Check if the data was actually saved despite the error
-    if (session.channelSetup?.channelId) {
+    if (channelId) {
       try {
         const savedChannel = await prisma.kolChannel.findUnique({
-          where: { tgChatId: session.channelSetup.channelId }
+          where: { tgChatId: channelId }
         });
         
         if (savedChannel) {
           logger.info("Channel was saved successfully despite error");
+          delete session.channelSetup;
           await ctx.reply("✅ Channel setup complete! The configuration was saved successfully.");
           return;
         }
@@ -280,7 +288,8 @@ export async function handleChannelPresetsInput(ctx: BotContext) {
       }
     }
     
-    await ctx.reply("❌ Failed to save channel configuration. Please try again.");
+    delete session.channelSetup;
+    await ctx.reply("❌ Failed to save channel configuration. Please try again with /channel_init.");
   }
 }
 

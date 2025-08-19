@@ -3,23 +3,27 @@
 ## Overview
 SendrPay is a multi-platform blockchain payment bot for seamless crypto transactions on the Solana devnet, integrating with Telegram and Discord. It provides advanced cross-platform user management, wallet linking, and features for Key Opinion Leader (KOL) monetization, including paid group access with subscription models and content monetization. The project aims to enable easy crypto payments and monetization within messaging platforms.
 
-## Recent Changes (August 18, 2025)
+## Recent Changes (August 19, 2025)
+- ✅ **Fixed Critical Workflow Conflicts**: Resolved session state conflicts between different monetization features
+  - Clear separation between Channel Setup (paywalled content) and Group Settings (private group access) 
+  - Fixed session priority ordering: Post Creation → Channel Setup → Group Pricing → Other workflows
+  - Added session clearing in command starts to prevent state persistence across workflows
+  - Enhanced session validation requiring both flags and tokens for proper workflow identification
+- ✅ **Channel Setup Database Fix**: Fixed "Failed to save channel configuration" error
+  - Corrected error handling accessing session data after deletion
+  - Added proper validation and error recovery for database operations
+  - Improved user messaging with clear restart instructions
+- ✅ **UI/UX Clarity Improvements**: Enhanced terminology and explanations
+  - Updated "Group Settings" to "Private Group Access" for clarity
+  - Added explanatory text distinguishing Channel paywalls vs Group access in all menus
+  - Clear workflow separation messaging: Channel = Post paywalled content, Group = Paid group membership
 - ✅ **Comprehensive Recurring Payments System**: Fully implemented subscription management for KOL group access
   - One-time vs recurring payment type selection in KOL setup interface
   - Billing cycle options: weekly, monthly, quarterly, yearly
   - Automatic payment processing with subscription manager running in background
   - Failed payment handling (3 attempts) with automatic group removal
   - Real-time payment notifications and subscription status updates
-  - Complete integration with existing payment flow using SubscriptionManager.createSubscription()
-- ✅ **Database & Schema**: Enhanced with KolSettings subscription fields and new Subscription model
-- ✅ **UI/UX**: Added subscription type and billing cycle selection buttons with proper callback handling
-- ✅ **Background Processing**: Subscription processor runs hourly to handle due payments automatically
-- ✅ **Bug Fixes - KOL Pricing & Subscription Issues**: 
-  - Enhanced error handling for group price input with detailed logging and user feedback
-  - Fixed subscription type change functionality with proper database validation
-  - Improved billing cycle selection with timeout handling and error recovery
-  - Added comprehensive logging for debugging subscription-related issues
-  - Resolved 15-second loading timeouts by implementing proper callback query responses
+- ✅ **Previous Bug Fixes**: Enhanced error handling, fixed subscription toggles, resolved 15-second loading timeouts
 
 ## User Preferences
 - Clear, concise communication without technical jargon

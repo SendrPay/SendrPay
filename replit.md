@@ -4,6 +4,15 @@
 SendrPay is a multi-platform blockchain payment bot for seamless crypto transactions on the Solana devnet, integrating with Telegram and Discord. It provides advanced cross-platform user management, wallet linking, and features for Key Opinion Leader (KOL) monetization, including paid group access with subscription models and content monetization. The project aims to enable easy crypto payments and monetization within messaging platforms.
 
 ## Recent Changes (August 19, 2025)
+- ✅ **Improved Command Names for Better UX**: Updated all commands with clearer, more memorable names
+  - `/creator_setup` (was `/kol_setup`) - More user-friendly term than "KOL"
+  - `/setup_channel` (was `/paywall_setup`) - Clearer purpose for channel setup
+  - `/new_post` (was `/create_post`) - Shorter and simpler for content creation
+  - `/post_invite` (was `/kol_post`) - Clearer description of posting group invites
+  - `/link_group` / `/unlink_group` (was `/linkgroup` / `/unlinkgroup`) - Better spacing
+  - `/link_discord` (was `/linkcode`) - More specific about Discord integration
+  - All old commands kept as aliases for backward compatibility
+  - Updated help command to reflect new naming conventions
 - ✅ **Fixed Channel Setup Session Expiration Issue**: Resolved critical bug causing session timeouts during token selection
   - Fixed missing channel token callback handler registration in index.ts
   - Corrected session step validation from "configure_defaults" to "select_token"
@@ -63,9 +72,11 @@ The system emphasizes an intuitive, button-driven inline interface for all featu
 - **KOL Settings**: KOLs can configure accepted tokens (SOL, USDC, BONK, JUP), set group access pricing, choose between one-time or recurring subscription models, set billing cycles, and link private groups.
 - **Subscription Management**: Database models track user subscriptions, billing cycles, payment status, and automatic renewal handling for recurring group access.
 - **Platform Fees**: Automatically collected and sent to a designated treasury wallet.
-- **User Commands**: `/start`, `/pay`, `/tip`, `/balance`, `/withdraw`, `/deposit`, `/history`.
-- **KOL Commands**: `/kol_setup`, `/kol [@username]`, `/kol_post`, `/linkgroup`, `/unlinkgroup`.
+- **User Commands**: `/start`, `/pay`, `/tip`, `/balance`, `/withdraw`, `/deposit`, `/history`, `/link_discord`.
+- **Creator Commands**: `/creator_setup` (main), `/kol [@username]`, `/post_invite` (main), `/link_group` (main), `/unlink_group` (main).
+- **Content Commands**: `/setup_channel` (main), `/new_post` (main).
 - **Admin Commands**: `/enable`, `/settings`, `/admin`.
+- **Legacy Aliases**: All old command names still work for backward compatibility.
 
 ## External Dependencies
 - **Blockchain**: Solana devnet (via Helius API)

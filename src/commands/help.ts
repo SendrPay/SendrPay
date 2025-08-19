@@ -23,28 +23,31 @@ export async function commandHelp(ctx: BotContext) {
 /pay @user amount TOKEN [note] - Send payment
 /tip amount TOKEN - Reply to message to tip
 
-**🌟 KOL MONETIZATION**
+**🔗 ACCOUNT LINKING**
+/link_discord - Link your Discord account
 
-**Setup Your KOL Profile:**
-/setup - Configure monetization settings
+**🌟 CREATOR MONETIZATION**
+
+**Setup Your Creator Profile:**
+/creator_setup - Configure monetization settings
 • Choose accepted tip tokens
 • Set private group pricing
 • Enable/disable features
 
 **Manage Private Groups:**
-/linkgroup - Link paid group (use in DM)
+/link_group - Link paid group (use in DM)
 1. Add bot as admin to group
 2. Grant "Invite Users" permission
 3. Send group username to bot
-/unlinkgroup - Remove group linking
+/unlink_group - Remove group linking
 
 **Channel Paywalls:**
-/channel_init - Set up paywalled content
+/setup_channel - Set up paywalled content
 1. Add bot as admin to channel
 2. Grant "Post Messages" permission
 3. Send channel username to bot
 
-/post_locked - Create locked post
+/new_post - Create paywalled post
 • Set title and teaser
 • Upload text/video content
 • Configure unlock price
@@ -59,9 +62,9 @@ export async function commandHelp(ctx: BotContext) {
 **🎯 HOW IT WORKS**
 
 **For Content Creators:**
-1. Run /setup to configure
-2. Link groups/channels
-3. Create paywalled content
+1. Run /creator_setup to configure
+2. Link groups/channels with /link_group
+3. Create paywalled content with /new_post
 4. Receive payments automatically
 
 **For Supporters:**

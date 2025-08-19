@@ -64,10 +64,14 @@ export function registerGroupRoutes(bot: Bot<BotContext>) {
   bot.command("settings", commandSettings);
   bot.command("admin", commandAdmin);
   
-  // KOL commands
-  bot.command("linkgroup", commandLinkGroup);
-  bot.command("unlinkgroup", commandUnlinkGroup);
-  bot.command("kol", commandKolProfile);
+  // Group management commands (improved names)  
+  bot.command("link_group", commandLinkGroup);        // Main group linking command
+  bot.command("unlink_group", commandUnlinkGroup);    // Main group unlinking command
+  bot.command("kol", commandKolProfile);              // Keep as is
+  
+  // Legacy group command aliases
+  bot.command("linkgroup", commandLinkGroup);         // Old link group
+  bot.command("unlinkgroup", commandUnlinkGroup);     // Old unlink group
   
   // Debug commands for troubleshooting (admin-only)
   bot.command("debug_reply", commandDebugReply);
@@ -116,26 +120,38 @@ Send private key now:`, { parse_mode: "Markdown" });
   bot.command("help", commandHelp);
   bot.command("deposit", commandDeposit);
   bot.command("history", commandHistory);
-  bot.command("linkcode", commandLinkcode);
+  bot.command("link_discord", commandLinkcode);  // Main Discord linking command
+  bot.command("linkcode", commandLinkcode);           // Legacy alias
   
-  // KOL commands (completely separate from paywalled content)
-  bot.command("kol_setup", commandKolSetupInline);  // KOL private group setup with proper inline interface
-  bot.command("kol", commandKolProfile);
-  bot.command("kol_post", async (ctx) => {
+  // Creator (KOL) commands (improved names)
+  bot.command("creator_setup", commandKolSetupInline);  // Main creator setup command
+  bot.command("kol", commandKolProfile);                // Keep as is - works well
+  bot.command("post_invite", async (ctx) => {          // Clearer name for posting group invites
     const { commandKolPost } = await import("./kol-post");
     await commandKolPost(ctx);
   });
-  bot.command("linkgroup", commandLinkGroup);
-  bot.command("unlinkgroup", commandUnlinkGroup);
+  bot.command("link_group", commandLinkGroup);         // Better spacing
+  bot.command("unlink_group", commandUnlinkGroup);     // Better spacing
   
-  // Channel paywall commands (completely separate from KOL setup)
-  bot.command("paywall_setup", commandChannelInit);  // Renamed for clarity
-  bot.command("create_post", commandPostLocked);     // Renamed for clarity
+  // Legacy KOL command aliases
+  bot.command("kol_setup", commandKolSetupInline);     // Old creator setup
+  bot.command("kol_post", async (ctx) => {             // Old post invite
+    const { commandKolPost } = await import("./kol-post");
+    await commandKolPost(ctx);
+  });
+  bot.command("linkgroup", commandLinkGroup);          // Old link group
+  bot.command("unlinkgroup", commandUnlinkGroup);      // Old unlink group
+  
+  // Content creation commands (improved names)
+  bot.command("setup_channel", commandChannelInit);  // Main channel setup command
+  bot.command("new_post", commandPostLocked);         // Main post creation command
   
   // Legacy aliases for backward compatibility
-  bot.command("setup", commandSetup);           // Still works for existing users
-  bot.command("channel_init", commandChannelInit);  // Still works for existing users
-  bot.command("post_locked", commandPostLocked);    // Still works for existing users
+  bot.command("setup", commandSetup);               // Old KOL setup
+  bot.command("paywall_setup", commandChannelInit); // Old channel setup
+  bot.command("create_post", commandPostLocked);     // Old post creation
+  bot.command("channel_init", commandChannelInit);   // Old channel setup
+  bot.command("post_locked", commandPostLocked);     // Old post creation
   
   // New comprehensive inline interface
   bot.command("interface", commandInlineInterface);

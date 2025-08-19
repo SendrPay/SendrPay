@@ -145,15 +145,31 @@ export async function handleChannelUsernameInput(ctx: BotContext) {
 
 // Handle token selection for channel
 export async function handleChannelTokenSelection(ctx: BotContext, token: string) {
-  await ctx.answerCallbackQuery();
+  await ctx.answerCallbackQuery(`✅ Selected ${token}`);
   
   const session = ctx.session as any;
+  
+  logger.info("Token selection - Session state:", {
+    hasChannelSetup: !!session.channelSetup,
+    currentStep: session.channelSetup?.step,
+    expectedStep: "select_token",
+    selectedToken: token
+  });
+  
   if (!session.channelSetup || session.channelSetup.step !== "select_token") {
+    logger.error("Session validation failed:", {
+      hasChannelSetup: !!session.channelSetup,
+      currentStep: session.channelSetup?.step,
+      expectedStep: "select_token"
+    });
     return ctx.editMessageText("❌ Session expired. Please use /channel_init to start over.");
   }
 
+  // Update session with selected token
   session.channelSetup.defaultToken = token;
   session.channelSetup.step = "set_price";
+  
+  logger.info("Token selection completed, moved to price setting step");
 
   await ctx.editMessageText(
     `✅ Default token: **${token}**\n\n` +

@@ -63,12 +63,12 @@ Send crypto payments instantly on Telegram
 • Configure accepted tokens
 • 2\\-5% platform fees only
 
-*📚 New Commands:*
-• /interface or /menu \\- Full inline interface
-• /kol\\_setup \\- KOL private group setup  
-• /paywall\\_setup \\- Channel paywall setup
-• /create\\_post \\- Create locked content
-• /kol \\- View KOL profile
+*📚 Main Commands:*
+• /interface or /menu \\- Full bot interface
+• /creator\\_setup \\- Creator monetization setup  
+• /setup\\_channel \\- Channel paywall setup
+• /new\\_post \\- Create paywalled content
+• /kol \\- View creator profiles
 
 *Getting started:*
 Choose how to set up your wallet`;

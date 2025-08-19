@@ -262,10 +262,11 @@ Send private key now:`, { parse_mode: "Markdown" });
   });
 
 
-  // Settings menu callback handlers
+  // Legacy settings callback handlers - redirect to modern interface
   bot.callbackQuery(/^(home|wallet|send_payment|receive_payment|security|history|help|bot_settings|settings_main|quick_pay)$/, async (ctx) => {
-    const { handleSettingsCallback } = await import("./settings");
-    await handleSettingsCallback(ctx);
+    await ctx.answerCallbackQuery();
+    const { commandInlineInterface } = await import("./inline-interface");
+    await commandInlineInterface(ctx);
   });
 
   // Payment confirmation handlers

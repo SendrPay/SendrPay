@@ -149,19 +149,22 @@ export async function handleChannelTokenSelection(ctx: BotContext, token: string
   
   const session = ctx.session as any;
   
-  logger.info("Token selection - Session state:", {
-    hasChannelSetup: !!session.channelSetup,
-    currentStep: session.channelSetup?.step,
-    expectedStep: "select_token",
-    selectedToken: token
-  });
+  // Debug session state
+  console.log("=== CHANNEL TOKEN SELECTION DEBUG ===");
+  console.log("Session exists:", !!session);
+  console.log("Session channelSetup exists:", !!session.channelSetup);
+  console.log("Session channelSetup:", JSON.stringify(session.channelSetup, null, 2));
+  console.log("Current step:", session.channelSetup?.step);
+  console.log("Expected step:", "select_token");
+  console.log("Selected token:", token);
+  console.log("=== END DEBUG ===");
   
   if (!session.channelSetup || session.channelSetup.step !== "select_token") {
-    logger.error("Session validation failed:", {
-      hasChannelSetup: !!session.channelSetup,
-      currentStep: session.channelSetup?.step,
-      expectedStep: "select_token"
-    });
+    console.log("=== SESSION VALIDATION FAILED ===");
+    console.log("Condition 1 - No channelSetup:", !session.channelSetup);
+    console.log("Condition 2 - Wrong step:", session.channelSetup?.step !== "select_token");
+    console.log("Actual step:", session.channelSetup?.step);
+    console.log("=== END VALIDATION FAILED ===");
     return ctx.editMessageText("❌ Session expired. Please use /channel_init to start over.");
   }
 
@@ -169,7 +172,10 @@ export async function handleChannelTokenSelection(ctx: BotContext, token: string
   session.channelSetup.defaultToken = token;
   session.channelSetup.step = "set_price";
   
-  logger.info("Token selection completed, moved to price setting step");
+  console.log("=== TOKEN SELECTION SUCCESS ===");
+  console.log("Token set to:", token);
+  console.log("Step changed to:", "set_price");
+  console.log("=== END TOKEN SELECTION SUCCESS ===");
 
   await ctx.editMessageText(
     `✅ Default token: **${token}**\n\n` +

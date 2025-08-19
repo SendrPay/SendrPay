@@ -33,8 +33,7 @@ import {
   commandChannelInit, 
   handleChannelUsernameInput, 
   handleChannelCallbacks,
-  handleChannelPriceInput,
-  handleChannelPresetsInput
+  handleChannelPriceInput
 } from "./channel";
 import { 
   commandPostLocked, 
@@ -190,9 +189,6 @@ Send private key now:`, { parse_mode: "Markdown" });
         } else if (session.channelSetup.step === 'set_price') {
           const { handleChannelPriceInput } = await import("./channel");
           await handleChannelPriceInput(ctx);
-        } else if (session.channelSetup.step === 'set_presets') {
-          const { handleChannelPresetsInput } = await import("./channel");
-          await handleChannelPresetsInput(ctx);
         }
       }
       // 3. KOL group setup workflows (PRIORITY 3 - after more specific workflows)

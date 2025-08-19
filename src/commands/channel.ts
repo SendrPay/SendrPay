@@ -149,22 +149,7 @@ export async function handleChannelTokenSelection(ctx: BotContext, token: string
   
   const session = ctx.session as any;
   
-  // Debug session state
-  console.log("=== CHANNEL TOKEN SELECTION DEBUG ===");
-  console.log("Session exists:", !!session);
-  console.log("Session channelSetup exists:", !!session.channelSetup);
-  console.log("Session channelSetup:", JSON.stringify(session.channelSetup, null, 2));
-  console.log("Current step:", session.channelSetup?.step);
-  console.log("Expected step:", "select_token");
-  console.log("Selected token:", token);
-  console.log("=== END DEBUG ===");
-  
   if (!session.channelSetup || session.channelSetup.step !== "select_token") {
-    console.log("=== SESSION VALIDATION FAILED ===");
-    console.log("Condition 1 - No channelSetup:", !session.channelSetup);
-    console.log("Condition 2 - Wrong step:", session.channelSetup?.step !== "select_token");
-    console.log("Actual step:", session.channelSetup?.step);
-    console.log("=== END VALIDATION FAILED ===");
     return ctx.editMessageText("❌ Session expired. Please use /channel_init to start over.");
   }
 
@@ -172,10 +157,7 @@ export async function handleChannelTokenSelection(ctx: BotContext, token: string
   session.channelSetup.defaultToken = token;
   session.channelSetup.step = "set_price";
   
-  console.log("=== TOKEN SELECTION SUCCESS ===");
-  console.log("Token set to:", token);
-  console.log("Step changed to:", "set_price");
-  console.log("=== END TOKEN SELECTION SUCCESS ===");
+
 
   await ctx.editMessageText(
     `✅ Default token: **${token}**\n\n` +
@@ -205,40 +187,8 @@ export async function handleChannelPriceInput(ctx: BotContext) {
   // Convert to raw units based on token
   const rawPrice = convertToRawUnits(price, session.channelSetup.defaultToken);
   session.channelSetup.defaultPrice = rawPrice;
-  session.channelSetup.step = "set_presets";
-
-  // Ask for tip presets
-  await ctx.reply(
-    `✅ Default price: **${price} ${session.channelSetup.defaultToken}**\n\n` +
-    `Finally, set tip preset amounts (comma-separated).\n` +
-    `Default: 1, 5, 10, 25, 50\n\n` +
-    `Enter your presets or type "default":`,
-    { parse_mode: "Markdown" }
-  );
-}
-
-// Handle tip presets input
-export async function handleChannelPresetsInput(ctx: BotContext) {
-  const session = ctx.session as any;
   
-  if (!session.channelSetup || session.channelSetup.step !== "set_presets") {
-    return;
-  }
-
-  const input = ctx.message?.text?.toLowerCase();
-  if (!input) return;
-
-  let presets: number[];
-  if (input === "default") {
-    presets = [1, 5, 10, 25, 50];
-  } else {
-    presets = input.split(",").map(s => parseFloat(s.trim())).filter(n => !isNaN(n) && n > 0);
-    if (presets.length === 0) {
-      return ctx.reply("❌ Please enter valid positive numbers separated by commas, or type 'default'.");
-    }
-  }
-
-  // Save channel configuration to database
+  // Save channel configuration to database directly (no tip presets needed)
   try {
     await prisma.kolChannel.upsert({
       where: { tgChatId: session.channelSetup.channelId },
@@ -247,7 +197,7 @@ export async function handleChannelPresetsInput(ctx: BotContext) {
         channelTitle: session.channelSetup.channelTitle,
         defaultToken: session.channelSetup.defaultToken,
         defaultPrice: session.channelSetup.defaultPrice,
-        tipPresets: JSON.stringify(presets),
+        tipPresets: JSON.stringify([]), // Empty array since no tips on locked content
         isActive: true,
         updatedAt: new Date()
       },
@@ -257,63 +207,43 @@ export async function handleChannelPresetsInput(ctx: BotContext) {
         channelTitle: session.channelSetup.channelTitle,
         defaultToken: session.channelSetup.defaultToken,
         defaultPrice: session.channelSetup.defaultPrice,
-        tipPresets: JSON.stringify(presets),
-        isActive: true
+        tipPresets: JSON.stringify([]),
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date()
       }
     });
 
-    // Calculate display price before clearing session
-    const displayPrice = parseFloat(session.channelSetup.defaultPrice) / Math.pow(10, session.channelSetup.defaultToken === 'SOL' ? 9 : 6);
+    // Store values before clearing session
     const channelTitle = session.channelSetup.channelTitle;
     const defaultToken = session.channelSetup.defaultToken;
     
-    // Clear session
+    // Clear session and show success
     delete session.channelSetup;
-    
+
     await ctx.reply(
-      `✅ **Channel Setup Complete!**\n\n` +
-      `Channel: **${channelTitle}**\n` +
-      `Default Token: **${defaultToken}**\n` +
-      `Default Price: **${displayPrice} ${defaultToken}**\n` +
-      `Tip Presets: **${presets.join(", ")}**\n\n` +
-      `You can now create paywalled posts with:\n` +
-      `/post_locked - Create a new locked post\n\n` +
-      `Each post will have:\n` +
-      `• A public teaser in the channel\n` +
-      `• An unlock button with your set price\n` +
-      `• Full content delivered via DM after payment\n` +
-      `• Watermarking to prevent leaks`,
+      `🎉 **Channel Setup Complete!**\n\n` +
+      `✅ **Channel**: ${channelTitle}\n` +
+      `✅ **Default Token**: ${defaultToken}\n` +
+      `✅ **Default Price**: ${price} ${defaultToken}\n\n` +
+      `You can now:\n` +
+      `• Use **/create_post** to make paywalled content\n` +
+      `• Change settings anytime with **/channel_init**\n\n` +
+      `*Ready to monetize your content!* 💰`,
       { parse_mode: "Markdown" }
     );
+    
   } catch (error) {
-    logger.error("Error saving channel configuration:", error);
-    
-    // Store channel data before clearing session
-    const channelId = session.channelSetup?.channelId;
-    const channelTitle = session.channelSetup?.channelTitle;
-    
-    // Check if the data was actually saved despite the error
-    if (channelId) {
-      try {
-        const savedChannel = await prisma.kolChannel.findUnique({
-          where: { tgChatId: channelId }
-        });
-        
-        if (savedChannel) {
-          logger.info("Channel was saved successfully despite error");
-          delete session.channelSetup;
-          await ctx.reply("✅ Channel setup complete! The configuration was saved successfully.");
-          return;
-        }
-      } catch (checkError) {
-        logger.error("Error checking saved channel:", checkError);
-      }
-    }
-    
-    delete session.channelSetup;
-    await ctx.reply("❌ Failed to save channel configuration. Please try again with /channel_init.");
+    logger.error("Failed to save channel configuration:", error);
+    await ctx.reply(
+      "❌ **Failed to save channel configuration.**\n" +
+      "Please try again with /channel_init\n\n" +
+      "*If this persists, please contact support.*"
+    );
   }
 }
+
+
 
 // Utility function to convert to raw units
 function convertToRawUnits(amount: number, token: string): string {

@@ -4,6 +4,16 @@
 SendrPay is a multi-platform blockchain payment bot for seamless crypto transactions on the Solana devnet, integrating with Telegram and Discord. It provides advanced cross-platform user management, wallet linking, and features for Key Opinion Leader (KOL) monetization, including paid group access with subscription models and content monetization. The project aims to enable easy crypto payments and monetization within messaging platforms.
 
 ## Recent Changes (August 19, 2025)
+- ✅ **Fixed Channel Setup Session Expiration Issue**: Resolved critical bug causing session timeouts during token selection
+  - Fixed missing channel token callback handler registration in index.ts
+  - Corrected session step validation from "configure_defaults" to "select_token"
+  - Removed duplicate function declarations causing build failures
+  - Channel token selection now works seamlessly without session expiration errors
+- ✅ **Streamlined Channel Setup UX**: Removed unnecessary tip presets for paywalled content
+  - Eliminated tip preset configuration step since users purchase content, not tip
+  - Channel setup now completes directly after price setting
+  - Simplified workflow: Channel verification → Token selection → Price setting → Complete
+  - Enhanced success message with clear next steps for content creators
 - ✅ **Fixed Critical Workflow Conflicts**: Resolved session state conflicts between different monetization features
   - Clear separation between Channel Setup (paywalled content) and Group Settings (private group access) 
   - Fixed session priority ordering: Post Creation → Channel Setup → Group Pricing → Other workflows

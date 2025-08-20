@@ -59,3 +59,35 @@ FEE_MIN_RAW_SOL=5000
 OWNER_TELEGRAM_ID=your_telegram_id
 SPONSOR_FEES=true
 ESCROW_EXPIRY_HOURS=168
+
+```
+
+## Deploy (production)
+
+Set these environment variables in your production environment:
+
+- `BOT_TOKEN` – Telegram bot token
+- `TG_SECRET` – secret suffix for webhook URL
+- `APP_BASE_URL` – public base URL of your deployment
+- `HELIUS_API_KEY` – Helius RPC API key
+- `MASTER_KMS_KEY` – base64 encoded 32-byte encryption key
+- `DATABASE_URL` – PostgreSQL connection string
+- `OWNER_TELEGRAM_ID` – (optional) Telegram ID for admin commands
+- `FEE_TREASURY_SECRET` – (optional) private key for fee treasury
+- `DEBUG` – set to `1` to enable polling locally
+
+### Build & Start
+
+```bash
+npm run build
+npx prisma generate
+npx prisma db push
+npm start
+```
+
+### Configure Telegram Webhook
+
+```bash
+curl -X POST "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook" \
+     -d "url=<APP_BASE_URL>/telegram/<TG_SECRET>"
+```

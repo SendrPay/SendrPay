@@ -44,4 +44,4 @@ externalPort = 3001
 
 [deployment]
 deploymentTarget = "gce"
-run = "npm run dev"
+run = "npm run build && npm start"

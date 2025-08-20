@@ -8,4 +8,5 @@ npx prisma generate
 npx prisma db push --skip-generate
 
 # Start the application (both Discord and Telegram bots)
-npx tsx src/combined.ts
+npm run build && npm start
+

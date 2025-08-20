@@ -59,3 +59,21 @@ FEE_MIN_RAW_SOL=5000
 OWNER_TELEGRAM_ID=your_telegram_id
 SPONSOR_FEES=true
 ESCROW_EXPIRY_HOURS=168
+PORT=5000
+NODE_ENV=production
+```
+
+### Deploy (production)
+Set secrets: BOT_TOKEN, TG_SECRET, MASTER_KMS_KEY, HELIUS_API_KEY, PORT=5000, NODE_ENV=production
+
+Build & start:
+```bash
+npm run build && npm start
+```
+
+Set Telegram webhook:
+```bash
+curl -X POST "https://api.telegram.org/bot$BOT_TOKEN/setWebhook" \
+  -d "url=https://<your-domain>/telegram/$TG_SECRET"
+```
+

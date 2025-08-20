@@ -1,3 +1,2 @@
 [deploy]
-run = "npx prisma generate && npx prisma db push --skip-generate && node deploy-start.js"
-build = "npx prisma generate"
+run = "npm run build && npm start"

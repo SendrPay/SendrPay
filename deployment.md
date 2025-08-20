@@ -9,7 +9,7 @@ The bot is now properly configured for deployment with the following fixes appli
 1. **Proper Application Startup**:
    - Server correctly listens on `0.0.0.0:5000` for external access
    - Environment variable `PORT` is properly used with fallback to 5000
-   - Application starts with `npx tsx server/index.ts`
+   - Application starts with `npm run build && npm start`
 
 2. **Database Configuration**:
    - PostgreSQL database properly configured via `DATABASE_URL`
@@ -19,7 +19,7 @@ The bot is now properly configured for deployment with the following fixes appli
 3. **Build Process**:
    - Created `start.sh` script for production deployment
    - Proper Prisma client generation before startup
-   - TypeScript compilation via tsx for zero-config deployment
+   - TypeScript compilation via tsup for zero-config deployment
 
 4. **Environment Variables**:
    - Core secrets: `BOT_TOKEN`, `TG_SECRET`, `HELIUS_API_KEY`, `MASTER_KMS_KEY`
@@ -34,7 +34,7 @@ The bot is now properly configured for deployment with the following fixes appli
 
 The bot uses this startup command (configured in workflow):
 ```bash
-npx prisma generate && npx prisma db push && npx tsx server/index.ts
+npm run build && npm start
 ```
 
 ### Required Environment Variables

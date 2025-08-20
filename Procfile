@@ -1,1 +1,1 @@
-web: npx prisma generate && npx prisma db push --skip-generate && node deploy-start.js
+web: npm start

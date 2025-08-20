@@ -158,6 +158,11 @@ app.post("/test-payment", async (req, res) => {
 });
 
 async function startTelegramBot() {
+  if (process.env.DEBUG !== "1") {
+    console.log("DEBUG mode disabled; skipping bot.start");
+    return;
+  }
+
   if (!telegramBot) {
     console.warn("Telegram bot not configured");
     return;
@@ -195,12 +200,16 @@ async function startTelegramBot() {
         console.log("✅ Deployment webhook set:", webhookUrl);
       } catch (error) {
         console.error("Webhook setup failed:", error);
-        await telegramBot.start();
-        console.log("✅ Fallback to polling");
+        if (process.env.DEBUG === "1") {
+          await telegramBot.start();
+          console.log("✅ Fallback to polling");
+        }
       }
     } else {
-      await telegramBot.start();
-      console.log("✅ No deploy URL, using polling");
+      if (process.env.DEBUG === "1") {
+        await telegramBot.start();
+        console.log("✅ No deploy URL, using polling");
+      }
     }
   } else {
     // Development/preview mode - always use polling
@@ -213,7 +222,7 @@ async function startTelegramBot() {
       }, 3000);
       
       // Force start with a timeout
-      const pollingPromise = telegramBot.start();
+      const pollingPromise = process.env.DEBUG === "1" ? telegramBot.start() : Promise.resolve();
       const timeoutPromise = new Promise((_, reject) => 
         setTimeout(() => reject(new Error('Polling timeout')), 10000)
       );
@@ -224,10 +233,12 @@ async function startTelegramBot() {
     } catch (error) {
       console.error("❌ Polling failed to start:", error);
       // Start bot in non-blocking mode  
-      telegramBot.start().catch(err => {
-        console.error("❌ Background polling error:", err);
-      });
-      console.log("✅ Bot started in background mode");
+      if (process.env.DEBUG === "1") {
+        telegramBot.start().catch(err => {
+          console.error("❌ Background polling error:", err);
+        });
+        console.log("✅ Bot started in background mode");
+      }
       
       // Manual polling fallback
       console.log("🔄 Starting manual polling fallback...");

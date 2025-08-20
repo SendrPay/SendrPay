@@ -23,7 +23,7 @@ The bot is now properly configured for deployment with the following fixes appli
 
 4. **Environment Variables**:
    - All required secrets configured: `BOT_TOKEN`, `HELIUS_API_KEY`, `MASTER_KMS_KEY`
-   - Optional `WEBHOOK_SECRET` can be added for production webhooks
+   - Optional `TG_SECRET` can be added for production webhooks
    - Created `.env.example` with all available configuration options
 
 5. **Health Checks**:
@@ -46,7 +46,7 @@ npx prisma generate && npx prisma db push && npx tsx src/index.ts
 - `DATABASE_URL` - PostgreSQL connection string ✅
 
 **Optional for Production**:
-- `WEBHOOK_SECRET` - For Telegram webhook verification
+- `TG_SECRET` - For Telegram webhook verification
 - `NODE_ENV=production` - For production optimizations
 - `OWNER_TELEGRAM_ID` - Bot owner for admin commands
 

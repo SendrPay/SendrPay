@@ -60,8 +60,12 @@ if (bot) {
         // Fallback: try to start normally but only once
         logger.info("Attempting direct bot start as fallback...");
         try {
-          await bot!.start();
-          logger.info("Bot started in polling mode successfully");
+          if (process.env.DEBUG === "1") {
+            await bot!.start();
+            logger.info("Bot started in polling mode successfully");
+          } else {
+            logger.warn("Skipping bot.start because DEBUG is not '1'");
+          }
         } catch (fallbackError) {
           logger.error("Both webhook and polling failed. Bot may not be functional.");
         }

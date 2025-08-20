@@ -51,6 +51,7 @@ HELIUS_API_KEY=your_helius_api_key
 MASTER_KMS_KEY=base64_encoded_32_byte_key
 
 # Optional
+TG_SECRET=your_telegram_secret
 WEBHOOK_SECRET=your_webhook_secret
 FEE_TREASURY_SECRET=base58_fee_treasury_private_key
 FEE_BPS=50

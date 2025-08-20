@@ -1,26 +1,33 @@
 import Fastify from "fastify";
-import { handleTelegramUpdate } from "../adapters/telegram";
+import { webhookCallback } from "grammy";
+import { bot } from "../src/bot";
 
-const fastify = Fastify({ logger: true });
+const app = Fastify({ logger: false });
 
-const secret = process.env.WEBHOOK_SECRET;
+app.get("/healthz", async () => ({ ok: true }));
+
+const secret = process.env.TG_SECRET;
 if (!secret) {
-  throw new Error("WEBHOOK_SECRET environment variable is required");
+  console.error("Missing TG_SECRET env");
+  process.exit(1);
 }
 
-fastify.post(`/telegram/${secret}`, async (request, reply) => {
-  handleTelegramUpdate(request.body);
-  reply.status(200).send();
-});
+if (!bot) {
+  console.error("Bot token not configured");
+  process.exit(1);
+}
 
-fastify.get("/healthz", async (_request, reply) => {
-  reply.status(200).send();
-});
+app.post(`/telegram/${secret}`, webhookCallback(bot, "fastify"));
 
-const port = Number(process.env.PORT) || 3000;
-fastify
+const port = Number(process.env.PORT || 5000);
+app
   .listen({ port, host: "0.0.0.0" })
-  .catch(err => {
-    fastify.log.error(err);
+  .then(() =>
+    console.log(
+      `[sendrpay] webhook ready at /telegram/${secret}, port ${port}`
+    )
+  )
+  .catch((err) => {
+    console.error(err);
     process.exit(1);
   });

@@ -49,6 +49,38 @@ if (bot) {
     return next();
   });
 
+  // Always ack callback queries to prevent loading spinners
+  bot.on("callback_query", async (ctx, next) => {
+    let answered = false;
+    const safe = async (
+      p?: Parameters<typeof ctx.answerCallbackQuery>[0]
+    ) => {
+      if (answered) return;
+      answered = true;
+      try {
+        await ctx.answerCallbackQuery(p);
+      } catch {}
+    };
+    const t = setTimeout(() => {
+      safe().catch(() => {});
+    }, 1900);
+    try {
+      await next();
+      await safe();
+      try {
+        await ctx.editMessageReplyMarkup({ inline_keyboard: [] });
+      } catch {}
+    } catch (err) {
+      console.error("callback error", err);
+      await safe({
+        text: "Something went wrong. Try again.",
+        show_alert: true,
+      });
+    } finally {
+      clearTimeout(t);
+    }
+  });
+
   // Register command routers
   registerGroupRoutes(bot);
   registerDMRoutes(bot);

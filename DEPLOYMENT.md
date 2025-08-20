@@ -45,13 +45,10 @@ If entire app goes offline:
 ## Monitoring
 
 ### Health Check
-Access `/health` endpoint to verify both bots:
+Access `/healthz` endpoint to verify both bots:
 ```json
 {
-  "status": "ok",
-  "telegramBotConfigured": true,
-  "discordBotConfigured": true,
-  "environment": "production"
+  "ok": true
 }
 ```
 
@@ -65,9 +62,14 @@ Watch for these key messages:
 
 Required for deployment:
 - `DISCORD_TOKEN` - Discord bot token
-- `BOT_TOKEN` - Telegram bot token  
+- `BOT_TOKEN` - Telegram bot token
+- `TG_SECRET` - Secret suffix for Telegram webhook
+- `APP_BASE_URL` - Public base URL for webhook configuration
 - `MASTER_KMS_KEY` - Wallet encryption key
 - `HELIUS_API_KEY` - Solana RPC access
 - `DATABASE_URL` - PostgreSQL connection
+
+Optional:
+- `DEBUG=1` - Enable polling mode for local development
 
 The deployment will automatically set `PUBLIC_URL` or use `REPL_URL` for webhooks.

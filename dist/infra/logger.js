@@ -188,6 +188,6 @@ logger.info({
     arch: process.arch,
     env: env_1.env.NODE_ENV,
     port: env_1.env.PORT,
-    hasWebhookSecret: !!env_1.env.WEBHOOK_SECRET,
+    hasHeliusWebhookSecret: !!env_1.env.HELIUS_WEBHOOK_SECRET,
     hasOwner: !!env_1.env.OWNER_TELEGRAM_ID,
 }, 'Application starting up');

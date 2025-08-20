@@ -595,14 +595,6 @@ app.get('/logout', (req, res) => {
     res.redirect('/');
   });
 });
-
-/**
- * Health check
- */
-app.get('/healthz', (req, res) => {
-  res.json({ ok: true });
-});
-
 // Cleanup task (run every hour)
 setInterval(cleanupExpired, 60 * 60 * 1000);
 

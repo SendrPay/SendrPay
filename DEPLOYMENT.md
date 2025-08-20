@@ -71,5 +71,7 @@ Required for deployment:
 
 Optional:
 - `DEBUG=1` - Enable polling mode for local development
+- `PORT=5000` - Server port (defaults to 5000)
+- `NODE_ENV=production` - Production optimizations
 
 The deployment will automatically set `PUBLIC_URL` or use `REPL_URL` for webhooks.

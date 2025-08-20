@@ -38,6 +38,8 @@ curl -s "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getWebhookInfo"
 - `HELIUS_API_KEY`: Your Helius API key
 - `MASTER_KMS_KEY`: 32-byte encryption key (base64)
 - `DEBUG` (optional): Set to `1` to enable polling locally
+- `PORT=5000` (optional): Server port
+- `NODE_ENV=production` (optional): Production optimizations
 
 ## Troubleshooting
 - If bot doesn't respond, check webhook URL is correct and HTTPS

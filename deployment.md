@@ -48,8 +48,9 @@ npx prisma generate && npx prisma db push && npx tsx server/index.ts
 - `DATABASE_URL` - PostgreSQL connection string
 
 **Optional**:
-- `DEBUG=1` - Enable polling mode for local development
+- `PORT=5000` - Server port (defaults to 5000)
 - `NODE_ENV=production` - Production optimizations
+- `DEBUG=1` - Enable polling mode for local development
 - `OWNER_TELEGRAM_ID` - Bot owner for admin commands
 
 ### Verification

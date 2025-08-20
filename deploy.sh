@@ -30,4 +30,4 @@ console.log('✅ All required environment variables are set');
 
 # Start the application
 echo "⚡ Starting application on port ${PORT:-5000}..."
-exec npx tsx src/index.ts
+exec npx tsx server/index.ts

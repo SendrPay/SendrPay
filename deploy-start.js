@@ -23,7 +23,7 @@ if (deploymentUrl) {
 }
 
 // Start the main application
-const child = spawn('npx', ['tsx', 'src/index.ts'], {
+const child = spawn('npx', ['tsx', 'server/index.ts'], {
   stdio: 'inherit',
   env: process.env
 });

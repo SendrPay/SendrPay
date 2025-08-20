@@ -53,9 +53,12 @@ MASTER_KMS_KEY=base64_encoded_32_byte_key
 
 # Optional
 DEBUG=1 # enable polling locally
+PORT=5000
+NODE_ENV=production
 FEE_TREASURY_SECRET=base58_fee_treasury_private_key
 FEE_BPS=50
 FEE_MIN_RAW_SOL=5000
 OWNER_TELEGRAM_ID=your_telegram_id
 SPONSOR_FEES=true
 ESCROW_EXPIRY_HOURS=168
+```

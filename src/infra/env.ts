@@ -9,7 +9,7 @@ const envSchema = z.object({
   // Helius configuration  
   HELIUS_API_KEY: z.string().min(1, "Helius API key is required").optional(),
   RPC_URL: z.string().url().optional(),
-  WEBHOOK_SECRET: z.string().optional(),
+  HELIUS_WEBHOOK_SECRET: z.string().optional(),
 
   // Crypto & Security
   MASTER_KMS_KEY: z.string().min(1, "Master KMS key is required for wallet encryption"),
@@ -46,7 +46,7 @@ function parseEnv() {
     APP_BASE_URL: process.env.APP_BASE_URL,
     HELIUS_API_KEY: process.env.HELIUS_API_KEY,
     RPC_URL: process.env.RPC_URL || `https://devnet.helius-rpc.com/?api-key=${process.env.HELIUS_API_KEY}`,
-    WEBHOOK_SECRET: process.env.WEBHOOK_SECRET,
+    HELIUS_WEBHOOK_SECRET: process.env.HELIUS_WEBHOOK_SECRET,
     MASTER_KMS_KEY: process.env.MASTER_KMS_KEY,
     FEE_TREASURY_SECRET: process.env.FEE_TREASURY_SECRET,
     FEE_BPS: process.env.FEE_BPS || '50',
@@ -178,7 +178,7 @@ export function getConfigSummary(): Record<string, any> {
   return {
     nodeEnv: env.NODE_ENV,
     port: env.PORT,
-    hasWebhookSecret: !!env.WEBHOOK_SECRET,
+    hasHeliusWebhookSecret: !!env.HELIUS_WEBHOOK_SECRET,
     hasFeetreasury: !!env.FEE_TREASURY_SECRET,
     hasOwner: !!env.OWNER_TELEGRAM_ID,
     feeBps: env.FEE_BPS,

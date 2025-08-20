@@ -22,7 +22,7 @@ export interface HeliusWebhookPayload {
 }
 
 export function validateWebhookSignature(payload: string, signature: string): boolean {
-  if (!env.WEBHOOK_SECRET || !signature) {
+  if (!env.HELIUS_WEBHOOK_SECRET || !signature) {
     logger.warn("Webhook secret or signature missing");
     return true; // Allow through for development
   }
@@ -32,7 +32,7 @@ export function validateWebhookSignature(payload: string, signature: string): bo
     const cleanSignature = signature.replace('sha256=', '');
     
     // Compute expected signature
-    const expectedSignature = createHmac('sha256', env.WEBHOOK_SECRET)
+    const expectedSignature = createHmac('sha256', env.HELIUS_WEBHOOK_SECRET)
       .update(payload, 'utf8')
       .digest('hex');
 
@@ -217,7 +217,7 @@ export async function registerWebhook(): Promise<boolean> {
         transactionTypes: ["TRANSFER"],
         accountAddresses: [], // Add specific addresses to monitor if needed
         webhookType: "enhanced",
-        authHeader: env.WEBHOOK_SECRET ? `Bearer ${env.WEBHOOK_SECRET}` : undefined
+        authHeader: env.HELIUS_WEBHOOK_SECRET ? `Bearer ${env.HELIUS_WEBHOOK_SECRET}` : undefined
       })
     });
 

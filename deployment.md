@@ -6,10 +6,10 @@ The bot is now properly configured for deployment with the following fixes appli
 
 ### ✅ Fixed Issues
 
-1. **Proper Application Startup**: 
+1. **Proper Application Startup**:
    - Server correctly listens on `0.0.0.0:5000` for external access
    - Environment variable `PORT` is properly used with fallback to 5000
-   - Application starts with `npx tsx src/index.ts`
+   - Application starts with `npx tsx server/index.ts`
 
 2. **Database Configuration**:
    - PostgreSQL database properly configured via `DATABASE_URL`
@@ -22,39 +22,41 @@ The bot is now properly configured for deployment with the following fixes appli
    - TypeScript compilation via tsx for zero-config deployment
 
 4. **Environment Variables**:
-   - All required secrets configured: `BOT_TOKEN`, `HELIUS_API_KEY`, `MASTER_KMS_KEY`
-   - Optional `TG_SECRET` can be added for production webhooks
+   - Core secrets: `BOT_TOKEN`, `TG_SECRET`, `HELIUS_API_KEY`, `MASTER_KMS_KEY`
+   - Optional `DEBUG=1` enables polling mode for local development
    - Created `.env.example` with all available configuration options
 
 5. **Health Checks**:
-   - `/health` endpoint available for deployment monitoring
-   - Returns bot status, timestamp, and environment information
+   - `/healthz` endpoint available for deployment monitoring
+   - Returns `{ ok: true }` when service is healthy
 
 ### Deployment Command
 
 The bot uses this startup command (configured in workflow):
 ```bash
-npx prisma generate && npx prisma db push && npx tsx src/index.ts
+npx prisma generate && npx prisma db push && npx tsx server/index.ts
 ```
 
 ### Required Environment Variables
 
 **Essential**:
-- `BOT_TOKEN` - Telegram bot token ✅
-- `HELIUS_API_KEY` - Helius RPC API key ✅  
-- `MASTER_KMS_KEY` - Base64 encryption key for wallet storage ✅
-- `DATABASE_URL` - PostgreSQL connection string ✅
+- `BOT_TOKEN` - Telegram bot token
+- `TG_SECRET` - Secret suffix for Telegram webhook
+- `APP_BASE_URL` - Public URL used to configure webhook
+- `HELIUS_API_KEY` - Helius RPC API key
+- `MASTER_KMS_KEY` - Base64 encryption key for wallet storage
+- `DATABASE_URL` - PostgreSQL connection string
 
-**Optional for Production**:
-- `TG_SECRET` - For Telegram webhook verification
-- `NODE_ENV=production` - For production optimizations
+**Optional**:
+- `DEBUG=1` - Enable polling mode for local development
+- `NODE_ENV=production` - Production optimizations
 - `OWNER_TELEGRAM_ID` - Bot owner for admin commands
 
 ### Verification
 
 Bot is verified working:
 - ✅ Server listening on port 5000
-- ✅ Health endpoint responding: `GET /health`
+- ✅ Health endpoint responding: `GET /healthz`
 - ✅ Database connected and schema deployed
 - ✅ Telegram bot initialized and ready
 - ✅ All core dependencies loaded

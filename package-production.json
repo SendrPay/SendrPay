@@ -2,14 +2,14 @@
   "name": "solana-pay-bot",
   "version": "1.0.0",
   "description": "A production-ready Telegram bot for Solana payments with real blockchain transactions via Helius API on devnet.",
-  "main": "src/index.ts",
+  "main": "server/index.ts",
   "scripts": {
-    "start": "npx prisma generate && npx prisma db push --skip-generate && npx tsx src/index.ts",
+    "start": "npx prisma generate && npx prisma db push --skip-generate && npx tsx server/index.ts",
     "build": "npx prisma generate && npx tsc --noEmit",
-    "dev": "npx prisma generate && npx prisma db push --skip-generate && npx tsx src/index.ts",
+    "dev": "npx prisma generate && npx prisma db push --skip-generate && npx tsx server/index.ts",
     "db:generate": "npx prisma generate",
     "db:push": "npx prisma db push",
-    "health": "curl -f http://localhost:5000/health",
+    "health": "curl -f http://localhost:5000/healthz",
     "test": "echo \"Bot is running on port 5000\" && npm run health"
   },
   "engines": {

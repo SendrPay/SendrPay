@@ -8,17 +8,17 @@ After successfully deploying your bot, you need to configure the webhook with Te
 Your deployed application will have a URL like: `https://your-app-name.replit.app`
 
 ### 2. Set the Webhook
-Run this command in your terminal (replace `YOUR_BOT_TOKEN` and `YOUR_DEPLOYED_URL`):
+Run this command in your terminal (replace `YOUR_BOT_TOKEN`, `TG_SECRET` and `YOUR_DEPLOYED_URL`):
 
 ```bash
 curl -X POST "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook" \
-     -d "url=<YOUR_DEPLOYED_URL>/telegram"
+     -d "url=<YOUR_DEPLOYED_URL>/telegram/<TG_SECRET>"
 ```
 
 Example:
 ```bash
 curl -X POST "https://api.telegram.org/bot7071118647:AAG5uWU1O3CcUqlGc6PleJYsY5p6dU9KSu0/setWebhook" \
-     -d "url=https://my-solana-bot.replit.app/telegram"
+     -d "url=https://my-solana-bot.replit.app/telegram/<TG_SECRET>"
 ```
 
 ### 3. Verify Webhook
@@ -33,10 +33,11 @@ curl -s "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getWebhookInfo"
 
 ## Environment Variables Required for Deployment
 - `BOT_TOKEN`: Your Telegram bot token
-- `MASTER_KMS_KEY`: 32-byte encryption key (base64)
+- `TG_SECRET`: Secret suffix for webhook URL
+- `APP_BASE_URL`: Public URL of your deployment
 - `HELIUS_API_KEY`: Your Helius API key
-- `OWNER_TELEGRAM_ID`: Your Telegram user ID
-- `NODE_ENV`: Should be `production` in deployment
+- `MASTER_KMS_KEY`: 32-byte encryption key (base64)
+- `DEBUG` (optional): Set to `1` to enable polling locally
 
 ## Troubleshooting
 - If bot doesn't respond, check webhook URL is correct and HTTPS

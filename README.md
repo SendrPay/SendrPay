@@ -46,13 +46,13 @@ Create a `.env` file or set these environment variables:
 ```env
 # Required
 BOT_TOKEN=your_telegram_bot_token
+TG_SECRET=your_telegram_secret
 APP_BASE_URL=https://your-app.replit.dev
 HELIUS_API_KEY=your_helius_api_key
 MASTER_KMS_KEY=base64_encoded_32_byte_key
 
 # Optional
-TG_SECRET=your_telegram_secret
-WEBHOOK_SECRET=your_webhook_secret
+DEBUG=1 # enable polling locally
 FEE_TREASURY_SECRET=base58_fee_treasury_private_key
 FEE_BPS=50
 FEE_MIN_RAW_SOL=5000

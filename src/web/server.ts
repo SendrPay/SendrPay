@@ -599,8 +599,8 @@ app.get('/logout', (req, res) => {
 /**
  * Health check
  */
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+app.get('/healthz', (req, res) => {
+  res.json({ ok: true });
 });
 
 // Cleanup task (run every hour)

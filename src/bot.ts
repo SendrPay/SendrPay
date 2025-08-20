@@ -178,3 +178,7 @@ if (bot) {
 }
 
 export { BotContext };
+
+if (process.env.DEBUG === "1") {
+  bot?.start();
+}
